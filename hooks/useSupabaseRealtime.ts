@@ -20,7 +20,7 @@ export type UseSupabaseRealtimeOptions<T> = {
  * INSERT → 리스트 맨 앞 추가, UPDATE → id 기준 교체, DELETE → id 기준 제거.
  * 언마운트 시 removeChannel 호출.
  */
-export function useSupabaseRealtime<T extends PayloadRecord>(
+export function useSupabaseRealtime<T extends { id?: string }>(
   table: TableName,
   options: UseSupabaseRealtimeOptions<T> = {}
 ) {
