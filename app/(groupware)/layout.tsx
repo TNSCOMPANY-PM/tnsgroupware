@@ -34,8 +34,8 @@ export default async function GroupwareLayout({
         <Sidebar />
         <div className="ml-64 flex min-w-0 flex-1 flex-col">
           <Header />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden">
-            <div className="mx-auto max-w-7xl p-10 md:p-12">
+          <main className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
+            <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 md:p-10 lg:p-12">
               {children}
             </div>
           </main>

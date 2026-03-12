@@ -53,8 +53,8 @@ export interface NewEmployeeFormData {
 interface NewEmployeeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 성공 시 부모에서 모달을 닫고 리스트를 새로고침합니다. */
-  onSubmit: (data: NewEmployeeFormData) => void | Promise<void>;
+  /** 성공 시 부모에서 모달을 닫고 리스트를 새로고침합니다. avatarFile이 있으면 등록 후 업로드·avatar_url 반영. */
+  onSubmit: (data: NewEmployeeFormData, avatarFile?: File) => void | Promise<void>;
 }
 
 export function NewEmployeeModal({
@@ -66,6 +66,7 @@ export function NewEmployeeModal({
   const [hireDate, setHireDate] = useState<Date | undefined>(undefined);
   const [department, setDepartment] = useState("마케팅사업부");
   const [role, setRole] = useState<UserRole>("사원");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const generatedId = useMemo(() => {
@@ -78,6 +79,7 @@ export function NewEmployeeModal({
     setHireDate(undefined);
     setDepartment("마케팅사업부");
     setRole("사원");
+    setAvatarFile(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -89,13 +91,16 @@ export function NewEmployeeModal({
     if (!name.trim() || !hireDate) return;
     setLoading(true);
     try {
-      await onSubmit({
-        name: name.trim(),
-        hireDate,
-        department,
-        role,
-        generatedId: `TNS-${toIdSegment(hireDate)}-01`,
-      });
+      await onSubmit(
+        {
+          name: name.trim(),
+          hireDate,
+          department,
+          role,
+          generatedId: `TNS-${toIdSegment(hireDate)}-01`,
+        },
+        avatarFile ?? undefined
+      );
       resetForm();
     } finally {
       setLoading(false);
@@ -175,6 +180,15 @@ export function NewEmployeeModal({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-600">프로필 사진 (선택)</Label>
+            <input
+              type="file"
+              accept="image/*"
+              className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--primary)]/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-[var(--primary)]"
+              onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+            />
           </div>
           <p className="text-xs text-slate-400">
             초기 비밀번호는 <span className="font-medium text-slate-500">tns1234!</span>로 임시 발급됩니다.

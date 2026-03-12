@@ -71,6 +71,8 @@ interface ProfileCardSheetProps {
   onDocumentsSectionViewed?: () => void;
   /** 연차 확인 클릭 시 (예: 휴가 탭으로 전환 후 시트 닫기) */
   onRequestLeaveTab?: () => void;
+  /** 프로필 사진 업로드 후 DB 반영 시 호출 (선택) */
+  onAvatarUpdate?: (avatarUrl: string) => void;
 }
 
 export function ProfileCardSheet({
@@ -82,6 +84,7 @@ export function ProfileCardSheet({
   focusDocumentsSection = false,
   onDocumentsSectionViewed,
   onRequestLeaveTab,
+  onAvatarUpdate,
 }: ProfileCardSheetProps) {
   const [activeTab, setActiveTab] = useState("hr");
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -113,6 +116,7 @@ export function ProfileCardSheet({
             onClose={onClose}
             isOwnProfile={isOwnProfile}
             onOpenSettings={isOwnProfile ? () => setEditModalOpen(true) : undefined}
+            onAvatarUpdate={onAvatarUpdate}
           />
 
           {/* 탭 네비게이션 - Segmented Control */}
@@ -473,17 +477,41 @@ function HeaderSection({
   onClose,
   isOwnProfile,
   onOpenSettings,
+  onAvatarUpdate,
 }: {
   profile: EmployeeDetailProfile;
   onClose: () => void;
   isOwnProfile?: boolean;
   onOpenSettings?: () => void;
+  onAvatarUpdate?: (avatarUrl: string) => void;
 }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    setUploading(true);
+    try {
+      const { uploadAvatar } = await import("@/utils/supabase/storage");
+      const result = await uploadAvatar(profile.id, file);
+      if ("error" in result) {
+        alert(result.error);
+        return;
+      }
+      const supabase = (await import("@/utils/supabase/client")).createClient();
+      if (supabase.from) {
+        await supabase.from("employees").update({ avatar_url: result.url }).eq("id", profile.id);
+        onAvatarUpdate?.(result.url);
+      }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <>
-      {/* 은은한 그라데이션/파스텔 헤더 */}
       <header className="relative z-10 shrink-0 bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
-        {/* 설정·닫기 버튼 */}
         <div className="absolute right-6 top-6 flex items-center gap-2">
           {onOpenSettings && (
             <Button
@@ -508,19 +536,41 @@ function HeaderSection({
         </div>
       </header>
 
-      {/* 아바타 + 이름·직함 - 파스텔 배경 위에 세련된 아이콘 스타일 */}
       <div className="relative z-10 shrink-0 bg-gradient-to-b from-blue-50/80 to-transparent px-6 pb-6 pt-6">
         <div className="flex items-end gap-4">
-          <div className="shrink-0">
-            <div className="flex size-20 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-2xl font-bold text-blue-600 shadow-sm ring-2 ring-white">
-              {profile.name.charAt(0)}
-            </div>
+          <div className="shrink-0 relative">
+            <label className={cn("block", isOwnProfile && "cursor-pointer")}>
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={handleAvatarChange}
+                disabled={uploading || !isOwnProfile}
+              />
+              {profile.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={profile.name}
+                  className="size-20 rounded-full object-cover shadow-sm ring-2 ring-white"
+                />
+              ) : (
+                <div className="flex size-20 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-2xl font-bold text-blue-600 shadow-sm ring-2 ring-white">
+                  {profile.name.charAt(0)}
+                </div>
+              )}
+              {isOwnProfile && (
+                <span className="absolute bottom-0 right-0 flex size-6 items-center justify-center rounded-full bg-[var(--primary)] text-white text-xs">
+                  {uploading ? "…" : "📷"}
+                </span>
+              )}
+            </label>
           </div>
-          <div className="pb-0.5">
-            <h2 className="text-2xl font-bold text-[var(--foreground)]">
+          <div className="pb-0.5 min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] truncate">
               {profile.name}
             </h2>
-            <p className="text-slate-500">
+            <p className="text-slate-500 text-sm sm:text-base truncate">
               {profile.position} · {profile.department}
             </p>
           </div>

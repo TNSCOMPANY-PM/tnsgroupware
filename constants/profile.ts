@@ -401,10 +401,11 @@ export function getProfileForEmployee(
   emp: Record<string, unknown> | { id: string; emp_number: string; name: string; department: string; role: string; hire_date: string; email: string | null }
 ): EmployeeDetailProfile {
   const e = normalizeEmp(emp as Record<string, unknown>);
+  const avatarUrl = (emp as { avatar_url?: string | null }).avatar_url ?? undefined;
   const byEmp = e.emp_number ? getProfileByEmpNumber(e.emp_number) : null;
-  if (byEmp) return { ...byEmp, id: e.id };
+  if (byEmp) return { ...byEmp, id: e.id, avatarUrl: avatarUrl ?? byEmp.avatarUrl };
   const byName = e.name ? getProfileByName(e.name) : null;
-  if (byName) return { ...byName, id: e.id };
+  if (byName) return { ...byName, id: e.id, avatarUrl: avatarUrl ?? byName.avatarUrl };
   const joinDate =
     e.hire_date
       ? new Date(e.hire_date).toLocaleDateString("ko-KR", {
@@ -419,12 +420,14 @@ export function getProfileForEmployee(
       )
     : 0;
   const dept = e.department === "경영" ? "경영" : "마케팅사업부";
+  const avatarUrl = (emp as { avatar_url?: string | null }).avatar_url ?? undefined;
   return {
     id: e.id,
     name: e.name,
     position: e.role,
     department: e.department,
     role: e.role,
+    avatarUrl,
     organization: {
       department: e.department,
       team: dept,

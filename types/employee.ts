@@ -10,4 +10,5 @@ export interface Employee {
   role: string;
   hire_date: string;
   created_at: string;
+  avatar_url?: string | null;
 }
