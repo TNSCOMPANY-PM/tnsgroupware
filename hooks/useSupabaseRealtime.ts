@@ -1,0 +1,96 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createClient } from "@/utils/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
+type TableName = "employees" | "leaves" | "projects";
+
+type PayloadRecord = Record<string, unknown> & { id?: string };
+
+export type UseSupabaseRealtimeOptions<T> = {
+  /** 실시간 변경 시 호출 (Toast 등) */
+  onRealtime?: () => void;
+  /** 초기 fetch 실패 시 빈 배열 대신 사용할 값 */
+  initialData?: T[];
+};
+
+/**
+ * Supabase Realtime 구독 + 로컬 상태 동기화.
+ * INSERT → 리스트 맨 앞 추가, UPDATE → id 기준 교체, DELETE → id 기준 제거.
+ * 언마운트 시 removeChannel 호출.
+ */
+export function useSupabaseRealtime<T extends PayloadRecord>(
+  table: TableName,
+  options: UseSupabaseRealtimeOptions<T> = {}
+) {
+  const { onRealtime, initialData = [] } = options;
+  const onRealtimeRef = useRef(onRealtime);
+  onRealtimeRef.current = onRealtime;
+
+  const [data, setData] = useState<T[]>(initialData);
+  const [loading, setLoading] = useState(true);
+
+  const fetchInitial = useCallback(async () => {
+    const supabase = createClient();
+    if (!supabase.from) {
+      setData(initialData);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data: rows, error } = await supabase.from(table).select("*");
+    setLoading(false);
+    if (error) {
+      console.error(`[Realtime] ${table} fetch`, error);
+      setData(initialData);
+      return;
+    }
+    setData((rows as T[]) ?? []);
+  }, [table, initialData]);
+
+  useEffect(() => {
+    fetchInitial();
+  }, [fetchInitial]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase.channel || typeof supabase.channel !== "function") return;
+
+    const channelName = `realtime-${table}-${Date.now()}`;
+    const channel: RealtimeChannel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        (payload: { eventType: string; new: PayloadRecord; old: PayloadRecord }) => {
+          const { eventType, new: newRow, old: oldRow } = payload;
+          const id = (newRow?.id ?? oldRow?.id) as string | undefined;
+          if (!id && eventType !== "INSERT") return;
+
+          setData((prev) => {
+            if (eventType === "INSERT" && newRow) {
+              onRealtimeRef.current?.();
+              return [newRow as T, ...prev];
+            }
+            if (eventType === "UPDATE" && newRow) {
+              onRealtimeRef.current?.();
+              return prev.map((row) => (row.id === id ? (newRow as T) : row));
+            }
+            if (eventType === "DELETE") {
+              onRealtimeRef.current?.();
+              return prev.filter((row) => row.id !== id);
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [table]);
+
+  return { data, setData, loading };
+}

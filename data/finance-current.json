@@ -1,0 +1,28 @@
+{
+  "sheetLabel": "26년 3월",
+  "monthSummary": {
+    "label": "26년 3월",
+    "currentRevenue": 29937438.18181818,
+    "currentCost": 4589120.909090909,
+    "grossProfit": 25348317.27272727,
+    "workDays": 21,
+    "passedWorkDays": 7,
+    "targetGrossProfit": 50000000,
+    "remainingTarget": 24651682.72727273,
+    "achievementRate": 0.5069663454545454,
+    "workDayAchievementRate": 1.520899036363636
+  },
+  "survivalAccount": {
+    "carryOverBalance": 0,
+    "currentBalance": 107432913,
+    "operatingDeduction": 50000000,
+    "vatOnGross": 2534831.727272727,
+    "expectedBalance": 54898081.27272727,
+    "monthlyPerformance": -24651682.727272727
+  },
+  "dashboard": {
+    "monthlyRevenue": 32931182,
+    "monthlyGrossProfit": 25348317,
+    "survivalBalance": 54898081
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "crons": [
+    {
+      "path": "/api/cron/auto-approve",
+      "schedule": "0 15 * * *"
+    }
+  ]
+}

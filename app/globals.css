@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8f9fa;
+  --foreground: #191919;
+  --card: #ffffff;
+  --card-foreground: #191919;
+  --muted: #f1f3f4;
+  --muted-foreground: #5f6368;
+  --border: #e8eaed;
+  --primary: #3182f6;
+  --primary-foreground: #ffffff;
+  --radius: 12px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-pretendard: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --radius-lg: var(--radius);
+}
+
+body {
+  color: var(--foreground);
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+/* ========== 2026 Vision: Spatial & Glassmorphism ========== */
+
+/* Glassmorphism 래퍼 */
+.glass-card {
+  background: rgb(255 255 255 / 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgb(255 255 255 / 0.4);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.04);
+}
+
+/* Spatial Shadow - 다중 그림자 입체감 */
+.spatial-shadow {
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.04);
+}
+
+/* 카드/덩어리: hover 시 부드럽게 떠오름 + 그림자 확장 */
+.interactive-card {
+  transition: all 0.5s ease-out;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.04);
+}
+.interactive-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgb(0 0 0 / 0.08);
+}
+.interactive-card:active {
+  transform: translateY(0) scale(0.99);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.04);
+}
+
+/* 마이크로 보더 뱃지 - 은은한 테두리 */
+.badge-linear {
+  background: rgb(248 250 252 / 0.5);
+  border: 1px solid rgb(226 232 240 / 0.5);
+  color: rgb(51 65 85);
+}
+
+/* 휴가 신청 달력: 2달 좌우 배치 */
+.rdp-left-right .rdp-months {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 1rem;
+}
+
+/* 상태 뱃지 Glow 효과 */
+.badge-glow-warning {
+  box-shadow: 0 0 12px rgb(239 68 68 / 0.2);
+}
+.badge-glow-success {
+  box-shadow: 0 0 12px rgb(34 197 94 / 0.2);
+}
+.badge-glow-info {
+  box-shadow: 0 0 12px rgb(59 130 246 / 0.2);
+}
+
+/* Fluid Typography - 금액/핵심 지표 */
+.fluid-title {
+  letter-spacing: -0.025em;
+  color: rgb(30 41 59);
+}
+.fluid-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* 뷰 전환 fade-in */
+.view-fade-in {
+  animation: view-fade-in 0.3s ease-out forwards;
+}
+@keyframes view-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Toss Micro-interaction 보조 */
+.interactive-base {
+  transition: all 0.2s ease-in-out;
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* 드롭다운/모달: 스르륵 나타나기 */
+.dropdown-enter {
+  animation: dropdown-enter 0.2s ease-out;
+}
+@keyframes dropdown-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Sheet: 오른쪽 슬라이드 인 */
+.sheet-overlay-enter {
+  animation: sheet-overlay-enter 0.25s ease-out;
+}
+@keyframes sheet-overlay-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.sheet-content-enter-right {
+  animation: sheet-content-slide-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes sheet-content-slide-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* 얇고 세련된 스크롤바 (Data Table용) */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225);
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
+}
