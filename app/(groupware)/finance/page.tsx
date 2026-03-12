@@ -162,12 +162,12 @@ export default function FinancePage() {
     supabase
       .from("finance")
       .select("*")
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("[Finance] fetch finance", error);
+      .then((res: { data: FinanceRow[] | null; error: unknown }) => {
+        if (res.error) {
+          console.error("[Finance] fetch finance", res.error);
           return;
         }
-        setFinanceRows((data as FinanceRow[]) ?? []);
+        setFinanceRows(res.data ?? []);
       });
   }, []);
 
