@@ -420,7 +420,6 @@ export function getProfileForEmployee(
       )
     : 0;
   const dept = e.department === "경영" ? "경영" : "마케팅사업부";
-  const avatarUrl = (emp as { avatar_url?: string | null }).avatar_url ?? undefined;
   return {
     id: e.id,
     name: e.name,
