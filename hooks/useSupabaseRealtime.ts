@@ -27,30 +27,57 @@ export function useSupabaseRealtime<T extends { id?: string }>(
   const { onRealtime, initialData = [] } = options;
   const onRealtimeRef = useRef(onRealtime);
   onRealtimeRef.current = onRealtime;
+  const initialDataRef = useRef(initialData);
+  initialDataRef.current = initialData;
 
   const [data, setData] = useState<T[]>(initialData);
   const [loading, setLoading] = useState(true);
+  const fetchIdRef = useRef(0);
+  const hasDataRef = useRef(false);
 
   const fetchInitial = useCallback(async () => {
+    const fallback = initialDataRef.current;
+    const id = ++fetchIdRef.current;
+
+    if (table === "employees") {
+      if (!hasDataRef.current) setLoading(true);
+      try {
+        const res = await fetch("/api/employees");
+        if (id !== fetchIdRef.current) return;
+        if (!res.ok) {
+          setData(fallback);
+          setLoading(false);
+          return;
+        }
+        const rows = (await res.json()) as T[];
+        setData(Array.isArray(rows) ? rows : []);
+        hasDataRef.current = true;
+      } catch {
+        if (id === fetchIdRef.current) setData(fallback);
+      } finally {
+        if (id === fetchIdRef.current) setLoading(false);
+      }
+      return;
+    }
+
     const supabase = createClient();
     if (!supabase.from) {
-      setData(initialData);
+      setData(fallback);
       setLoading(false);
       return;
     }
-    setLoading(true);
-    try {
-      const { data: rows, error } = await supabase.from(table).select("*");
-      if (error) {
-        console.error(`[Realtime] ${table} fetch`, error);
-        setData(initialData);
-        return;
-      }
-      setData((rows as T[]) ?? []);
-    } finally {
-      setLoading(false);
+    if (!hasDataRef.current) setLoading(true);
+    const { data: rows, error } = await supabase.from(table).select("*");
+    if (id !== fetchIdRef.current) return;
+    setLoading(false);
+    if (error) {
+      console.error(`[Realtime] ${table} fetch`, error);
+      setData(fallback);
+      return;
     }
-  }, [table, initialData]);
+    setData((rows as T[]) ?? []);
+    hasDataRef.current = true;
+  }, [table]);
 
   useEffect(() => {
     fetchInitial();

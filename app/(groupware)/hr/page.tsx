@@ -21,7 +21,6 @@ import { createEmployee } from "./actions";
 import { usePermission } from "@/contexts/PermissionContext";
 import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
-import { createClient } from "@/utils/supabase/client";
 import { getProfileForEmployee } from "@/constants/profile";
 import { Users, Calendar, ShieldCheck, UserPlus, Loader2 } from "lucide-react";
 import type { Employee } from "@/types/employee";
@@ -175,7 +174,7 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
 
   const showNewEmployeeButton = isTeamLead || isCLevel;
 
-  const handleNewEmployeeSubmit = async (data: NewEmployeeFormData, avatarFile?: File) => {
+  const handleNewEmployeeSubmit = async (data: NewEmployeeFormData) => {
     if (!data.hireDate) return;
     const result = await createEmployee({
       name: data.name,
@@ -185,21 +184,9 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
       generatedId: data.generatedId,
     });
     if (result.ok) {
-      if (avatarFile && result.id) {
-        try {
-          const { uploadAvatar } = await import("@/utils/supabase/storage");
-          const uploadResult = await uploadAvatar(result.id, avatarFile);
-          if (!("error" in uploadResult)) {
-            const supabase = createClient();
-            if (supabase.from)
-              await supabase.from("employees").update({ avatar_url: uploadResult.url }).eq("id", result.id);
-          }
-        } catch {
-          // 아바타 실패해도 사원 등록은 완료
-        }
-      }
       setNewEmployeeModalOpen(false);
       setToastMessage("✅ 사원 계정이 성공적으로 생성되었습니다.");
+      // Realtime 구독으로 목록 자동 반영
     } else {
       setToastMessage(`❌ 등록 실패: ${result.error}`);
     }
@@ -292,9 +279,6 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
         isCLevel={isCLevel}
         focusDocumentsSection={focusDocumentsSection}
         onDocumentsSectionViewed={() => setFocusDocumentsSection(false)}
-        onAvatarUpdate={(avatarUrl) => {
-          setSelectedEmployee((prev) => (prev ? { ...prev, avatar_url: avatarUrl } : null));
-        }}
         onRequestLeaveTab={
           onSwitchToLeaveTab
             ? () => {
