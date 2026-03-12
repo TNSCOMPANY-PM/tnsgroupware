@@ -14,13 +14,17 @@ ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leaves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance ENABLE ROW LEVEL SECURITY;
 
--- 2. 정책: 로그인한 사용자(Authenticated)만 조회·수정·삽입·삭제 가능
+-- 2. 정책: Authenticated는 모든 작업, Anon은 조회만 (사번 로그인 시 Supabase Auth 미사용이므로 목록 조회 허용)
 -- employees
 CREATE POLICY "authenticated_all_employees"
   ON public.employees FOR ALL
   TO authenticated
   USING (true)
   WITH CHECK (true);
+CREATE POLICY "anon_select_employees"
+  ON public.employees FOR SELECT
+  TO anon
+  USING (true);
 
 -- projects
 CREATE POLICY "authenticated_all_projects"
@@ -28,6 +32,10 @@ CREATE POLICY "authenticated_all_projects"
   TO authenticated
   USING (true)
   WITH CHECK (true);
+CREATE POLICY "anon_select_projects"
+  ON public.projects FOR SELECT
+  TO anon
+  USING (true);
 
 -- leaves
 CREATE POLICY "authenticated_all_leaves"
@@ -35,6 +43,10 @@ CREATE POLICY "authenticated_all_leaves"
   TO authenticated
   USING (true)
   WITH CHECK (true);
+CREATE POLICY "anon_select_leaves"
+  ON public.leaves FOR SELECT
+  TO anon
+  USING (true);
 
 -- finance
 CREATE POLICY "authenticated_all_finance"
@@ -42,6 +54,10 @@ CREATE POLICY "authenticated_all_finance"
   TO authenticated
   USING (true)
   WITH CHECK (true);
+CREATE POLICY "anon_select_finance"
+  ON public.finance FOR SELECT
+  TO anon
+  USING (true);
 
 -- 3. anon(비로그인)에서 로그인/시드용 함수는 이미 SECURITY DEFINER로 허용됨.
 --    필요 시 서비스 역할로만 직원 생성 등 제한하려면 별도 정책 추가.

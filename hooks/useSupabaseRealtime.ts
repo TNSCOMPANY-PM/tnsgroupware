@@ -39,14 +39,17 @@ export function useSupabaseRealtime<T extends { id?: string }>(
       return;
     }
     setLoading(true);
-    const { data: rows, error } = await supabase.from(table).select("*");
-    setLoading(false);
-    if (error) {
-      console.error(`[Realtime] ${table} fetch`, error);
-      setData(initialData);
-      return;
+    try {
+      const { data: rows, error } = await supabase.from(table).select("*");
+      if (error) {
+        console.error(`[Realtime] ${table} fetch`, error);
+        setData(initialData);
+        return;
+      }
+      setData((rows as T[]) ?? []);
+    } finally {
+      setLoading(false);
     }
-    setData((rows as T[]) ?? []);
   }, [table, initialData]);
 
   useEffect(() => {
