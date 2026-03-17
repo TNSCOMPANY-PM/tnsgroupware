@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { usePermission } from "@/contexts/PermissionContext";
 import { formatWonIntl } from "@/utils/formatWon";
 import { Lock, FileDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { StrategicRoadmapSection } from "@/components/reports/StrategicRoadmapSection";
+import { StrategicRoadmapSection, getDefaultRoadmap } from "@/components/reports/StrategicRoadmapSection";
 import { createClient } from "@/utils/supabase/client";
+import { loadGanttOverrides } from "@/lib/ganttStorage";
+import type { RoadmapBlock } from "@/components/reports/StrategicRoadmapSection";
 
 /** 월 키 "YY.MM" 파싱 */
 function parseMonthKey(key: string): { y: number; m: number } {
@@ -61,8 +63,33 @@ function monthKeyToRange(key: string): { first: string; last: string } {
 }
 
 type FinanceRow = { id: string; month: string; type: string; amount: number; category: string | null; description: string | null };
-type ProjectRow = { id: string; title: string; team: string | null; status: string | null; progress: number; start_date: string | null; end_date: string | null };
 type EmployeeRow = { id: string; name: string; department: string; role: string; hire_date: string };
+type GanttRow = { id: string; name: string; team: string; progress: number };
+
+const ROADMAP_DEPT_TO_TEAM: Record<string, string> = {
+  "쇼핑/플레이스": "더널리",
+  "쿠팡 & CPC": "더널리",
+  "티제이웹": "티제이웹",
+  "경영지원": "경영지원",
+};
+
+function roadmapToGanttRows(blocks: RoadmapBlock[], overrides: Record<string, { progress?: number; name?: string }>): GanttRow[] {
+  const rows: GanttRow[] = [];
+  for (const block of blocks) {
+    const team = ROADMAP_DEPT_TO_TEAM[block.dept] ?? block.dept;
+    for (const item of block.items) {
+      const taskId = `roadmap-${block.dept}-${item.id}`;
+      const ov = overrides[taskId];
+      rows.push({
+        id: taskId,
+        name: ov?.name ?? item.text ?? "(제목 없음)",
+        team,
+        progress: ov?.progress !== undefined ? Math.min(100, Math.max(0, ov.progress)) : 0,
+      });
+    }
+  }
+  return rows;
+}
 
 function formatMoney(n: number): string {
   return `${formatWonIntl(n)}원`;
@@ -71,10 +98,10 @@ function formatMoney(n: number): string {
 export default function ReportsPage() {
   const { isCLevel } = usePermission();
   const printRef = useRef<HTMLDivElement>(null);
-  const [monthKey, setMonthKey] = useState("26.02");
+  const [monthKey, setMonthKey] = useState(() => currentMonthKey());
   const [financeRows, setFinanceRows] = useState<FinanceRow[]>([]);
-  const [projectsRows, setProjectsRows] = useState<ProjectRow[]>([]);
   const [employeesRows, setEmployeesRows] = useState<EmployeeRow[]>([]);
+  const [ganttRows, setGanttRows] = useState<GanttRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const currentKey = useMemo(() => currentMonthKey(), []);
@@ -102,24 +129,22 @@ export default function ReportsPage() {
     setLoading(true);
     Promise.all([
       supabase.from("finance").select("id,month,type,amount,category,description").eq("month", financeMonth),
-      supabase.from("projects").select("id,title,team,status,progress,start_date,end_date"),
       supabase.from("employees").select("id,name,department,role,hire_date"),
+      fetch(`/api/roadmap/${encodeURIComponent(monthKey)}`).then((r) => r.ok ? r.json() : null),
     ])
-      .then(([fRes, pRes, eRes]) => {
+      .then(([fRes, eRes, roadmapJson]) => {
         setFinanceRows((fRes.data as FinanceRow[]) ?? []);
-        const allProjects = (pRes.data as ProjectRow[]) ?? [];
-        const inMonth = allProjects.filter((p) => {
-          const start = p.start_date ?? "";
-          const end = p.end_date ?? "";
-          return start <= monthLast && end >= monthFirst;
-        });
-        setProjectsRows(inMonth);
         const allEmps = (eRes.data as EmployeeRow[]) ?? [];
-        const hiredInMonth = allEmps.filter((e) => {
+        setEmployeesRows(allEmps.filter((e) => {
           const h = e.hire_date ?? "";
           return h >= monthFirst && h <= monthLast;
-        });
-        setEmployeesRows(hiredInMonth);
+        }));
+        // 로드맵 → 간트 행 변환 (API 데이터 없으면 기본 로드맵 사용)
+        const blocks: RoadmapBlock[] = (Array.isArray(roadmapJson?.blocks) && roadmapJson.blocks.length > 0)
+          ? roadmapJson.blocks
+          : getDefaultRoadmap(monthKey);
+        const overrides = loadGanttOverrides(monthKey);
+        setGanttRows(roadmapToGanttRows(blocks, overrides));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -136,16 +161,6 @@ export default function ReportsPage() {
     };
   }, [financeRows]);
 
-  const tasksWithProgress = useMemo(
-    () =>
-      projectsRows.map((p) => ({
-        id: p.id,
-        name: p.title,
-        team: p.team ?? "-",
-        progress: Math.min(100, Math.max(0, p.progress ?? 0)),
-      })),
-    [projectsRows]
-  );
 
   const handlePdfExport = () => {
     window.print();
@@ -297,14 +312,19 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {tasksWithProgress.map((t) => (
+                {ganttRows.map((t) => (
                   <tr key={t.id} className="border-b border-slate-100">
-                    <td className="px-4 py-3 font-medium text-slate-800">{t.team}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{t.team}</td>
                     <td className="px-4 py-3 text-slate-700">{t.name}</td>
                     <td className="px-4 py-3 text-right">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-800">
-                        {t.progress}%
-                      </span>
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full rounded-full bg-blue-500" style={{ width: `${t.progress}%` }} />
+                        </div>
+                        <span className="min-w-[2.5rem] text-right text-xs font-semibold tabular-nums text-slate-700">
+                          {t.progress}%
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}

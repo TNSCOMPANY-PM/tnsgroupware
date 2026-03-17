@@ -31,6 +31,7 @@ import {
   type SurvivalAccount,
 } from "@/constants/finance";
 import { parseMonthSummary, parseSurvivalAccount, type FinanceCurrentJson } from "@/lib/financeCurrent";
+import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ReceiptModal, type ReceiptData } from "@/components/finance/ReceiptModal";
 import {
   Wallet,
   Target,
@@ -52,6 +54,9 @@ import {
   BarChart3,
   AlertTriangle,
   Plus,
+  RefreshCw,
+  Trash2,
+  FileText,
 } from "lucide-react";
 
 const SHEET_LABELS = [
@@ -78,6 +83,10 @@ type FinanceRow = {
   category: string | null;
   description: string | null;
   created_at: string;
+  status?: "pending" | "completed";
+  client_name?: string | null;
+  date?: string | null;
+  receipt_data?: import("@/components/finance/ReceiptModal").ReceiptData | null;
 };
 
 const CLASSIFICATION_OPTIONS = [
@@ -86,6 +95,19 @@ const CLASSIFICATION_OPTIONS = [
 
 const LEDGER_CUSTOM_STORAGE_KEY = "finance-ledger-custom-entries";
 const LEDGER_EDITS_STORAGE_KEY = "finance-ledger-edits";
+const LEDGER_HIDDEN_STORAGE_KEY = "finance-ledger-hidden-ids";
+
+function loadLedgerHidden(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(LEDGER_HIDDEN_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
 
 function loadLedgerCustom(): LedgerRow[] {
   if (typeof window === "undefined") return [];
@@ -122,6 +144,8 @@ interface LedgerRow {
   classification?: string;
   clientName?: string;
   createdAt: string;
+  /** DB finance 테이블 행이면 'finance' (승인 시 Supabase update) */
+  source?: "finance";
 }
 
 type ViewMode = "ledger" | "analytics";
@@ -140,6 +164,9 @@ export default function FinancePage() {
   const [customEntries, setCustomEntries] = useState<LedgerRow[]>([]);
   const [editsOverlay, setEditsOverlay] = useState<Record<string, { classification?: string; clientName?: string }>>({});
   const [addLedgerOpen, setAddLedgerOpen] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<FinanceRow | null>(null);
   const [addForm, setAddForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     amount: "",
@@ -150,26 +177,93 @@ export default function FinancePage() {
     clientName: "",
   });
   const [financeRows, setFinanceRows] = useState<FinanceRow[]>([]);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsText, setSmsText] = useState("");
+  const [smsParsed, setSmsParsed] = useState<{ date: string; amount: number; client_name: string } | null>(null);
+  const [smsSaving, setSmsSaving] = useState(false);
+
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setCustomEntries(loadLedgerCustom());
     setEditsOverlay(loadLedgerEdits());
+    setHiddenIds(loadLedgerHidden());
+  }, []);
+
+  // SMS 텍스트 변경 시 실시간 파싱
+  const handleSmsChange = (text: string) => {
+    setSmsText(text);
+    setSmsParsed(parseShinhanDepositSms(text));
+  };
+
+  // SMS 파싱 결과를 DB에 저장
+  const handleSmsSave = async () => {
+    if (!smsParsed) return;
+    setSmsSaving(true);
+    try {
+      const res = await fetch("/api/webhook/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sms_text: smsText }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        alert(`등록 실패: ${json.error ?? res.status}`);
+        return;
+      }
+      setSmsOpen(false);
+      setSmsText("");
+      setSmsParsed(null);
+      await fetchFinanceRows();
+    } catch (e) {
+      alert(`오류: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSmsSaving(false);
+    }
+  };
+
+  const fetchFinanceRows = useCallback(async () => {
+    try {
+      const res = await fetch("/api/finance");
+      if (!res.ok) return;
+      const data = (await res.json()) as FinanceRow[];
+      setFinanceRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("[Finance] fetch finance", e);
+    }
   }, []);
 
   useEffect(() => {
+    fetchFinanceRows();
     const supabase = createClient();
-    if (!supabase.from) return;
-    supabase
-      .from("finance")
-      .select("*")
-      .then((res: { data: FinanceRow[] | null; error: unknown }) => {
-        if (res.error) {
-          console.error("[Finance] fetch finance", res.error);
-          return;
+    if (supabase.channel && typeof supabase.channel === "function") {
+      const channel = supabase
+        .channel("finance-realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "finance" },
+          () => { fetchFinanceRows(); }
+        )
+        .subscribe();
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [fetchFinanceRows]);
+
+  // 페이지 로드 시 Pushbullet 자동 싱크 (새 입금 내역 자동 반영)
+  useEffect(() => {
+    fetch("/api/sync-pushbullet")
+      .then((r) => r.json())
+      .then((res: { ok?: boolean; count?: number }) => {
+        if ((res.count ?? 0) > 0) {
+          setSyncToast(`✅ 새 입금 내역 ${res.count}건이 자동으로 추가됐습니다.`);
+          fetchFinanceRows();
+          setTimeout(() => setSyncToast(null), 4000);
         }
-        setFinanceRows(res.data ?? []);
-      });
-  }, []);
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const summary: MonthSummary = useMemo(
     () => parseMonthSummary(financeData) ?? SAMPLE_MONTH_SUMMARY,
@@ -202,7 +296,7 @@ export default function FinancePage() {
 
   const dbFinanceSummary = useMemo(() => {
     const monthKey = sheetLabelToMonthKey(selectedMonth);
-    const rows = financeRows.filter((r) => r.month === monthKey);
+    const rows = financeRows.filter((r) => r.month === monthKey && r.status === "completed");
     const revenue = rows.filter((r) => r.type === "매출").reduce((s, r) => s + Number(r.amount), 0);
     const purchase = rows.filter((r) => r.type === "매입").reduce((s, r) => s + Number(r.amount), 0);
     return { revenue, purchase, margin: revenue - purchase };
@@ -227,22 +321,47 @@ export default function FinancePage() {
     return ledger;
   }, [financeData?.ledgerEntries, ledger]);
 
+  const ledgerFromFinance = useMemo((): LedgerRow[] => {
+    return financeRows.map((r) => {
+      // client_name 우선, 없으면 description(폴백 INSERT 시 "입금자: xxx" 형태), 없으면 빈 문자열
+      const rawClientName =
+        r.client_name ??
+        (r.description?.startsWith("입금자: ")
+          ? r.description.replace("입금자: ", "")
+          : r.description ?? "");
+      return {
+        id: r.id,
+        date: r.date ?? r.month + "-01",
+        amount: Number(r.amount),
+        senderName: rawClientName,
+        type: r.type === "매입" ? "WITHDRAWAL" : "DEPOSIT",
+        bankName: "신한",
+        status: (r.status === "completed" ? "PAID" : "UNMAPPED") as "UNMAPPED" | "PAID",
+        classification: r.category ?? undefined,
+        clientName: rawClientName || undefined,
+        createdAt: r.created_at,
+        source: "finance" as const,
+      };
+    });
+  }, [financeRows]);
+
   const ledgerWithCustomAndEdits = useMemo(() => {
-    const merged = [...customEntries, ...ledgerSource];
+    const merged = [...ledgerFromFinance, ...customEntries, ...ledgerSource];
     return merged.map((row) => {
       const edit = editsOverlay[row.id];
       if (!edit) return row;
       return { ...row, classification: edit.classification ?? row.classification, clientName: edit.clientName ?? row.clientName };
     }).sort((a, b) => (b.date === a.date ? 0 : b.date > a.date ? 1 : -1));
-  }, [customEntries, ledgerSource, editsOverlay]);
+  }, [ledgerFromFinance, customEntries, ledgerSource, editsOverlay]);
 
   const filteredLedger = useMemo(() => {
     return ledgerWithCustomAndEdits.filter((row) => {
+      if (hiddenIds.has(row.id)) return false;
       if (ledgerFilter === "pending") return row.status === "UNMAPPED";
       if (ledgerFilter === "approved") return row.status === "PAID";
       return true;
     });
-  }, [ledgerWithCustomAndEdits, ledgerFilter]);
+  }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds]);
 
   const pendingCount = ledgerWithCustomAndEdits.filter((r) => r.status === "UNMAPPED").length;
 
@@ -262,6 +381,38 @@ export default function FinancePage() {
       return next;
     });
   }, []);
+
+  const handleDeleteLedgerRow = useCallback(async (id: string, source?: string) => {
+    if (!window.confirm("이 항목을 삭제하시겠습니까?")) return;
+
+    if (source === "finance") {
+      const res = await fetch(`/api/finance/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchFinanceRows();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "삭제 실패");
+      }
+      return;
+    }
+
+    if (id.startsWith("custom-")) {
+      setCustomEntries((prev) => {
+        const next = prev.filter((e) => e.id !== id);
+        try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
+      });
+      return;
+    }
+
+    // 데모/트랜잭션 데이터 → hiddenIds에 추가
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try { localStorage.setItem(LEDGER_HIDDEN_STORAGE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }, [fetchFinanceRows]);
 
   const handleAddLedgerSubmit = useCallback(() => {
     const amount = Number(addForm.amount);
@@ -307,8 +458,39 @@ export default function FinancePage() {
       ? ((summary.grossProfit + approvedGrossTotal) / summary.targetGrossProfit) * 100
       : 0;
 
+  const fetchSyncPushbullet = useCallback(async () => {
+    setSyncLoading(true);
+    try {
+      // 원장 DB 갱신 + Pushbullet REST 동기화 병렬 실행
+      const [, pbRes] = await Promise.all([
+        fetchFinanceRows(),
+        fetch("/api/sync-pushbullet").then((r) => r.json()).catch(() => ({ ok: false, count: 0 })),
+      ]);
+      const added = (pbRes as { ok?: boolean; count?: number }).count ?? 0;
+      if (added > 0) {
+        setSyncToast(`✅ 푸시불렛 입금 내역 ${added}건이 새로 추가됐습니다.`);
+        await fetchFinanceRows();
+      } else {
+        setSyncToast("🔄 원장 데이터를 최신으로 갱신했습니다.");
+      }
+      setTimeout(() => setSyncToast(null), 3000);
+    } finally {
+      setSyncLoading(false);
+    }
+  }, [fetchFinanceRows]);
+
+
   return (
     <div className="space-y-4">
+      {/* 푸시불렛 동기화 Toast */}
+      {syncToast && (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 z-[100] rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg"
+        >
+          {syncToast}
+        </div>
+      )}
       {/* 헤더 (컴팩트) */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="fluid-title text-xl font-bold tracking-tighter">
@@ -382,6 +564,27 @@ export default function FinancePage() {
                   type="button"
                   variant="outline"
                   size="sm"
+                  onClick={() => fetchSyncPushbullet()}
+                  disabled={syncLoading}
+                  className="shrink-0"
+                >
+                  <RefreshCw className={`size-4 mr-1 ${syncLoading ? "animate-spin" : ""}`} />
+                  새로고침
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setSmsOpen(true); setSmsText(""); setSmsParsed(null); }}
+                  className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  <FileText className="size-4 mr-1" />
+                  SMS 등록
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setAddLedgerOpen(true)}
                   className="shrink-0"
                 >
@@ -439,6 +642,26 @@ export default function FinancePage() {
                       approvingId={approvingId}
                       justApprovedId={justApprovedId}
                       onApprove={async (classification, clientName) => {
+                        if (row.source === "finance") {
+                          setApprovingId(row.id);
+                          const supabase = createClient();
+                          if (supabase.from) {
+                            const { error } = await supabase
+                              .from("finance")
+                              .update({ status: "completed", category: classification, client_name: clientName })
+                              .eq("id", row.id);
+                            setApprovingId(null);
+                            if (!error) {
+                              setJustApprovedId(row.id);
+                              setTimeout(() => setJustApprovedId(null), 600);
+                            } else {
+                              alert(error.message || "승인 실패");
+                            }
+                          } else {
+                            setApprovingId(null);
+                          }
+                          return;
+                        }
                         if (row.id.startsWith("custom-")) {
                           setCustomEntries((prev) => {
                             const next = prev.map((e) =>
@@ -468,6 +691,11 @@ export default function FinancePage() {
                         }
                       }}
                       onEdit={handleEditLedgerRow}
+                      onDelete={(id) => handleDeleteLedgerRow(id, row.source)}
+                      onReceipt={row.source === "finance" ? () => {
+                        const fr = financeRows.find((r) => r.id === row.id) ?? null;
+                        setReceiptTarget(fr);
+                      } : undefined}
                     />
                   ))
                 )}
@@ -475,6 +703,67 @@ export default function FinancePage() {
             </table>
           </div>
         </div>
+
+        {/* 영수증 / 세금계산서 모달 */}
+        {receiptTarget && (
+          <ReceiptModal
+            open={!!receiptTarget}
+            onOpenChange={(o) => { if (!o) setReceiptTarget(null); }}
+            financeId={receiptTarget.id}
+            amount={Number(receiptTarget.amount)}
+            clientName={receiptTarget.client_name ?? ""}
+            date={receiptTarget.date ?? receiptTarget.month}
+            initialData={receiptTarget.receipt_data}
+            onSaved={(data: ReceiptData) => {
+              setFinanceRows((prev) =>
+                prev.map((r) => r.id === receiptTarget.id ? { ...r, receipt_data: data } : r)
+              );
+            }}
+          />
+        )}
+
+        {/* SMS 붙여넣기 등록 모달 */}
+        <Dialog open={smsOpen} onOpenChange={(o) => { setSmsOpen(o); if (!o) { setSmsText(""); setSmsParsed(null); } }}>
+          <DialogContent className="max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>신한은행 SMS 붙여넣기 등록</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-2">
+                <Label>SMS 전문 붙여넣기</Label>
+                <textarea
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  rows={6}
+                  placeholder={"[Web발신]\n신한03/17 09:46\n140-***-578547\n입금 48,400\n홍민수(위노시스)"}
+                  value={smsText}
+                  onChange={(e) => handleSmsChange(e.target.value)}
+                />
+              </div>
+              {smsParsed ? (
+                <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm space-y-1">
+                  <p className="font-semibold text-green-700">✅ 파싱 성공</p>
+                  <p><span className="text-slate-500">날짜:</span> <strong>{smsParsed.date}</strong></p>
+                  <p><span className="text-slate-500">금액:</span> <strong>{smsParsed.amount.toLocaleString()}원</strong></p>
+                  <p><span className="text-slate-500">입금자:</span> <strong>{smsParsed.client_name || "—"}</strong></p>
+                </div>
+              ) : smsText.trim() ? (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+                  ❌ 파싱 실패 — 신한은행 입금 SMS 형식인지 확인해주세요.
+                </div>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSmsOpen(false)}>취소</Button>
+              <Button
+                onClick={handleSmsSave}
+                disabled={!smsParsed || smsSaving}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {smsSaving ? "등록 중..." : "등록"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* 수동 추가 모달 */}
         <Dialog open={addLedgerOpen} onOpenChange={setAddLedgerOpen}>
@@ -1194,17 +1483,22 @@ function LedgerRowComponent({
   justApprovedId,
   onApprove,
   onEdit,
+  onDelete,
+  onReceipt,
 }: {
   row: LedgerRow;
   approvingId: string | null;
   justApprovedId: string | null;
   onApprove: (classification: string, clientName: string) => Promise<void>;
   onEdit?: (id: string, patch: { classification?: string; clientName?: string }) => void;
+  onDelete?: (id: string) => void;
+  onReceipt?: () => void;
 }) {
   const isPending = row.status === "UNMAPPED";
   const isApproving = approvingId === row.id;
   const justApproved = justApprovedId === row.id;
-  const canEditPaid = !isPending && onEdit;
+  const isFinanceCompleted = row.source === "finance" && !isPending;
+  const canEditPaid = !isPending && onEdit && !isFinanceCompleted;
 
   const [classification, setClassification] = useState(row.classification ?? "");
   const [clientName, setClientName] = useState(row.clientName ?? "");
@@ -1215,16 +1509,16 @@ function LedgerRowComponent({
   const costAmount = row.type === "WITHDRAWAL" ? row.amount : 0;
   const grossProfit = revenueAmount - costAmount;
 
-  const canApprove = isPending && classification.trim() && clientName.trim();
+  const canApprove = isPending;
 
   return (
     <tr
-      className={`border-b border-slate-100 transition-all duration-300 ${
+      className={`border-b border-slate-100 align-middle transition-all duration-300 ${
         justApproved ? "bg-white" : isPending ? "bg-amber-50/50" : "bg-transparent hover:bg-blue-50/40"
       }`}
     >
-      <td className="px-4 py-4 text-slate-700">{row.date}</td>
-      <td className="px-4 py-4">
+      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{row.date}</td>
+      <td className="px-4 py-3">
         {(isPending || canEditPaid) ? (
           <div className="relative">
             <button
@@ -1265,7 +1559,7 @@ function LedgerRowComponent({
           <span className="text-slate-800">{row.classification || "-"}</span>
         )}
       </td>
-      <td className="px-4 py-4">
+      <td className="px-4 py-3">
         {(isPending || canEditPaid) ? (
           <div className="relative">
             <button
@@ -1314,7 +1608,7 @@ function LedgerRowComponent({
           <span className="text-slate-800">{row.clientName || "-"}</span>
         )}
       </td>
-      <td className="px-4 py-4 text-right tabular-nums font-medium">
+      <td className="px-4 py-3 text-right tabular-nums font-medium whitespace-nowrap">
         {revenueAmount > 0 ? (
           <span className="text-slate-800">+{formatWonIntl(revenueAmount)}</span>
         ) : costAmount > 0 ? (
@@ -1323,7 +1617,7 @@ function LedgerRowComponent({
           "-"
         )}
       </td>
-      <td className="px-4 py-4 text-center">
+      <td className="px-4 py-3 text-center whitespace-nowrap">
         {isPending ? (
           <span className="inline-flex items-center gap-1 rounded-lg border border-amber-300/80 bg-amber-100/80 px-2.5 py-0.5 text-xs font-medium text-amber-800">
             🚨 분류 필요
@@ -1334,19 +1628,41 @@ function LedgerRowComponent({
           </span>
         )}
       </td>
-      <td className="px-4 py-4 text-center">
-        {isPending ? (
-          <button
-            type="button"
-            onClick={() => canApprove && onApprove(classification, clientName)}
-            disabled={!canApprove || isApproving}
-            className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--primary)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isApproving ? "처리 중..." : "✅ 승인"}
-          </button>
-        ) : (
-          <span className="text-slate-400">-</span>
-        )}
+      <td className="px-4 py-3 text-center whitespace-nowrap">
+        <div className="flex items-center justify-center gap-2">
+          {isPending ? (
+            <button
+              type="button"
+              onClick={() => onApprove(classification, clientName)}
+              disabled={!canApprove || isApproving}
+              className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--primary)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isApproving ? "처리 중..." : "✅ 승인"}
+            </button>
+          ) : (
+            <span className="text-slate-300">-</span>
+          )}
+          {onReceipt && row.source === "finance" && (
+            <button
+              type="button"
+              onClick={onReceipt}
+              className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-blue-50 hover:text-blue-500"
+              title="영수증 / 세금계산서"
+            >
+              <FileText className="size-4" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(row.id)}
+              className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+              title="삭제"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   );

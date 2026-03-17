@@ -6,6 +6,7 @@ export interface EmployeeDetailProfile {
   team?: string;
   role: string;
   avatarUrl?: string;
+  personalColor?: string | null;
   organization: {
     department: string;
     team: string;
@@ -402,10 +403,11 @@ export function getProfileForEmployee(
 ): EmployeeDetailProfile {
   const e = normalizeEmp(emp as Record<string, unknown>);
   const avatarUrl = (emp as { avatar_url?: string | null }).avatar_url ?? undefined;
+  const personalColor = (emp as { personal_color?: string | null }).personal_color ?? undefined;
   const byEmp = e.emp_number ? getProfileByEmpNumber(e.emp_number) : null;
-  if (byEmp) return { ...byEmp, id: e.id, avatarUrl: avatarUrl ?? byEmp.avatarUrl };
+  if (byEmp) return { ...byEmp, id: e.id, avatarUrl: avatarUrl ?? byEmp.avatarUrl, personalColor: personalColor ?? byEmp.personalColor };
   const byName = e.name ? getProfileByName(e.name) : null;
-  if (byName) return { ...byName, id: e.id, avatarUrl: avatarUrl ?? byName.avatarUrl };
+  if (byName) return { ...byName, id: e.id, avatarUrl: avatarUrl ?? byName.avatarUrl, personalColor: personalColor ?? byName.personalColor };
   const joinDate =
     e.hire_date
       ? new Date(e.hire_date).toLocaleDateString("ko-KR", {
@@ -427,6 +429,7 @@ export function getProfileForEmployee(
     department: e.department,
     role: e.role,
     avatarUrl,
+    personalColor,
     organization: {
       department: e.department,
       team: dept,

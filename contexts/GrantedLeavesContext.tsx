@@ -38,7 +38,12 @@ interface GrantedLeavesContextType {
 const GrantedLeavesContext = createContext<GrantedLeavesContextType | undefined>(undefined);
 
 export function GrantedLeavesProvider({ children }: { children: React.ReactNode }) {
-  const [grantedLeaves, setGrantedLeaves] = useState<GrantedLeaveRecord[]>(loadGrantedLeaves);
+  // 서버/클라이언트 첫 렌더를 동일하게 시작 → hydration mismatch 방지
+  const [grantedLeaves, setGrantedLeaves] = useState<GrantedLeaveRecord[]>([]);
+
+  useEffect(() => {
+    setGrantedLeaves(loadGrantedLeaves());
+  }, []);
 
   useEffect(() => {
     try {

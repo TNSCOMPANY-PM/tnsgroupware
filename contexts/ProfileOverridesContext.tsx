@@ -61,7 +61,12 @@ interface ProfileOverridesContextType {
 const ProfileOverridesContext = createContext<ProfileOverridesContextType | undefined>(undefined);
 
 export function ProfileOverridesProvider({ children }: { children: React.ReactNode }) {
-  const [overrides, setOverrides] = useState<OverridesState>(loadOverrides);
+  // 서버/클라이언트 첫 렌더를 동일하게 시작 → hydration mismatch 방지
+  const [overrides, setOverrides] = useState<OverridesState>({});
+
+  useEffect(() => {
+    setOverrides(loadOverrides());
+  }, []);
 
   useEffect(() => {
     try {

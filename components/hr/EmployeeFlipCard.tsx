@@ -16,6 +16,8 @@ export interface EmployeeFlipCardData {
   contact: string;
   /** 프로필 시트 연동용 사용자 id (DUMMY_USERS) */
   userId?: string;
+  /** 퍼스널 컬러 (#rrggbb) */
+  personalColor?: string | null;
 }
 
 interface EmployeeFlipCardProps {
@@ -27,6 +29,11 @@ interface EmployeeFlipCardProps {
 
 export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: EmployeeFlipCardProps) {
   const initial = data.name.charAt(0);
+  const pc = data.personalColor;
+
+  // 퍼스널컬러로 밝은 배경색 생성 (hex → rgba 20%)
+  const avatarBg = pc ? pc + "33" : undefined;
+  const avatarText = pc ?? undefined;
 
   return (
     <div
@@ -48,7 +55,17 @@ export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: Employ
           )}
           style={{ backfaceVisibility: "hidden" }}
         >
-          <div className="mb-4 flex size-24 shrink-0 items-center justify-center rounded-full bg-slate-200/80 text-3xl font-bold text-slate-600">
+          {/* 퍼스널컬러 줄 */}
+          {pc && (
+            <div
+              className="absolute top-0 left-0 right-0 h-1.5 rounded-t-3xl"
+              style={{ background: pc }}
+            />
+          )}
+          <div
+            className="mb-4 flex size-24 shrink-0 items-center justify-center rounded-full text-3xl font-bold shadow-sm"
+            style={pc ? { backgroundColor: avatarBg, color: avatarText, border: `2.5px solid ${pc}` } : { backgroundColor: "rgb(226 232 240 / 0.8)", color: "rgb(71 85 105)" }}
+          >
             {initial}
           </div>
           <p className="text-center text-xl font-bold text-slate-800">

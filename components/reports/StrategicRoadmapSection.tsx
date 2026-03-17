@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePermission } from "@/contexts/PermissionContext";
-import { Pencil, Check, X, Plus, Trash2 } from "lucide-react";
+import { Pencil, Check, X, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 
 const TEAM_LEAD_TO_ROADMAP_DEPT: Record<string, string> = {
   "5": "쇼핑/플레이스",
@@ -27,24 +27,52 @@ export function getNextMonthKey(): string {
   return `${y}.${String(m).padStart(2, "0")}`;
 }
 
-function getDefaultRoadmap(): RoadmapBlock[] {
+export function getCurrentMonthKey(): string {
+  const d = new Date();
+  const y = d.getFullYear() % 100;
+  const m = d.getMonth() + 1;
+  return `${y}.${String(m).padStart(2, "0")}`;
+}
+
+/** monthKey("26.04") → 해당 월 1일/말일 문자열 */
+function monthKeyToDates(key: string): { first: string; last: string } {
+  const [yy, mm] = key.split(".").map(Number);
+  const year = 2000 + (yy ?? 26);
+  const month = mm ?? 4;
+  const first = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const last = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { first, last };
+}
+
+function mid(first: string, last: string): string {
+  const d = new Date(first);
+  const e = new Date(last);
+  const m = new Date((d.getTime() + e.getTime()) / 2);
+  return m.toISOString().slice(0, 10);
+}
+
+export function getDefaultRoadmap(monthKey?: string): RoadmapBlock[] {
+  const key = monthKey ?? getCurrentMonthKey();
+  const { first, last } = monthKeyToDates(key);
+  const h = mid(first, last); // 월 중간
   return [
     { dept: "쇼핑/플레이스", items: [
-      { id: "1", text: "체류시간 증가, 랜덤 미션 등 신규 미션 업데이트 및 태그값 크롤링 이슈 대응" },
-      { id: "2", text: "AI 상품 홍보로 작업량 증대 (월 4~5만 목표), 가구매 200건 목표" },
-      { id: "3", text: "도보 걸음수 미션 등 업데이트 완료, 월평균 작업량 35,000건 확대 목표" },
+      { id: "1", text: "체류시간 증가, 랜덤 미션 등 신규 미션 업데이트 및 태그값 크롤링 이슈 대응", startDate: first, endDate: h },
+      { id: "2", text: "AI 상품 홍보로 작업량 증대 (월 4~5만 목표), 가구매 200건 목표", startDate: first, endDate: last },
+      { id: "3", text: "도보 걸음수 미션 등 업데이트 완료, 월평균 작업량 35,000건 확대 목표", startDate: h, endDate: last },
     ]},
     { dept: "쿠팡 & CPC", items: [
-      { id: "4", text: "추가 개발의 어려움으로 기존 고객 유지 및 신규 영업 집중 (300슬롯 목표)" },
-      { id: "5", text: "광고주 상품에 맞춘 테스트 및 추천 진행" },
-      { id: "6", text: "신규 광고주 모집 및 기존 대행사 이슈로 인한 신규 CPC 대행사 서치 및 확보" },
+      { id: "4", text: "추가 개발의 어려움으로 기존 고객 유지 및 신규 영업 집중 (300슬롯 목표)", startDate: first, endDate: last },
+      { id: "5", text: "광고주 상품에 맞춘 테스트 및 추천 진행", startDate: first, endDate: h },
+      { id: "6", text: "신규 광고주 모집 및 기존 대행사 이슈로 인한 신규 CPC 대행사 서치 및 확보", startDate: h, endDate: last },
     ]},
     { dept: "티제이웹", items: [
-      { id: "7", text: "Cursor 활용 홈페이지 제작 자동화/속도 단축 가능성 검증" },
-      { id: "8", text: "워드프레스 AI 유지보수 테스트 진행" },
+      { id: "7", text: "Cursor 활용 홈페이지 제작 자동화/속도 단축 가능성 검증", startDate: first, endDate: h },
+      { id: "8", text: "워드프레스 AI 유지보수 테스트 진행", startDate: h, endDate: last },
     ]},
     { dept: "경영지원", items: [
-      { id: "9", text: "바이브코딩 연구 및 TNS 내부 인사·재무 솔루션 제작으로 고정비 최소화" },
+      { id: "9", text: "바이브코딩 연구 및 TNS 내부 인사·재무 솔루션 제작으로 고정비 최소화", startDate: first, endDate: last },
     ]},
   ];
 }
@@ -62,12 +90,33 @@ export function loadRoadmapFromStorage(monthKey: string): RoadmapBlock[] | null 
   }
 }
 
-function saveRoadmapToStorage(monthKey: string, blocks: RoadmapBlock[]): void {
+export function saveRoadmapToStorage(monthKey: string, blocks: RoadmapBlock[]): void {
   try {
     const raw = localStorage.getItem(ROADMAP_STORAGE_KEY);
     const data: Record<string, RoadmapBlock[]> = raw ? JSON.parse(raw) : {};
     data[monthKey] = blocks;
     localStorage.setItem(ROADMAP_STORAGE_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+async function loadRoadmapFromAPI(monthKey: string): Promise<RoadmapBlock[] | null> {
+  try {
+    const res = await fetch(`/api/roadmap/${encodeURIComponent(monthKey)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return Array.isArray(json.blocks) ? json.blocks : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveRoadmapToAPI(monthKey: string, blocks: RoadmapBlock[]): Promise<void> {
+  try {
+    await fetch(`/api/roadmap/${encodeURIComponent(monthKey)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blocks }),
+    });
   } catch {}
 }
 
@@ -212,19 +261,51 @@ export interface StrategicRoadmapSectionProps {
   title?: string;
 }
 
+function prevMK(key: string): string {
+  const [yy, mm] = key.split(".").map(Number);
+  const y = yy ?? 26, m = mm ?? 3;
+  if (m === 1) return `${y - 1}.12`;
+  return `${y}.${String(m - 1).padStart(2, "0")}`;
+}
+function nextMK(key: string): string {
+  const [yy, mm] = key.split(".").map(Number);
+  const y = yy ?? 26, m = mm ?? 3;
+  if (m === 12) return `${y + 1}.01`;
+  return `${y}.${String(m + 1).padStart(2, "0")}`;
+}
+function mkToLabel(key: string): string {
+  const [yy, mm] = key.split(".").map(Number);
+  return `20${String(yy ?? 26).padStart(2, "0")}년 ${mm ?? 3}월`;
+}
+
 export function StrategicRoadmapSection({
   roadmapMonthKey,
   title = "전략 로드맵",
 }: StrategicRoadmapSectionProps) {
   const { isCLevel, isTeamLead, currentUserId } = usePermission();
-  const [roadmap, setRoadmap] = useState<RoadmapBlock[]>(() => getDefaultRoadmap());
+  // 내부에서 독립적으로 월 관리 (prop은 초기값으로만 사용)
+  const [activeMonthKey, setActiveMonthKey] = useState(roadmapMonthKey);
+  const [roadmap, setRoadmap] = useState<RoadmapBlock[]>(() => getDefaultRoadmap(activeMonthKey));
   const [editingDept, setEditingDept] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const stored = loadRoadmapFromStorage(roadmapMonthKey);
-    setRoadmap(stored ?? getDefaultRoadmap());
     setEditingDept(null);
-  }, [roadmapMonthKey]);
+    setLoading(true);
+    loadRoadmapFromAPI(activeMonthKey).then((apiBlocks) => {
+      if (apiBlocks && apiBlocks.length > 0) {
+        setRoadmap(apiBlocks);
+        saveRoadmapToStorage(activeMonthKey, apiBlocks);
+      } else {
+        const stored = loadRoadmapFromStorage(activeMonthKey);
+        if (stored && stored.length > 0) {
+          setRoadmap(stored);
+        } else {
+          setRoadmap(getDefaultRoadmap(activeMonthKey));
+        }
+      }
+    }).finally(() => setLoading(false));
+  }, [activeMonthKey]);
 
   const canEditDept = (dept: string) => {
     if (isCLevel) return true;
@@ -235,9 +316,10 @@ export function StrategicRoadmapSection({
   const handleSave = (dept: string, items: RoadmapItem[]) => {
     setRoadmap((prev) => {
       const next = prev.map((b) => (b.dept === dept ? { ...b, items } : b));
-      saveRoadmapToStorage(roadmapMonthKey, next);
+      saveRoadmapToStorage(activeMonthKey, next);
+      saveRoadmapToAPI(activeMonthKey, next);
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("roadmap-updated", { detail: { monthKey: roadmapMonthKey } }));
+        window.dispatchEvent(new CustomEvent("roadmap-updated", { detail: { monthKey: activeMonthKey } }));
       }
       return next;
     });
@@ -246,13 +328,40 @@ export function StrategicRoadmapSection({
 
   return (
     <section>
-      <h2 className="mb-6 text-lg font-semibold text-slate-800">
-        ☀ {title}
-      </h2>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+          ☀ {title}
+          {loading && <span className="text-xs font-normal text-slate-400">불러오는 중...</span>}
+        </h2>
+        {/* 월 내비게이션 */}
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 p-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setActiveMonthKey(prevMK(activeMonthKey))}
+          >
+            <ChevronLeft className="size-3.5" />
+          </Button>
+          <span className="min-w-[6.5rem] text-center text-sm font-semibold text-slate-700 tabular-nums">
+            {mkToLabel(activeMonthKey)}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setActiveMonthKey(nextMK(activeMonthKey))}
+          >
+            <ChevronRight className="size-3.5" />
+          </Button>
+        </div>
+      </div>
       <div className="space-y-5">
         {roadmap.map((block) => (
           <RoadmapBlockCard
-            key={block.dept}
+            key={`${activeMonthKey}-${block.dept}`}
             block={block}
             isEditing={editingDept === block.dept}
             canEdit={canEditDept(block.dept)}

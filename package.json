@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:full": "concurrently -n \"Next,PB\" -c \"cyan,magenta\" \"next dev\" \"node scripts/pushbullet-stream.js\"",
+    "pushbullet": "node scripts/pushbullet-stream.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -37,6 +39,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",

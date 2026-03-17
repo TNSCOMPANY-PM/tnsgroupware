@@ -53,6 +53,7 @@ function employeeToCardData(emp: Employee): EmployeeCardData {
     userId: emp.id,
     departmentKey,
     section,
+    personalColor: emp.personal_color,
   };
 }
 
@@ -117,7 +118,7 @@ export default function HRPage() {
 }
 
 function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void }) {
-  const { currentUserId, isCLevel, isTeamLead } = usePermission();
+  const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
   const { showRealtimeToast } = useRealtimeToast() ?? {};
   const { data: employees, loading } = useSupabaseRealtime<Employee>("employees", {
     onRealtime: showRealtimeToast,
@@ -161,7 +162,7 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
           }
         }}
         onRequestCertificate={
-          card.userId === currentUserId && emp
+          card.name === currentUserName && emp
             ? () => {
                 setSelectedEmployee(emp);
                 setFocusDocumentsSection(true);
@@ -275,7 +276,7 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
           setSelectedEmployee(null);
           setFocusDocumentsSection(false);
         }}
-        isOwnProfile={!!selectedEmployee && selectedEmployee.id === currentUserId}
+        isOwnProfile={!!selectedEmployee && selectedEmployee.name === currentUserName}
         isCLevel={isCLevel}
         focusDocumentsSection={focusDocumentsSection}
         onDocumentsSectionViewed={() => setFocusDocumentsSection(false)}

@@ -21,20 +21,18 @@ import { DUMMY_USERS } from "@/constants/users";
 import { CALENDAR_LEAVE_EVENTS } from "@/constants/leaveSchedule";
 import { getBurnoutRiskUsers } from "@/utils/leaveMonitoring";
 import {
-  DASHBOARD_TODOS,
-  DASHBOARD_PROJECTS,
   DASHBOARD_ANNOUNCEMENTS,
   LUNCH_MENUS,
 } from "@/constants/dashboard";
 import { parseDashboardFinance, type FinanceCurrentJson } from "@/lib/financeCurrent";
 import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
 import {
-  CheckSquare,
   Calendar,
   UtensilsCrossed,
   Sparkles,
   Plus,
 } from "lucide-react";
+import { UserTodoWidget } from "@/components/dashboard/UserTodoWidget";
 import { format, parseISO, subDays } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -84,7 +82,6 @@ const defaultAnnouncements: DashboardAnnouncement[] = DASHBOARD_ANNOUNCEMENTS.ma
 );
 
 export default function DashboardPage() {
-  const [todos, setTodos] = useState(DASHBOARD_TODOS);
   const [lunchResult, setLunchResult] = useState<string | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -173,12 +170,6 @@ export default function DashboardPage() {
     () => generateDailyHoroscope(horoscopeUser, todayStr),
     [horoscopeUser, todayStr]
   );
-
-  const toggleTodo = (id: string) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
-  };
 
   const handlePlanSubmit = (selectedDates: Date[]) => {
     if (!myStatus) return;
@@ -335,62 +326,8 @@ export default function DashboardPage() {
 
         {/* [2] Row 2 - Core Work: 좌측 할 일 & 프로젝트, 우측 공지사항 */}
         <Card className="relative z-10 rounded-2xl bg-white/80 backdrop-blur-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] col-span-12 lg:col-span-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-slate-900">
-              <CheckSquare className="size-5" />
-              오늘 해야 할 일
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ul className="space-y-2">
-              {todos.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg py-1 transition-all duration-200 ease-in-out hover:bg-[var(--muted)]/30 active:scale-[0.99]"
-                  onClick={() => toggleTodo(t.id)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={t.done}
-                    onChange={() => toggleTodo(t.id)}
-                    className="size-4 rounded border-[var(--border)]"
-                  />
-                  <span
-                    className={cn(
-                      "text-sm text-slate-800",
-                      t.done && "text-slate-500 line-through"
-                    )}
-                  >
-                    {t.text}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="border-t border-[var(--border)] pt-4">
-              <p className="mb-3 text-xs font-medium text-slate-800">
-                팀별 프로젝트 진척도
-              </p>
-              <div className="space-y-2">
-                {DASHBOARD_PROJECTS.map((p) => (
-                  <div key={`${p.team}-${p.name}`} className="flex items-center gap-3">
-                    <span className="shrink-0 rounded-full border border-slate-200/50 bg-slate-100/40 px-2.5 py-1 text-xs font-semibold text-slate-700 backdrop-blur-sm">
-                      {p.team}
-                    </span>
-                    <div className="flex-1">
-                      <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]">
-                        <div
-                          className="h-full rounded-full bg-blue-500"
-                          style={{ width: `${p.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="w-10 text-right text-xs font-medium text-slate-800">
-                      {p.progress}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <CardContent className="pt-5 pb-5">
+            <UserTodoWidget userId={currentUserId} />
           </CardContent>
         </Card>
 

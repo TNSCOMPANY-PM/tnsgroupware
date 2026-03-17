@@ -10,16 +10,20 @@ import {
   Users,
   CreditCard,
   FileStack,
+  CalendarDays,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 
 const navItems = [
-  { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
-  { href: "/finance", label: "매출/매입", icon: Wallet },
-  { href: "/goals", label: "목표", icon: Target },
-  { href: "/reports", label: "보고서", icon: FileBarChart },
-  { href: "/hr", label: "HR", icon: Users },
+  { href: "/dashboard",  label: "대시보드", icon: LayoutDashboard },
+  { href: "/finance",    label: "매출/매입", icon: Wallet },
+  { href: "/goals",      label: "목표",      icon: Target },
+  { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
+  { href: "/approvals",  label: "전자결재",  icon: ClipboardCheck },
+  { href: "/reports",    label: "보고서",    icon: FileBarChart },
+  { href: "/hr",         label: "HR",        icon: Users },
 ] as const;
 
 const assetsNavItem = { href: "/assets", label: "자산/구독", icon: CreditCard };

@@ -11,4 +11,5 @@ export interface Employee {
   hire_date: string;
   created_at: string;
   avatar_url?: string | null;
+  personal_color?: string | null;
 }

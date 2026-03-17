@@ -98,19 +98,13 @@ export function useSupabaseRealtime<T extends { id?: string }>(
           const id = (newRow?.id ?? oldRow?.id) as string | undefined;
           if (!id && eventType !== "INSERT") return;
 
+          // onRealtime은 setData 외부에서 호출 (렌더 중 다른 컴포넌트 setState 금지 위반 방지)
+          setTimeout(() => onRealtimeRef.current?.(), 0);
+
           setData((prev) => {
-            if (eventType === "INSERT" && newRow) {
-              onRealtimeRef.current?.();
-              return [newRow as T, ...prev];
-            }
-            if (eventType === "UPDATE" && newRow) {
-              onRealtimeRef.current?.();
-              return prev.map((row) => (row.id === id ? (newRow as T) : row));
-            }
-            if (eventType === "DELETE") {
-              onRealtimeRef.current?.();
-              return prev.filter((row) => row.id !== id);
-            }
+            if (eventType === "INSERT" && newRow) return [newRow as T, ...prev];
+            if (eventType === "UPDATE" && newRow) return prev.map((row) => (row.id === id ? (newRow as T) : row));
+            if (eventType === "DELETE") return prev.filter((row) => row.id !== id);
             return prev;
           });
         }

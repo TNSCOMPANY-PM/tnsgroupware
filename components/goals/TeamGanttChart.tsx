@@ -22,7 +22,8 @@ import {
 } from "@/constants/gantt";
 import {
   loadRoadmapFromStorage,
-  getNextMonthKey,
+  getCurrentMonthKey,
+  getDefaultRoadmap,
   type RoadmapBlock,
 } from "@/components/reports/StrategicRoadmapSection";
 import { loadGanttOverrides, saveGanttOverride } from "@/lib/ganttStorage";
@@ -103,7 +104,7 @@ function getBarPx(
   };
 }
 
-/** 로드맵 부서 → 간트 팀 매핑 (쇼핑·쿠팡·CPC → 더널리) */
+/** 로드맵 부서 → 간트 팀 매핑 */
 const ROADMAP_DEPT_TO_TEAM: Record<string, GanttTeamId> = {
   "쇼핑/플레이스": "더널리",
   "쿠팡 & CPC": "더널리",
@@ -111,42 +112,40 @@ const ROADMAP_DEPT_TO_TEAM: Record<string, GanttTeamId> = {
   "경영지원": "경영지원",
 };
 
+/** 부서 표시 순서 */
+const ROADMAP_DEPT_ORDER = ["쇼핑/플레이스", "쿠팡 & CPC", "티제이웹", "경영지원"];
+
+/** 부서 단위로 에픽을 생성 (쇼핑/플레이스·쿠팡&CPC 각각 별도 행, 더널리 색상) */
 function roadmapBlocksToEpics(
   blocks: RoadmapBlock[] | null,
   overrides: Record<string, { progress?: number; name?: string; startDate?: string; endDate?: string }> = {}
 ): GanttEpic[] {
   if (!blocks?.length) return [];
-  const byTeam = new Map<GanttTeamId, GanttTask[]>();
-  for (const block of blocks) {
-    const team = ROADMAP_DEPT_TO_TEAM[block.dept];
+  const blockMap = new Map<string, RoadmapBlock>();
+  for (const b of blocks) blockMap.set(b.dept, b);
+
+  const epics: GanttEpic[] = [];
+  for (const dept of ROADMAP_DEPT_ORDER) {
+    const block = blockMap.get(dept);
+    if (!block) continue;
+    const team = ROADMAP_DEPT_TO_TEAM[dept];
     if (!team) continue;
+    const subTasks: GanttTask[] = [];
     for (const item of block.items) {
       if (!item.startDate || !item.endDate) continue;
-      const id = `roadmap-${block.dept}-${item.id}`;
+      const id = `roadmap-${dept}-${item.id}`;
       const o = overrides[id];
-      const task: GanttTask = {
+      subTasks.push({
         id,
         name: (o?.name ?? item.text) || "(제목 없음)",
         team,
         startDate: o?.startDate ?? item.startDate,
         endDate: o?.endDate ?? item.endDate,
         progress: o?.progress !== undefined ? Math.min(100, Math.max(0, o.progress)) : 0,
-      };
-      const list = byTeam.get(team) ?? [];
-      list.push(task);
-      byTeam.set(team, list);
-    }
-  }
-  const epics: GanttEpic[] = [];
-  for (const team of GANTT_TEAMS) {
-    const subTasks = byTeam.get(team);
-    if (subTasks?.length) {
-      epics.push({
-        id: `roadmap-epic-${team}`,
-        name: "전략 로드맵",
-        team,
-        subTasks,
       });
+    }
+    if (subTasks.length > 0) {
+      epics.push({ id: `roadmap-epic-${dept}`, name: dept, team, subTasks });
     }
   }
   return epics;
@@ -218,26 +217,54 @@ export type TeamGanttChartProps = {
 };
 
 export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onDeleteProject }: TeamGanttChartProps) {
-  const [selectedMonthKey, setSelectedMonthKey] = useState(getNextMonthKey());
+  const [selectedMonthKey, setSelectedMonthKey] = useState(getCurrentMonthKey);
   const [roadmapBlocks, setRoadmapBlocks] = useState<RoadmapBlock[] | null>(null);
   const [ganttOverrides, setGanttOverrides] = useState<Record<string, { progress?: number; name?: string; startDate?: string; endDate?: string }>>(
-    () => loadGanttOverrides(selectedMonthKey)
+    () => loadGanttOverrides(getCurrentMonthKey())
   );
   const [expandedEpics, setExpandedEpics] = useState<Set<string>>(new Set());
   const [editTask, setEditTask] = useState<GanttTask | null>(null);
 
+  // 선택 월 변경 시 Supabase → localStorage → default 순으로 로드
   useEffect(() => {
-    const loaded = loadRoadmapFromStorage(selectedMonthKey);
-    setRoadmapBlocks(loaded ?? []);
-    setGanttOverrides(loadGanttOverrides(selectedMonthKey));
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/roadmap/${encodeURIComponent(selectedMonthKey)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && Array.isArray(data.blocks) && data.blocks.length > 0) {
+            setRoadmapBlocks(data.blocks);
+            setGanttOverrides(loadGanttOverrides(selectedMonthKey));
+            return;
+          }
+        }
+      } catch {}
+      if (cancelled) return;
+      const loaded = loadRoadmapFromStorage(selectedMonthKey);
+      setRoadmapBlocks(loaded && loaded.length > 0 ? loaded : getDefaultRoadmap(selectedMonthKey));
+      setGanttOverrides(loadGanttOverrides(selectedMonthKey));
+    };
+    load();
+    return () => { cancelled = true; };
   }, [selectedMonthKey]);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ monthKey: string }>).detail;
       if (detail?.monthKey === selectedMonthKey) {
-        const loaded = loadRoadmapFromStorage(selectedMonthKey);
-        setRoadmapBlocks(loaded ?? []);
+        // roadmap-updated 이벤트 수신 시 Supabase에서 재로드
+        fetch(`/api/roadmap/${encodeURIComponent(selectedMonthKey)}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            if (data?.blocks?.length) {
+              setRoadmapBlocks(data.blocks);
+            } else {
+              const loaded = loadRoadmapFromStorage(selectedMonthKey);
+              setRoadmapBlocks(loaded && loaded.length > 0 ? loaded : getDefaultRoadmap(selectedMonthKey));
+            }
+          })
+          .catch(() => {});
       }
     };
     window.addEventListener("roadmap-updated", handler);
@@ -271,7 +298,7 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
   const canPrevMonth = selectedMonthKey > MIN_MONTH_KEY;
   const maxMonthKey = (() => {
     const d = new Date();
-    d.setMonth(d.getMonth() + 1);
+    d.setMonth(d.getMonth() + 3);
     const y = d.getFullYear() % 100;
     const m = d.getMonth() + 1;
     return formatMonthKey(y, m);
@@ -282,19 +309,23 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
     return `20${String(y).padStart(2, "0")}년 ${m}월`;
   }, [selectedMonthKey]);
 
-  /** [1] visibleItems: 에픽은 무조건, 펼쳐진 에픽일 때만 해당 서브태스크 추가 */
+  /** [1] visibleItems: 에픽은 무조건, 펼쳐진 에픽일 때만 해당 서브태스크 추가
+   *  로드맵 에픽은 ROADMAP_DEPT_ORDER 순서, DB 프로젝트 에픽은 GANTT_TEAMS 순서 */
   const visibleItems = useMemo((): VisibleItem[] => {
     const items: VisibleItem[] = [];
-    for (const team of GANTT_TEAMS) {
-      const teamEpics = epics.filter((e) => e.team === team);
-      teamEpics.forEach((epic) => {
-        items.push({ type: "epic", epic, team });
-        if (expandedEpics.has(epic.id)) {
-          epic.subTasks.forEach((task) => {
-            items.push({ type: "task", task, epic, team });
-          });
-        }
-      });
+    // 에픽 순서: roadmap 부서 순 → db 프로젝트 팀 순
+    const ordered = [
+      ...epics.filter((e) => e.id.startsWith("roadmap-epic-")),
+      ...epics.filter((e) => !e.id.startsWith("roadmap-epic-")),
+    ];
+    for (const epic of ordered) {
+      const team = epic.team;
+      items.push({ type: "epic", epic, team });
+      if (expandedEpics.has(epic.id)) {
+        epic.subTasks.forEach((task) => {
+          items.push({ type: "task", task, epic, team });
+        });
+      }
     }
     return items;
   }, [epics, expandedEpics]);

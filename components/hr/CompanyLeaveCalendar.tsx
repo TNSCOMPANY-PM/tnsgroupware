@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useId } from "react";
+import { useState, useMemo, useId, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeft,
@@ -17,7 +17,6 @@ import {
   addMonths,
   subMonths,
   isSameMonth,
-  isSameDay,
   isToday,
   parseISO,
 } from "date-fns";
@@ -81,6 +80,15 @@ function getEventsForDate(
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
+/** 직원 이름 → 퍼스널컬러(hex) 맵 */
+function hexToRgba(hex: string, alpha = 0.18) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function CompanyLeaveCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const { plannedEvents } = usePlannedLeaves();
@@ -88,6 +96,22 @@ export function CompanyLeaveCalendar() {
     () => [...CALENDAR_LEAVE_EVENTS, ...plannedEvents],
     [plannedEvents]
   );
+
+  /** 퍼스널컬러 맵 fetch */
+  const [personalColors, setPersonalColors] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch("/api/employees")
+      .then((r) => r.json())
+      .then((rows: { name?: string; personal_color?: string | null }[]) => {
+        if (!Array.isArray(rows)) return;
+        const map: Record<string, string> = {};
+        rows.forEach((e) => {
+          if (e.name && e.personal_color) map[e.name] = e.personal_color;
+        });
+        setPersonalColors(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -202,15 +226,25 @@ export function CompanyLeaveCalendar() {
 
               <div className="mt-1 space-y-0.5">
                 {dayEvents.slice(0, 2).map((ev) => {
+                  const pc = personalColors[ev.userName];
                   const style = getBadgeStyle(ev.leaveType);
                   return (
                     <div
                       key={ev.id}
                       className={cn(
                         "truncate rounded px-1.5 py-0.5 text-xs font-medium",
-                        style.bg,
-                        style.text
+                        !pc && style.bg,
+                        !pc && style.text
                       )}
+                      style={
+                        pc
+                          ? {
+                              backgroundColor: hexToRgba(pc, 0.2),
+                              color: pc,
+                              borderLeft: `3px solid ${pc}`,
+                            }
+                          : undefined
+                      }
                       title={`${ev.userName} (${getLeaveTypeDisplay(ev.leaveType)})`}
                     >
                       {ev.userName}({getLeaveTypeDisplay(ev.leaveType)})
@@ -221,6 +255,7 @@ export function CompanyLeaveCalendar() {
                   <DayOverflowBadge
                     count={dayEvents.length - 2}
                     events={dayEvents.slice(2)}
+                    personalColors={personalColors}
                   />
                 )}
               </div>
@@ -235,9 +270,11 @@ export function CompanyLeaveCalendar() {
 function DayOverflowBadge({
   count,
   events,
+  personalColors = {},
 }: {
   count: number;
   events: CalendarLeaveEvent[];
+  personalColors?: Record<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -268,15 +305,25 @@ function DayOverflowBadge({
             className="absolute left-0 top-full z-50 mt-1 min-w-[200px] rounded-lg border border-[var(--border)] bg-white p-2 shadow-lg dropdown-enter"
           >
             {events.map((ev) => {
+              const pc = personalColors[ev.userName];
               const style = getBadgeStyle(ev.leaveType);
               return (
                 <div
                   key={ev.id}
                   className={cn(
                     "mb-1 rounded px-2 py-1 text-xs font-medium last:mb-0",
-                    style.bg,
-                    style.text
+                    !pc && style.bg,
+                    !pc && style.text
                   )}
+                  style={
+                    pc
+                      ? {
+                          backgroundColor: hexToRgba(pc, 0.2),
+                          color: pc,
+                          borderLeft: `3px solid ${pc}`,
+                        }
+                      : undefined
+                  }
                 >
                   {ev.userName} ({getLeaveTypeDisplay(ev.leaveType)})
                 </div>

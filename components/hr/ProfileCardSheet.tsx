@@ -486,7 +486,11 @@ function HeaderSection({
   onAvatarUpdate?: (avatarUrl: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [personalColor, setPersonalColor] = useState<string>(profile.personalColor ?? "#6366f1");
+  const [colorSaving, setColorSaving] = useState(false);
+  const [colorSaved, setColorSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
@@ -509,10 +513,41 @@ function HeaderSection({
     }
   };
 
+  const handleColorChange = async (hex: string) => {
+    setPersonalColor(hex);
+  };
+
+  const handleColorSave = async () => {
+    setColorSaving(true);
+    try {
+      const res = await fetch(`/api/employees/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personal_color: personalColor }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("색상 저장 실패: " + (err.error ?? res.status));
+        return;
+      }
+      setColorSaved(true);
+      setTimeout(() => setColorSaved(false), 2500);
+    } catch (e) {
+      alert("저장 중 오류: " + String(e));
+    } finally {
+      setColorSaving(false);
+    }
+  };
+
+  const pc = personalColor;
+  const avatarBg = pc ? pc + "22" : undefined;
+
   return (
     <>
-      <header className="relative z-10 shrink-0 bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
-        <div className="absolute right-6 top-6 flex items-center gap-2">
+      <header className="relative z-10 shrink-0" style={{ background: pc ? `linear-gradient(135deg, ${pc}18 0%, ${pc}08 100%)` : undefined }}>
+        {/* 퍼스널컬러 상단 줄 */}
+        <div className="h-1.5 w-full" style={{ background: pc }} />
+        <div className="absolute right-6 top-8 flex items-center gap-2">
           {onOpenSettings && (
             <Button
               variant="ghost"
@@ -536,7 +571,7 @@ function HeaderSection({
         </div>
       </header>
 
-      <div className="relative z-10 shrink-0 bg-gradient-to-b from-blue-50/80 to-transparent px-6 pb-6 pt-6">
+      <div className="relative z-10 shrink-0 px-6 pb-5 pt-6" style={{ background: pc ? `linear-gradient(to bottom, ${pc}10, transparent)` : undefined }}>
         <div className="flex items-end gap-4">
           <div className="shrink-0 relative">
             <label className={cn("block", isOwnProfile && "cursor-pointer")}>
@@ -552,27 +587,73 @@ function HeaderSection({
                 <img
                   src={profile.avatarUrl}
                   alt={profile.name}
-                  className="size-20 rounded-full object-cover shadow-sm ring-2 ring-white"
+                  className="size-20 rounded-full object-cover shadow-sm"
+                  style={{ outline: pc ? `3px solid ${pc}` : "3px solid white" }}
                 />
               ) : (
-                <div className="flex size-20 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-2xl font-bold text-blue-600 shadow-sm ring-2 ring-white">
+                <div
+                  className="flex size-20 items-center justify-center overflow-hidden rounded-full text-2xl font-bold shadow-sm"
+                  style={{
+                    backgroundColor: avatarBg ?? "#dbeafe",
+                    color: pc ?? "#2563eb",
+                    outline: pc ? `3px solid ${pc}` : "3px solid white",
+                  }}
+                >
                   {profile.name.charAt(0)}
                 </div>
               )}
               {isOwnProfile && (
-                <span className="absolute bottom-0 right-0 flex size-6 items-center justify-center rounded-full bg-[var(--primary)] text-white text-xs">
+                <span className="absolute bottom-0 right-0 flex size-6 items-center justify-center rounded-full text-white text-xs" style={{ backgroundColor: pc ?? "var(--primary)" }}>
                   {uploading ? "…" : "📷"}
                 </span>
               )}
             </label>
           </div>
-          <div className="pb-0.5 min-w-0">
+          <div className="pb-0.5 min-w-0 flex-1">
             <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] truncate">
               {profile.name}
             </h2>
             <p className="text-slate-500 text-sm sm:text-base truncate">
               {profile.position} · {profile.department}
             </p>
+            {/* 퍼스널컬러 피커 (본인 프로필만) */}
+            {isOwnProfile && (
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="text-xs text-slate-500 shrink-0">퍼스널 컬러</span>
+                <div className="flex items-center gap-1.5">
+                  {/* label로 color input 직접 감싸기 (sr-only 클릭 우회 불필요) */}
+                  <label
+                    className="relative flex size-8 cursor-pointer items-center justify-center rounded-full shadow-sm border-2 border-white transition-transform hover:scale-110 overflow-hidden"
+                    style={{ backgroundColor: pc }}
+                    title="컬러 변경 (클릭)"
+                  >
+                    <input
+                      type="color"
+                      value={personalColor}
+                      onChange={(e) => handleColorChange(e.target.value)}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </label>
+                  <span className="text-xs font-mono text-slate-500">{personalColor}</span>
+                  <button
+                    type="button"
+                    onClick={handleColorSave}
+                    disabled={colorSaving}
+                    className="rounded-md px-2.5 py-0.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: pc }}
+                  >
+                    {colorSaved ? "✓ 저장됨" : colorSaving ? "저장 중…" : "저장"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* 다른 사람 프로필: 컬러 뱃지 표시만 */}
+            {!isOwnProfile && pc && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <div className="size-3.5 rounded-full shadow-sm" style={{ backgroundColor: pc }} />
+                <span className="text-xs text-slate-400">퍼스널 컬러</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -47,7 +47,13 @@ function loadPlannedLeaves(): LeaveRequest[] {
 }
 
 export function PlannedLeavesProvider({ children }: { children: React.ReactNode }) {
-  const [plannedLeaveRequests, setPlannedLeaveRequests] = useState<LeaveRequest[]>(loadPlannedLeaves);
+  // 서버/클라이언트 첫 렌더를 동일하게 시작 → hydration mismatch 방지
+  const [plannedLeaveRequests, setPlannedLeaveRequests] = useState<LeaveRequest[]>([]);
+
+  useEffect(() => {
+    // 클라이언트 마운트 후 localStorage 로드
+    setPlannedLeaveRequests(loadPlannedLeaves());
+  }, []);
 
   useEffect(() => {
     try {
