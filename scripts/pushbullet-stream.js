@@ -103,7 +103,26 @@ function postToWebhook(url, smsText) {
   });
 }
 
-// ── 웹훅 호출 (localhost 우선, 실패 시 Vercel 자동 폴백) ────────────────────
+// 로컬 호출 재시도 (Next 기동 직후 구간 보장)
+const LOCAL_RETRY_DELAY_MS = 2000;
+const LOCAL_RETRY_COUNT = 3;
+
+async function postToWebhookWithRetry(url, smsText, retries = LOCAL_RETRY_COUNT) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await postToWebhook(url, smsText);
+    } catch (e) {
+      if (attempt < retries) {
+        log.warn(`로컬 시도 ${attempt}/${retries} 실패 (${e.message}), ${LOCAL_RETRY_DELAY_MS / 1000}초 후 재시도...`);
+        await new Promise((r) => setTimeout(r, LOCAL_RETRY_DELAY_MS));
+      } else {
+        throw e;
+      }
+    }
+  }
+}
+
+// ── 웹훅 호출 (localhost 재시도 후 Vercel 폴백 → 100% 보장) ────────────────────
 async function callWebhook(smsText) {
   // WEBHOOK_URL 환경변수가 명시된 경우 그것만 사용
   if (FORCE_WEBHOOK_URL) {
@@ -116,16 +135,16 @@ async function callWebhook(smsText) {
     return;
   }
 
-  // 1순위: 로컬 서버
+  // 1순위: 로컬 서버 (최대 3회 재시도 → Next 기동 직후에도 수신 보장)
   try {
-    const json = await postToWebhook(LOCAL_WEBHOOK, smsText);
+    const json = await postToWebhookWithRetry(LOCAL_WEBHOOK, smsText);
     log.ok(`원장 등록 완료 [로컬] → ${json.amount?.toLocaleString()}원 / ${json.client_name || "미확인"} (${json.date})`);
     return;
   } catch (localErr) {
-    log.warn(`로컬 웹훅 실패 (${localErr.message}) → Vercel 웹훅으로 폴백 시도...`);
+    log.warn(`로컬 웹훅 실패 (${localErr.message}) → Vercel 웹훅으로 폴백...`);
   }
 
-  // 2순위: Vercel 프로덕션 (로컬 서버가 꺼져 있어도 입금 기록 유실 방지)
+  // 2순위: Vercel 프로덕션 (로컬 꺼져 있어도 유실 방지)
   try {
     const json = await postToWebhook(VERCEL_WEBHOOK, smsText);
     log.ok(`원장 등록 완료 [Vercel] → ${json.amount?.toLocaleString()}원 / ${json.client_name || "미확인"} (${json.date})`);

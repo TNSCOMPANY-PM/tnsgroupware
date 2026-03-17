@@ -11,7 +11,7 @@ const https = require("https");
 const http = require("http");
 
 const PUSHBULLET_API_KEY = process.env.PUSHBULLET_API_KEY;
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
+const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://tnsgroupware.vercel.app/api/webhook/deposit";
 const STREAM_URL = `wss://stream.pushbullet.com/websocket/${PUSHBULLET_API_KEY}`;
 
 const RECONNECT_BASE_MS = 5_000;
