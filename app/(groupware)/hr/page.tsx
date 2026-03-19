@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,12 +17,16 @@ import { LeaveTab } from "@/components/hr/LeaveTab";
 import { AnnualLeavePromotionTab } from "@/components/hr/AnnualLeavePromotionTab";
 import { LabourLawVerificationDashboard } from "@/components/hr/LabourLawVerificationDashboard";
 import { NewEmployeeModal, type NewEmployeeFormData } from "@/components/hr/NewEmployeeModal";
+import { ContractSendTab } from "@/components/hr/ContractSendTab";
+import { ContractManageTab } from "@/components/hr/ContractManageTab";
 import { createEmployee } from "./actions";
+import { useSearchParams } from "next/navigation";
 import { usePermission } from "@/contexts/PermissionContext";
 import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { getProfileForEmployee } from "@/constants/profile";
-import { Users, Calendar, ShieldCheck, UserPlus, Loader2 } from "lucide-react";
+import { DUMMY_USERS } from "@/constants/users";
+import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck } from "lucide-react";
 import type { Employee } from "@/types/employee";
 import { format } from "date-fns";
 
@@ -33,21 +37,28 @@ type EmployeeCardData = EmployeeFlipCardData & {
   section: CardSection;
 };
 
+/** 구성원 표시: 직위(총괄/팀장/사원)·부서는 DUMMY_USERS 우선, 권한은 role(팀장=총괄+팀장) */
 function employeeToCardData(emp: Employee): EmployeeCardData {
   const joinDate =
     emp.hire_date != null
       ? format(new Date(emp.hire_date), "yyyy. M. d")
       : "-";
+  const byName = DUMMY_USERS.find((u) => u.name === emp.name);
+  const positionForDisplay = byName?.positionDisplay ?? byName?.role ?? emp.role;
+  const departmentForDisplay = byName?.displayDepartment ?? byName?.department ?? emp.department;
   const departmentKey =
-    emp.department === "경영" ? "경영" : "마케팅사업부";
+    departmentForDisplay === "경영" || departmentForDisplay === "경영지원"
+      ? "경영"
+      : "마케팅사업부";
+  const roleForSection = byName?.role ?? emp.role;
   const section: CardSection =
-    emp.role === "C레벨" ? "c-level" : "member";
+    roleForSection === "C레벨" ? "c-level" : "member";
   return {
     id: emp.id,
     name: emp.name,
-    position: emp.role,
-    department: emp.department,
-    team: emp.department,
+    position: positionForDisplay,
+    department: departmentForDisplay,
+    team: departmentForDisplay,
     joinDate,
     contact: emp.email ?? "-",
     userId: emp.id,
@@ -57,21 +68,26 @@ function employeeToCardData(emp: Employee): EmployeeCardData {
   };
 }
 
-export default function HRPage() {
+function HRPageContent() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("members");
   const { isCLevel } = usePermission();
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "contracts" && isCLevel) setActiveTab("contracts");
+  }, [searchParams, isCLevel]);
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-[var(--foreground)]">HR</h1>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          구성원 관리 · 휴가 관리 · 플렉스(FLEX) 스타일
+          구성원 관리 · 휴가 관리 · 전자계약 발송 · 플렉스(FLEX) 스타일
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="inline-flex h-12 w-full max-w-2xl rounded-xl bg-[var(--muted)] p-1">
+        <TabsList className="inline-flex h-12 w-full max-w-3xl flex-wrap rounded-xl bg-[var(--muted)] p-1">
           <TabsTrigger
             value="members"
             className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
@@ -93,6 +109,24 @@ export default function HRPage() {
             <ShieldCheck className="size-4" />
             연차 촉진
           </TabsTrigger>
+          {!isCLevel && (
+            <TabsTrigger
+              value="contract-manage"
+              className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <FileCheck className="size-4" />
+              계약서 관리
+            </TabsTrigger>
+          )}
+          {isCLevel && (
+            <TabsTrigger
+              value="contracts"
+              className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <FileSignature className="size-4" />
+              전자계약 발송
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="members">
@@ -106,6 +140,18 @@ export default function HRPage() {
         <TabsContent value="promotion">
           <AnnualLeavePromotionTab />
         </TabsContent>
+
+        {!isCLevel && (
+          <TabsContent value="contract-manage">
+            <ContractManageTab />
+          </TabsContent>
+        )}
+
+        {isCLevel && (
+          <TabsContent value="contracts">
+            <ContractSendTabWrapper />
+          </TabsContent>
+        )}
       </Tabs>
 
       {isCLevel && (
@@ -114,6 +160,14 @@ export default function HRPage() {
         </section>
       )}
     </div>
+  );
+}
+
+export default function HRPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><Loader2 className="size-8 animate-spin text-slate-400" /></div>}>
+      <HRPageContent />
+    </Suspense>
   );
 }
 
@@ -307,4 +361,24 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
       )}
     </div>
   );
+}
+
+function ContractSendTabWrapper() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch("/api/employees")
+      .then((r) => r.json())
+      .then((data) => setEmployees(Array.isArray(data) ? data : []))
+      .catch(() => setEmployees([]))
+      .finally(() => setLoading(false));
+  }, []);
+  if (loading) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+  return <ContractSendTab employees={employees} />;
 }

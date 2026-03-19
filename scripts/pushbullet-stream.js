@@ -7,6 +7,11 @@
  *
  * 실행: node scripts/pushbullet-stream.js
  * (npm run dev:full 로 Next.js와 함께 동시 실행 가능)
+ *
+ * 참고: SMS는 /v2/pushes API에는 안 들어갑니다. 실시간은 이 스트림(sms_changed),
+ * 과거 문자는 "입금 동기화" 버튼이 호출하는 /api/sync-pushbullet에서
+ * 비공식 permanents API로 스레드에서 가져옵니다.
+ * https://www.pushbullet.com/#sms/... 웹 페이지는 SPA라 서버 크롤링 불가(로그인·JS 필요).
  */
 
 const WebSocket = require("ws");
@@ -36,6 +41,7 @@ const LOCAL_WEBHOOK  = "http://localhost:3000/api/webhook/deposit";
 const VERCEL_WEBHOOK = "https://tnsgroupware.vercel.app/api/webhook/deposit";
 // WEBHOOK_URL 환경변수가 있으면 그것을, 없으면 localhost 우선 + 실패시 Vercel 폴백
 const FORCE_WEBHOOK_URL = process.env.WEBHOOK_URL || null;
+const WEBHOOK_URL = FORCE_WEBHOOK_URL || LOCAL_WEBHOOK;
 const STREAM_URL = `wss://stream.pushbullet.com/websocket/${PUSHBULLET_API_KEY}`;
 
 // 재연결 설정

@@ -9,7 +9,7 @@ import { ko } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus, X, Loader2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
-import { CALENDAR_LEAVE_EVENTS, type CalendarLeaveEvent } from "@/constants/leaveSchedule";
+import { type CalendarLeaveEvent } from "@/constants/leaveSchedule";
 import { usePlannedLeaves } from "@/contexts/PlannedLeavesContext";
 import { getLeaveTypeLabel } from "@/constants/leaveTypes";
 
@@ -61,6 +61,7 @@ export default function CalendarPage() {
   const { plannedEvents } = usePlannedLeaves();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useState<CalEvent[]>([]);
+  const [approvedLeaveEvents, setApprovedLeaveEvents] = useState<CalendarLeaveEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null);
@@ -68,8 +69,8 @@ export default function CalendarPage() {
   const [showLeave, setShowLeave] = useState(false);
 
   const allLeaveEvents = useMemo(
-    () => [...CALENDAR_LEAVE_EVENTS, ...plannedEvents],
-    [plannedEvents]
+    () => [...approvedLeaveEvents, ...plannedEvents],
+    [approvedLeaveEvents, plannedEvents]
   );
 
   const [form, setForm] = useState({
@@ -84,6 +85,13 @@ export default function CalendarPage() {
     if (res.ok) setEvents(await res.json());
     setLoading(false);
   }, [currentMonth]);
+
+  useEffect(() => {
+    fetch("/api/leave-events")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setApprovedLeaveEvents(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/employees")

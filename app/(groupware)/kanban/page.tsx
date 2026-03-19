@@ -96,13 +96,28 @@ export default function KanbanPage() {
   const [editCard, setEditCard] = useState<KanbanCard | null>(null);
   const [addingCol, setAddingCol] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
+  const [tableMissingMessage, setTableMissingMessage] = useState<string | null>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
 
   const fetchCards = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/kanban");
-    if (res.ok) setCards(await res.json());
-    setLoading(false);
+    setTableMissingMessage(null);
+    try {
+      const res = await fetch("/api/kanban");
+      const data = await res.json();
+      if (res.status === 503 && (data as { code?: string }).code === "KANBAN_TABLE_MISSING") {
+        setTableMissingMessage((data as { error?: string }).error ?? "kanban_cards 테이블을 생성해 주세요.");
+        setCards([]);
+      } else if (res.ok && Array.isArray(data)) {
+        setCards(data);
+      } else {
+        setCards([]);
+      }
+    } catch {
+      setCards([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchCards(); }, [fetchCards]);
@@ -175,6 +190,11 @@ export default function KanbanPage() {
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <Loader2 className="size-6 animate-spin text-slate-400" />
+        </div>
+      ) : tableMissingMessage ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-800">
+          <p className="font-medium">칸반 보드를 사용하려면 DB 설정이 필요합니다.</p>
+          <p className="mt-2 text-sm">{tableMissingMessage}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

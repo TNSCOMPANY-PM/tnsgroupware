@@ -261,7 +261,7 @@ export function approveTransaction(
   return { success: true };
 }
 
-/** 정산 완료 건만 합산: 매출총이익(입금 - 출금) */
+/** 인메모리 거래(tx 데모)만 합산. Finance 페이지 「정산 반영 합계」는 통합 원장(dbFinanceSummary.margin) 사용. */
 export function getApprovedGrossTotal(): number {
   return transactions
     .filter((t) => t.status === "PAID")

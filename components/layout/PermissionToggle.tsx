@@ -17,6 +17,9 @@ const roleConfig: Record<
 export function PermissionToggle() {
   const { currentRole, setCurrentRole } = usePermission();
 
+  // 역할 전환은 개발/테스트용. 프로덕션에서는 노출 금지.
+  if (process.env.NODE_ENV === "production") return null;
+
   return (
     <div className="inline-flex rounded-lg bg-slate-100 p-1 transition-all duration-200 ease-in-out">
       {(Object.entries(roleConfig) as [UserRole, (typeof roleConfig)[UserRole]][]).map(

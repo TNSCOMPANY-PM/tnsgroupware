@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/client";
 
 const AVATARS_BUCKET = "avatars";
 const DOCUMENTS_BUCKET = "documents";
+const APPROVALS_BUCKET = "documents"; // approvals/ 서브경로로 사용
 
 export type UploadResult = { url: string; path: string } | { error: string };
 
@@ -38,6 +39,23 @@ export async function uploadDocument(empId: string, file: File): Promise<UploadR
   });
   if (error) return { error: error.message };
   const { data: urlData } = supabase.storage.from(DOCUMENTS_BUCKET).getPublicUrl(path);
+  return { url: urlData.publicUrl, path };
+}
+
+/**
+ * 전자결재 첨부파일 업로드. 경로: documents/approvals/{userId}/{timestamp}_{name}
+ */
+export async function uploadApprovalAttachment(userId: string, file: File): Promise<UploadResult> {
+  const supabase = createClient();
+  if (!supabase.storage) return { error: "Storage not configured" };
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `approvals/${userId}/${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage.from(APPROVALS_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (error) return { error: error.message };
+  const { data: urlData } = supabase.storage.from(APPROVALS_BUCKET).getPublicUrl(path);
   return { url: urlData.publicUrl, path };
 }
 

@@ -61,19 +61,20 @@ export interface EmployeeDetailProfile {
   jobTags: string[];
 }
 
-/** 플렉스(기본 정보) 기준 · 박재민 — 확정 */
+/** 플렉스(기본 정보) 기준 · 박재민 — 총괄 (경영지원), 권한 팀장 레벨 */
 export const PROFILE_JAEMIN: EmployeeDetailProfile = {
   id: "6",
   name: "박재민",
-  position: "경영지원",
-  department: "마케팅사업부",
-  team: "마케팅사업부",
-  role: "팀장",
+  position: "총괄",
+  department: "경영지원",
+  team: "경영지원",
+  role: "총괄",
   organization: {
-    department: "마케팅사업부",
-    team: "마케팅사업부",
+    department: "경영지원",
+    team: "경영지원",
     location: "서울 본사",
-    position: "경영지원",
+    position: "팀장",
+    jobTitle: "팀장",
   },
   personal: {
     name: "박재민",
@@ -120,19 +121,20 @@ export const PROFILE_JAEMIN: EmployeeDetailProfile = {
   jobTags: ["경영지원", "기획", "운영"],
 };
 
-/** PDF(구성원프로필) 반영 · 김동균 — 확정 */
+/** PDF(구성원프로필) 반영 · 김동균 — 팀장 (티제이웹) */
 export const PROFILE_KIM_DONGKYUN: EmployeeDetailProfile = {
   id: "3",
   name: "김동균",
-  position: "맞춤형 홈페이지 제작",
-  department: "마케팅사업부",
-  team: "마케팅사업부",
+  position: "팀장",
+  department: "티제이웹",
+  team: "티제이웹",
   role: "팀장",
   organization: {
-    department: "마케팅사업부",
-    team: "마케팅사업부",
+    department: "티제이웹",
+    team: "티제이웹",
     location: "서울 본사",
     position: "팀장",
+    jobTitle: "팀장",
   },
   personal: {
     name: "김동균",
@@ -175,19 +177,20 @@ export const PROFILE_KIM_DONGKYUN: EmployeeDetailProfile = {
   jobTags: ["맞춤형 홈페이지 제작", "팀장"],
 };
 
-/** PDF(구성원프로필) 반영 · 심규성 — 확정 */
+/** PDF(구성원프로필) 반영 · 심규성 — 사원 (마케팅사업부, 김정섭 팀장 소속) */
 export const PROFILE_SIM_KYUSUNG: EmployeeDetailProfile = {
   id: "7",
   name: "심규성",
-  position: "이커머스 운영 관리",
+  position: "사원",
   department: "마케팅사업부",
   team: "마케팅사업부",
-  role: "선임",
+  role: "사원",
   organization: {
     department: "마케팅사업부",
     team: "마케팅사업부",
     location: "서울 본사",
-    position: "선임",
+    position: "사원",
+    jobTitle: "사원",
   },
   personal: {
     name: "심규성",
@@ -222,27 +225,27 @@ export const PROFILE_SIM_KYUSUNG: EmployeeDetailProfile = {
   sidebar: {
     reportLine: "-",
     reportDepartment: "마케팅사업부",
-    directManager: "-",
+    directManager: "김정섭",
     phone: "010-2822-8057",
     email: "sadoshim@naver.com",
     address: "-",
   },
-  jobTags: ["이커머스 운영 관리", "선임"],
+  jobTags: ["이커머스 운영 관리", "사원"],
 };
 
-/** PDF(구성원프로필) 반영 · 김정섭 — 확정 */
+/** PDF(구성원프로필) 반영 · 김정섭 — 총괄 (마케팅사업부), 권한 팀장 레벨 */
 export const PROFILE_KIM_JEONGSEOP: EmployeeDetailProfile = {
   id: "5",
   name: "김정섭",
-  position: "이커머스 운영 관리",
+  position: "총괄",
   department: "마케팅사업부",
   team: "마케팅사업부",
-  role: "팀장",
+  role: "총괄",
   organization: {
     department: "마케팅사업부",
     team: "마케팅사업부",
     location: "서울 본사",
-    position: "총괄팀장",
+    position: "팀장",
     jobTitle: "팀장",
   },
   personal: {
@@ -280,14 +283,14 @@ export const PROFILE_KIM_JEONGSEOP: EmployeeDetailProfile = {
     email: "seops1118@naver.com",
     address: "-",
   },
-  jobTags: ["이커머스 운영 관리", "총괄팀장", "팀장"],
+  jobTags: ["이커머스 운영 관리", "총괄", "팀장"],
 };
 
-/** PDF(구성원프로필_김용준_2026-03-12 (1).pdf) 반영 · 김용준 — 확정 */
+/** PDF(구성원프로필_김용준_2026-03-12 (1).pdf) 반영 · 김용준 — 팀장 (마케팅사업부, 김정섭 총괄 소속) */
 export const PROFILE_KIM_YONGJUN: EmployeeDetailProfile = {
   id: "4",
   name: "김용준",
-  position: "이커머스 운영 관리",
+  position: "팀장",
   department: "마케팅사업부",
   team: "마케팅사업부",
   role: "팀장",
@@ -296,6 +299,7 @@ export const PROFILE_KIM_YONGJUN: EmployeeDetailProfile = {
     team: "마케팅사업부",
     location: "서울 본사",
     position: "팀장",
+    jobTitle: "팀장",
   },
   personal: {
     name: "김용준",
@@ -327,7 +331,7 @@ export const PROFILE_KIM_YONGJUN: EmployeeDetailProfile = {
   sidebar: {
     reportLine: "-",
     reportDepartment: "마케팅사업부",
-    directManager: "-",
+    directManager: "김정섭",
     phone: "010-4032-9187",
     email: "dydwns9187@naver.com",
     address: "-",

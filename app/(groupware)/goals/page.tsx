@@ -53,9 +53,6 @@ export default function GoalsPage() {
       {/* 헤더 */}
       <div>
         <h1 className="text-2xl font-bold text-[var(--foreground)]">목표</h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          팀별 목표 관리 · 간트 차트 · 칸반 보드
-        </p>
       </div>
 
       {/* 탭 */}

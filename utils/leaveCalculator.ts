@@ -85,6 +85,44 @@ function getYearStart(year: number): Date {
 export const REFERENCE_DATE = new Date(2026, 2, 9);
 
 /**
+ * /api/holidays?year=YYYY 에서 공휴일 목록을 가져오는 헬퍼 (클라이언트 전용)
+ * 실패 시 null 반환 (하드코딩된 PUBLIC_HOLIDAYS 폴백)
+ */
+export async function fetchKoreanHolidays(year: number): Promise<string[] | null> {
+  try {
+    const res = await fetch(`/api/holidays?year=${year}`);
+    if (!res.ok) return null;
+    const json = await res.json() as { holidays: string[] };
+    return Array.isArray(json.holidays) ? json.holidays : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 동적 공휴일 목록을 사용한 영업일 수 계산
+ * (공휴일 목록 없을 때는 하드코딩 폴백)
+ */
+export function countBusinessDaysExcludingHolidaysList(
+  start: Date,
+  end: Date,
+  holidayList: string[]
+): number {
+  if (start > end) return 0;
+  const set = new Set(holidayList);
+  let count = 0;
+  const d = new Date(start);
+  while (d <= end) {
+    const day = d.getDay();
+    const weekend = day === 0 || day === 6;
+    const str = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!weekend && !set.has(str)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+/**
  * 근로기준법 연차 자동 생성 (기준일 2026-03-09 고정)
  * - 1년 미만: 입사 후 1개월 만근 시마다 1일씩 발생 (최대 11일)
  * - 1년 이상: 1년차 15일, 3년차부터 2년마다 1일 가산 (최대 25일)

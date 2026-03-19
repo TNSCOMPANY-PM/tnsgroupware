@@ -1,7 +1,7 @@
 "use client";
 
 import "react-day-picker/style.css";
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -54,7 +54,6 @@ import {
   getBurnoutRiskUsers,
   getMilestoneRisks,
 } from "@/utils/leaveMonitoring";
-import { CALENDAR_LEAVE_EVENTS } from "@/constants/leaveSchedule";
 import {
   Calendar,
   ChevronLeft,
@@ -78,7 +77,31 @@ import { cn } from "@/lib/utils";
 import { CompanyLeaveCalendar } from "@/components/hr/CompanyLeaveCalendar";
 import { AnnualLeavePlanModal } from "@/components/leave/AnnualLeavePlanModal";
 
-export const HR_LEAVE_STORAGE_KEY = "groupware-hr-leave-requests";
+/** DB row(snake_case) → LeaveRequest(camelCase) 변환 */
+function dbRowToLeaveRequest(row: Record<string, unknown>): LeaveRequest {
+  return {
+    id: row.id as string,
+    applicantId: row.applicant_id as string,
+    applicantName: row.applicant_name as string,
+    applicantDepartment: row.applicant_department as string,
+    leaveType: row.leave_type as LeaveTypeKey,
+    startDate: row.start_date as string,
+    endDate: row.end_date as string,
+    days: Number(row.days),
+    reason: (row.reason as string) ?? "",
+    status: row.status as ApprovalStatus,
+    teamLeadApprovedAt: (row.team_lead_approved_at as string) ?? undefined,
+    cLevelApprovedAt: (row.c_level_approved_at as string) ?? undefined,
+    rejectedAt: (row.rejected_at as string) ?? undefined,
+    rejectReason: (row.reject_reason as string) ?? undefined,
+    requiresProof: (row.requires_proof as boolean) ?? undefined,
+    proofStatus: (row.proof_status as "pending" | "submitted") ?? undefined,
+    proofFileName: (row.proof_file_name as string) ?? undefined,
+    proofUploadedAt: (row.proof_uploaded_at as string) ?? undefined,
+    autoApproved: (row.auto_approved as boolean) ?? undefined,
+    createdAt: (row.created_at as string) ?? new Date().toISOString(),
+  };
+}
 
 const DEFAULT_LEAVE_REQUESTS: LeaveRequest[] = [
   {
@@ -312,17 +335,15 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
   const joinDateStr = currentUser?.joinDate ?? "";
   const filterYear = new Date().getFullYear();
 
-  const [storedLeaveRequests] = useState<LeaveRequest[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const s = localStorage.getItem(HR_LEAVE_STORAGE_KEY);
-      if (s) {
-        const parsed = JSON.parse(s) as LeaveRequest[];
-        return Array.isArray(parsed) ? parsed : [];
-      }
-    } catch {}
-    return [];
-  });
+  const [storedLeaveRequests, setStoredLeaveRequests] = useState<LeaveRequest[]>([]);
+  useEffect(() => {
+    fetch("/api/leaves")
+      .then((r) => r.json())
+      .then((rows) => {
+        if (Array.isArray(rows)) setStoredLeaveRequests(rows.map(dbRowToLeaveRequest));
+      })
+      .catch(() => {});
+  }, []);
 
   const myApprovedDays = storedLeaveRequests
     .filter(
@@ -473,22 +494,16 @@ function LeaveOverviewTab({
   isTeamLead: boolean;
   currentUserId: string;
 }) {
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_LEAVE_REQUESTS;
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const fetchLeaves = useCallback(async () => {
     try {
-      const s = localStorage.getItem(HR_LEAVE_STORAGE_KEY);
-      if (s) {
-        const parsed = JSON.parse(s) as LeaveRequest[];
-        return Array.isArray(parsed) ? parsed : DEFAULT_LEAVE_REQUESTS;
-      }
+      const res = await fetch("/api/leaves");
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (Array.isArray(rows)) setLeaveRequests(rows.map(dbRowToLeaveRequest));
     } catch {}
-    return DEFAULT_LEAVE_REQUESTS;
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(HR_LEAVE_STORAGE_KEY, JSON.stringify(leaveRequests));
-    } catch {}
-  }, [leaveRequests]);
+  }, []);
+  useEffect(() => { fetchLeaves(); }, [fetchLeaves]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedLeaveType, setSelectedLeaveType] = useState<LeaveTypeKey | null>(
     null
@@ -554,7 +569,7 @@ function LeaveOverviewTab({
     setModalOpen(true);
   };
 
-  const handleSubmit = (form: {
+  const handleSubmit = useCallback(async (form: {
     leaveType: LeaveTypeKey;
     startDate: string;
     endDate: string;
@@ -567,84 +582,76 @@ function LeaveOverviewTab({
     if (card?.fixedDays != null && form.days > card.fixedDays) return;
     const applicant = DUMMY_USERS.find((u) => u.id === currentUserId);
     const requiresProof = getRequiresProof(form.leaveType);
-    const newReq: LeaveRequest = {
-      id: String(Date.now()),
-      applicantId: currentUserId,
-      applicantName: applicant?.name ?? "사용자",
-      applicantDepartment: applicant?.department ?? "마케팅사업부",
-      leaveType: form.leaveType,
-      startDate: form.startDate,
-      endDate: form.endDate,
-      days: form.days,
-      reason: form.reason,
-      status:
-        currentRole === "사원"
-          ? "팀장_1차_승인_대기"
-          : currentRole === "팀장"
-            ? "C레벨_최종_승인_대기"
-            : "승인_완료",
-      createdAt: new Date().toISOString(),
-      requiresProof: requiresProof || undefined,
-      proofStatus: requiresProof ? "pending" : undefined,
-    };
-    setLeaveRequests((prev) => [newReq, ...prev]);
+    const status =
+      currentRole === "사원"
+        ? "팀장_1차_승인_대기"
+        : currentRole === "팀장"
+          ? "C레벨_최종_승인_대기"
+          : "승인_완료";
+    await fetch("/api/leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicantId: currentUserId,
+        applicantName: applicant?.name ?? "사용자",
+        applicantDepartment: applicant?.department ?? "마케팅사업부",
+        leaveType: form.leaveType,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        days: form.days,
+        reason: form.reason,
+        status,
+        requiresProof: requiresProof || undefined,
+      }),
+    });
+    await fetchLeaves();
     setModalOpen(false);
     setSelectedLeaveType(null);
-  };
+  }, [currentUser, currentUserId, currentRole, fetchLeaves]);
 
-  const handleApprove = (id: string) => {
-    setLeaveRequests((prev) =>
-      prev.map((r) => {
-        if (r.id !== id) return r;
-        if (r.status === "팀장_1차_승인_대기")
-          return {
-            ...r,
-            status: "C레벨_최종_승인_대기" as ApprovalStatus,
-            teamLeadApprovedAt: new Date().toISOString(),
-          };
-        if (r.status === "C레벨_최종_승인_대기")
-          return {
-            ...r,
-            status: "승인_완료" as ApprovalStatus,
-            cLevelApprovedAt: new Date().toISOString(),
-          };
-        return r;
-      })
-    );
-  };
+  const handleApprove = useCallback(async (id: string) => {
+    const req = leaveRequests.find((r) => r.id === id);
+    if (!req) return;
+    const now = new Date().toISOString();
+    let body: Record<string, string> = {};
+    if (req.status === "팀장_1차_승인_대기") {
+      body = { status: "C레벨_최종_승인_대기", teamLeadApprovedAt: now };
+    } else if (req.status === "C레벨_최종_승인_대기") {
+      body = { status: "승인_완료", cLevelApprovedAt: now };
+    }
+    if (!body.status) return;
+    await fetch(`/api/leaves/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    fetchLeaves();
+  }, [leaveRequests, fetchLeaves]);
 
-  const handleReject = (id: string) => {
-    setLeaveRequests((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              status: "반려" as ApprovalStatus,
-              rejectedAt: new Date().toISOString(),
-            }
-          : r
-      )
-    );
-  };
+  const handleReject = useCallback(async (id: string) => {
+    await fetch(`/api/leaves/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "반려", rejectedAt: new Date().toISOString() }),
+    });
+    fetchLeaves();
+  }, [fetchLeaves]);
 
   const isPending = (s: ApprovalStatus) =>
     s === "팀장_1차_승인_대기" || s === "C레벨_최종_승인_대기";
 
-  const handleCancel = (id: string) => {
+  const handleCancel = useCallback(async (id: string) => {
     const req = leaveRequests.find((r) => r.id === id);
     if (!req || req.applicantId !== currentUserId) return;
     if (isPending(req.status)) {
       setRemovingIds((prev) => new Set(prev).add(id));
+      await fetch(`/api/leaves/${id}`, { method: "DELETE" });
       setTimeout(() => {
-        setLeaveRequests((prev) => prev.filter((r) => r.id !== id));
-        setRemovingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
+        setRemovingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        fetchLeaves();
       }, 300);
     }
-  };
+  }, [leaveRequests, currentUserId, fetchLeaves]);
 
   const handleCancelConfirm = () => {
     if (!cancelConfirm) return;
@@ -656,50 +663,42 @@ function LeaveOverviewTab({
     setCancelConfirm(null);
   };
 
-  const handleCancelRequest = (id: string) => {
+  const handleCancelRequest = useCallback(async (id: string) => {
     const req = leaveRequests.find((r) => r.id === id);
     if (!req || req.applicantId !== currentUserId) return;
-    if (req.status === "승인_완료") {
-      setLeaveRequests((prev) =>
-        prev.map((r) =>
-          r.id === id ? { ...r, status: "CANCEL_REQUESTED" as ApprovalStatus } : r
-        )
-      );
-    }
-  };
+    if (req.status !== "승인_완료") return;
+    await fetch(`/api/leaves/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCEL_REQUESTED" }),
+    });
+    fetchLeaves();
+  }, [leaveRequests, currentUserId, fetchLeaves]);
 
-  const handleApproveCancel = (id: string) => {
+  const handleApproveCancel = useCallback(async (id: string) => {
     setRemovingIds((prev) => new Set(prev).add(id));
-    setLeaveRequests((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: "CANCELED" as ApprovalStatus } : r
-      )
-    );
+    await fetch(`/api/leaves/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCELED" }),
+    });
     setTimeout(() => {
-      setLeaveRequests((prev) => prev.filter((r) => r.id !== id));
-      setRemovingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
+      setRemovingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      fetchLeaves();
     }, 300);
-  };
+  }, [fetchLeaves]);
 
   const burnoutRisks = useMemo(
     () =>
       isCLevel
-        ? getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, CALENDAR_LEAVE_EVENTS)
+        ? getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, [])
         : [],
     [isCLevel, leaveRequests]
   );
   const milestoneRisks = useMemo(
     () =>
       isCLevel
-        ? getMilestoneRisks(
-            leaveRequests,
-            CALENDAR_LEAVE_EVENTS,
-            DUMMY_USERS
-          )
+        ? getMilestoneRisks(leaveRequests, [], DUMMY_USERS)
         : [],
     [isCLevel, leaveRequests]
   );
@@ -771,7 +770,7 @@ function LeaveOverviewTab({
                 </span>
                 <ul className="mt-2 space-y-1">
                   {r.overlappingLeaves.map((o) => (
-                    <li key={o.userId} className="rounded-lg bg-amber-50/80 px-3 py-1.5 text-amber-700">
+                    <li key={`${o.userId}-${o.leaveStart}-${o.leaveEnd}`} className="rounded-lg bg-amber-50/80 px-3 py-1.5 text-amber-700">
                       {o.userName} {o.role} · {o.leaveStart} ~ {o.leaveEnd}
                     </li>
                   ))}
@@ -876,32 +875,26 @@ function LeaveOverviewTab({
                 isRemoving={removingIds.has(req.id)}
                 onCancelClick={(id, type) => setCancelConfirm({ id, type })}
                 onProofUpload={(id, fileName) => {
-                  setLeaveRequests((prev) =>
-                    prev.map((r) =>
-                      r.id === id
-                        ? {
-                            ...r,
-                            proofStatus: "submitted" as const,
-                            proofFileName: fileName,
-                            proofUploadedAt: new Date().toISOString(),
-                          }
-                        : r
-                    )
-                  );
+                  fetch(`/api/leaves/${id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      proofStatus: "submitted",
+                      proofFileName: fileName,
+                      proofUploadedAt: new Date().toISOString(),
+                    }),
+                  }).then(() => fetchLeaves()).catch(() => {});
                 }}
                 onProofDelete={(id) => {
-                  setLeaveRequests((prev) =>
-                    prev.map((r) =>
-                      r.id === id
-                        ? {
-                            ...r,
-                            proofStatus: "pending" as const,
-                            proofFileName: undefined,
-                            proofUploadedAt: undefined,
-                          }
-                        : r
-                    )
-                  );
+                  fetch(`/api/leaves/${id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      proofStatus: "pending",
+                      proofFileName: null,
+                      proofUploadedAt: null,
+                    }),
+                  }).then(() => fetchLeaves()).catch(() => {});
                 }}
                 currentRole={currentRole}
                 isCLevel={isCLevel}

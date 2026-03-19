@@ -20,7 +20,7 @@ export function parseShinhanDepositSms(smsText: string): {
   const raw = (smsText || "").trim();
   if (!raw) return null;
 
-  const year = 2026;
+  const year = new Date().getFullYear();
 
   // 줄 단위로 분리 (모든 줄바꿈 패턴 대응, 빈 줄 제거)
   const lines = raw.split(/\r\n|\r|\n/).map((l) => l.trim()).filter(Boolean);
@@ -37,7 +37,7 @@ export function parseShinhanDepositSms(smsText: string): {
     dateStr = `${year}-${m}-${d}`;
   } else {
     const now = new Date();
-    dateStr = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   }
 
   // ── 금액 추출 ──────────────────────────────────────────────────────────────

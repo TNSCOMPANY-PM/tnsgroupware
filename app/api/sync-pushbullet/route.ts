@@ -5,14 +5,16 @@ import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
 export const dynamic = "force-dynamic";
 
 type PushbulletPush = { body?: string; title?: string; created?: number; iden?: string; active?: boolean; type?: string; dismissed?: boolean };
+type PushbulletDevice = { iden?: string; nickname?: string; type?: string };
+type PermanentsThread = { id?: string; recipients?: { name?: string; address?: string }[]; latest?: { id?: string; type?: string; body?: string; direction?: string; timestamp?: number } };
 
 /**
  * Pushbullet 동기화 API (GET).
- * PUSHBULLET_API_KEY로 최근 pushes 조회 → 신한 입금만 필터·파싱 → 중복 제외 후 finance INSERT.
- * Vercel Cron (매일 자정) 및 페이지 로드 시 자동 호출됨.
+ * - (1) /v2/pushes: 사용자가 보낸 push 중 신한 입금 알림만 파싱
+ * - (2) /v2/devices + /v2/permanents/{device}_threads: 실제 SMS 스레드에서 수신 문자 조회 (비공식 API)
+ * 참고: https://www.pushbullet.com/#sms/... 같은 웹 페이지는 SPA라 서버에서 크롤링 불가(로그인·JS 렌더 필요).
  */
 export async function GET(request: NextRequest) {
-  // Vercel Cron 인증 헤더 허용 (CRON_SECRET 미설정 시 전체 허용)
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
@@ -26,10 +28,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const headers = { "Access-Token": apiKey };
+  const parsedList: { date: string; amount: number; client_name: string; iden?: string }[] = [];
+  let pushesCount = 0;
+  let shinhanFromPushes = 0;
+  let smsThreadsFetched = 0;
+  let permanentsError: string | null = null;
+
   try {
-    // active=true: 삭제되지 않은 push만, limit=100으로 더 넓게 조회
+    // ── (1) Pushes: 사용자 push 목록 (노트/링크 등 — SMS는 여기 없을 수 있음) ──
     const res = await fetch("https://api.pushbullet.com/v2/pushes?active=true&limit=100", {
-      headers: { "Access-Token": apiKey },
+      headers,
       next: { revalidate: 0 },
     });
 
@@ -43,38 +52,80 @@ export async function GET(request: NextRequest) {
 
     const data = (await res.json()) as { pushes?: PushbulletPush[] };
     const pushes = Array.isArray(data.pushes) ? data.pushes : [];
-
+    pushesCount = pushes.length;
     console.log(`📦 [Pushbullet] 총 ${pushes.length}개 push 수신`);
 
-    // 최근 20개 원본 구조 출력 (필터 전)
-    pushes.slice(0, 20).forEach((p, i) => {
-      console.log(`  [${i}] type=${p.type} | title=${JSON.stringify(p.title)} | body=${JSON.stringify(typeof p.body === "string" ? p.body.slice(0, 80) : p.body)}`);
-    });
-
-    // title + body 합쳐서 필터 (어느 쪽에 있어도 잡기)
     const shinhanPushes = pushes.filter((p) => {
       const combined = `${p.title ?? ""} ${p.body ?? ""}`;
       return combined.includes("신한") && combined.includes("입금");
     });
+    shinhanFromPushes = shinhanPushes.length;
+    console.log(`🔍 [필터] pushes 중 신한+입금 ${shinhanPushes.length}건`);
 
-    console.log(`🔍 [필터] 신한+입금 포함 ${shinhanPushes.length}건`);
-
-    // 파싱: title\nbody 합쳐서 파싱 + iden 포함
-    const parsedList: { date: string; amount: number; client_name: string; iden?: string }[] = [];
     for (const p of shinhanPushes) {
       const text = [p.title, p.body].filter(Boolean).join("\n");
-      console.log("🚨 [디버깅] 들어온 문자 원본:", JSON.stringify(text));
       const parsed = parseShinhanDepositSms(text);
-      if (parsed) {
-        console.log("✅ [파싱 성공]:", parsed);
-        parsedList.push({ ...parsed, iden: p.iden });
-      } else {
-        console.error("❌ [파싱 실패] 원본 다시 확인:", JSON.stringify(text));
+      if (parsed) parsedList.push({ ...parsed, iden: p.iden });
+    }
+
+    // ── (2) SMS 스레드(permanents, 비공식): 실제 수신 문자에서 신한 입금 추출 ──
+    try {
+      const devRes = await fetch("https://api.pushbullet.com/v2/devices", { headers, next: { revalidate: 0 } });
+      if (!devRes.ok) {
+        permanentsError = `devices ${devRes.status}`;
+        throw new Error(permanentsError);
       }
+      const devData = (await devRes.json()) as { devices?: PushbulletDevice[] };
+      const devices = Array.isArray(devData.devices) ? devData.devices : [];
+      const androidDevices = devices.filter((d) => d.type === "android" || (d.iden && !d.type));
+      if (androidDevices.length === 0) permanentsError = "Android 기기 없음";
+
+      for (const dev of androidDevices.slice(0, 3)) {
+        const iden = dev.iden;
+        if (!iden) continue;
+        const permRes = await fetch(`https://api.pushbullet.com/v2/permanents/${iden}_threads`, {
+          headers,
+          next: { revalidate: 0 },
+        });
+        if (!permRes.ok) {
+          permanentsError = `permanents ${permRes.status}`;
+          console.warn(`⚠️ [Pushbullet] permanents/${iden}_threads → ${permRes.status}`);
+          continue;
+        }
+        const rawThreads = await permRes.json();
+        const threads = Array.isArray(rawThreads) ? rawThreads : (rawThreads as { threads?: PermanentsThread[] }).threads ?? [];
+        smsThreadsFetched += threads.length;
+        for (const t of threads) {
+          const latest = (t as PermanentsThread).latest;
+          if (!latest?.body || latest.direction !== "incoming") continue;
+          const text = latest.body;
+          if (!text.includes("신한") || !text.includes("입금")) continue;
+          const parsed = parseShinhanDepositSms(text);
+          if (parsed) {
+            const idenSms = `sms:${iden}:${(t as PermanentsThread).id ?? ""}:${latest.id ?? ""}`;
+            if (!parsedList.some((x) => x.iden === idenSms)) parsedList.push({ ...parsed, iden: idenSms });
+          } else {
+            console.warn("⚠️ [Pushbullet] 신한 입금 파싱 실패, 원문 일부:", text.slice(0, 120));
+          }
+        }
+      }
+      if (smsThreadsFetched > 0) console.log(`📱 [SMS 스레드] ${smsThreadsFetched}개 스레드에서 신한 입금 파싱 반영`);
+    } catch (permanentErr) {
+      const msg = permanentErr instanceof Error ? permanentErr.message : String(permanentErr);
+      if (!permanentsError) permanentsError = msg;
+      console.warn("⚠️ [permanents SMS 조회 실패 (비공식 API)]:", permanentErr);
     }
 
     if (parsedList.length === 0) {
-      return NextResponse.json({ ok: true, count: 0, added: [], total: pushes.length, shinhan: shinhanPushes.length });
+      return NextResponse.json({
+        ok: true,
+        count: 0,
+        added: [],
+        total: pushesCount,
+        shinhan: shinhanFromPushes,
+        sms_threads: smsThreadsFetched,
+        permanents_error: permanentsError ?? undefined,
+      });
     }
 
     const supabase = await createClient();
@@ -93,7 +144,7 @@ export async function GET(request: NextRequest) {
     const existingIdens = new Set<string>(
       (existing ?? [])
         .map((r: Record<string, unknown>) => {
-          const m = String(r.description ?? "").match(/pb:([a-zA-Z0-9._-]+)/);
+          const m = String(r.description ?? "").match(/pb:([a-zA-Z0-9._:-]+)/);
           return m ? m[1] : null;
         })
         .filter((v): v is string => v !== null)
@@ -167,7 +218,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, count: added.length, added });
+    return NextResponse.json({
+      ok: true,
+      count: added.length,
+      added,
+      total: pushesCount,
+      shinhan: shinhanFromPushes,
+      sms_threads: smsThreadsFetched,
+      permanents_error: permanentsError ?? undefined,
+    });
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));
     return NextResponse.json(

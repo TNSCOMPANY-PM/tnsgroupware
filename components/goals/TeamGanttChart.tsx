@@ -61,10 +61,30 @@ const MIN_MONTH_KEY = "24.01";
 const DAY_WIDTH = 32;
 const LEFT_COL_WIDTH = 220;
 
-const TEAM_COLORS: Record<GanttTeamId, { pill: string; dot: string }> = {
-  더널리: { pill: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
-  티제이웹: { pill: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
-  경영지원: { pill: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+const TEAM_COLORS: Record<
+  GanttTeamId,
+  {
+    solid: string;
+    pill: string;
+    dot: string;
+  }
+> = {
+  // Apple iOS System 톤 (요청 값)
+  더널리: {
+    solid: "#007AFF",
+    pill: "bg-[#007AFF1A] text-[#007AFF] border border-[#007AFF33]",
+    dot: "#007AFF",
+  },
+  티제이웹: {
+    solid: "#FF9500",
+    pill: "bg-[#FF95001A] text-[#FF9500] border border-[#FF950033]",
+    dot: "#FF9500",
+  },
+  경영지원: {
+    solid: "#248A3D",
+    pill: "bg-[#248A3D1A] text-[#248A3D] border border-[#248A3D33]",
+    dot: "#248A3D",
+  },
 };
 
 /** [1] 화면에 보여야 할 항목만 담긴 1차원 배열: 에픽 + expandedEpics 기준 열려 있는 서브태스크 */
@@ -86,6 +106,13 @@ function getEpicBarRange(epic: GanttEpic): { start: Date; end: Date } {
     if (e > end) end = e;
   }
   return { start, end };
+}
+
+/** 에픽(팀) 전체 달성도: 서브태스크 진행률 평균 (0~100) */
+function getEpicProgress(epic: GanttEpic): number {
+  if (!epic.subTasks.length) return 0;
+  const sum = epic.subTasks.reduce((s, t) => s + Math.min(100, Math.max(0, t.progress)), 0);
+  return Math.round(sum / epic.subTasks.length);
 }
 
 /** [3] 바의 left/width 절대 픽셀: (일수 차이) * DAY_WIDTH */
@@ -217,8 +244,16 @@ export type TeamGanttChartProps = {
 };
 
 export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onDeleteProject }: TeamGanttChartProps) {
+  // Hydration mismatch 방지:
+  // - 서버 프리렌더 시에는 localStorage/Date 기반 값이 초기(0/기본값)으로 렌더될 수 있음
+  // - 클라이언트 마운트 후에 로컬스토리지/기타 값이 채워지므로, 첫 렌더를 지연해 HTML/DOM을 동일하게 맞춤
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [selectedMonthKey, setSelectedMonthKey] = useState(getCurrentMonthKey);
-  const [roadmapBlocks, setRoadmapBlocks] = useState<RoadmapBlock[] | null>(null);
+  const [roadmapBlocks, setRoadmapBlocks] = useState<RoadmapBlock[] | null>(() => getDefaultRoadmap(getCurrentMonthKey()));
   const [ganttOverrides, setGanttOverrides] = useState<Record<string, { progress?: number; name?: string; startDate?: string; endDate?: string }>>(
     () => loadGanttOverrides(getCurrentMonthKey())
   );
@@ -382,6 +417,22 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
   const headerH = 44;
   const rowH = 40;
 
+  if (!mounted) {
+    return (
+      <div className="font-sans space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 p-1">
+            <div className="h-8 w-[280px] animate-pulse rounded-lg bg-slate-200/60" />
+          </div>
+          <div className="h-6 w-[200px] rounded-lg bg-slate-200/60 animate-pulse" />
+        </div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-[520px] w-full animate-pulse bg-slate-50/60" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="font-sans space-y-3">
       <div className="flex items-center justify-between gap-4">
@@ -477,6 +528,7 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
               const colors = TEAM_COLORS[team];
               const { start, end } = getEpicBarRange(epic);
               const { leftPx, widthPx } = getBarPx(start, end, timelineStart);
+              const epicProgress = getEpicProgress(epic);
               return (
                 <div
                   key={epic.id}
@@ -503,15 +555,29 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
                       {team}
                     </span>
                     <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{epic.name}</span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-slate-500" title={`하위 ${epic.subTasks.length}개 작업 평균`}>
+                      {epicProgress}%
+                    </span>
                   </div>
                   <div
                     className="relative flex-shrink-0 py-2"
                     style={{ width: timelineWidthPx, minHeight: rowH }}
                   >
+                  {/* 에픽 진행률 바: 빈 트랙(#F2F2F7) + 팀 컬러 단색 차오름 */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 h-6 rounded-full overflow-hidden shadow-inner"
+                    style={{ left: leftPx, width: widthPx, backgroundColor: "#F2F2F7" }}
+                    aria-hidden
+                  >
                     <div
-                      className="absolute top-1/2 -translate-y-1/2 h-6 rounded-md bg-slate-700 text-slate-200 shadow-sm transition-shadow group-hover:shadow-md"
-                      style={{ left: leftPx, width: widthPx }}
+                      className="h-full rounded-full shadow-md transition-[width] duration-300"
+                      style={{
+                        width: `${epicProgress}%`,
+                        minWidth: epicProgress > 0 ? 8 : 0,
+                        backgroundColor: colors.solid,
+                      }}
                     />
+                  </div>
                   </div>
                 </div>
               );
@@ -521,6 +587,7 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
             const end = parseDateSafe(task.endDate);
             const { leftPx, widthPx } = getBarPx(start, end, timelineStart);
             const progress = Math.min(100, Math.max(0, task.progress));
+            const taskTeam = TEAM_COLORS[task.team];
             return (
               <div
                 key={task.id}
@@ -535,23 +602,48 @@ export function TeamGanttChart({ projectsFromSupabase = [], onUpdateProject, onD
                   <span
                     className={cn(
                       "shrink-0 w-2 h-2 rounded-full",
-                      progress >= 100 ? "bg-emerald-500" : progress > 0 ? "bg-amber-500" : "bg-slate-300"
+                      "bg-slate-300"
                     )}
                     aria-hidden
+                    style={{ backgroundColor: progress > 0 ? taskTeam.dot : "#CBD5E1" }}
                   />
-                  <span className="min-w-0 truncate text-sm text-slate-600">{task.name}</span>
+                  <span className="min-w-0 truncate text-sm text-slate-700">{task.name}</span>
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    style={{
+                      backgroundColor: `${taskTeam.solid}1A`,
+                      border: `1px solid ${taskTeam.solid}33`,
+                      color: taskTeam.solid,
+                    }}
+                    title={`담당 팀: ${task.team}`}
+                  >
+                    {task.team}
+                  </span>
                 </div>
                 <div
                   className="relative flex-shrink-0 py-2"
                   style={{ width: timelineWidthPx, minHeight: rowH }}
                 >
+                  {/* 태스크 진행률 바: 빈 트랙(#F2F2F7) + 팀 컬러 단색 차오름 */}
                   <div
-                    className="absolute top-1/2 -translate-y-1/2 h-5 rounded-md overflow-hidden bg-slate-200/80 transition-shadow group-hover:shadow-md"
+                    className="absolute top-1/2 -translate-y-1/2 h-5 rounded-full overflow-hidden shadow-inner transition-shadow group-hover:shadow-md"
                     style={{ left: leftPx, width: widthPx }}
+                    aria-hidden
                   >
+                    {/* 빈 트랙(연한 회색) */}
                     <div
-                      className="absolute inset-y-0 left-0 rounded-md bg-sky-500"
-                      style={{ width: `${progress}%`, minWidth: progress > 0 ? 4 : 0 }}
+                      className="absolute inset-0"
+                      style={{ backgroundColor: "#F2F2F7" }}
+                      aria-hidden
+                    />
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full shadow-sm transition-[width] duration-300"
+                      style={{
+                        width: `${progress}%`,
+                        minWidth: progress > 0 ? 6 : 0,
+                        backgroundColor: taskTeam.solid,
+                      }}
+                      aria-hidden
                     />
                   </div>
                 </div>

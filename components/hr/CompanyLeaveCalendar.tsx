@@ -21,10 +21,7 @@ import {
   parseISO,
 } from "date-fns";
 import { ko } from "date-fns/locale";
-import {
-  CALENDAR_LEAVE_EVENTS,
-  type CalendarLeaveEvent,
-} from "@/constants/leaveSchedule";
+import { type CalendarLeaveEvent } from "@/constants/leaveSchedule";
 import { usePlannedLeaves } from "@/contexts/PlannedLeavesContext";
 import { getLeaveTypeLabel } from "@/constants/leaveTypes";
 import { cn } from "@/lib/utils";
@@ -92,9 +89,21 @@ function hexToRgba(hex: string, alpha = 0.18) {
 export function CompanyLeaveCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const { plannedEvents } = usePlannedLeaves();
+  const [approvedEvents, setApprovedEvents] = useState<CalendarLeaveEvent[]>([]);
+
+  /** 승인 완료 휴가 실시간 로드 */
+  useEffect(() => {
+    fetch("/api/leave-events")
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows: unknown[]) => {
+        if (Array.isArray(rows)) setApprovedEvents(rows as CalendarLeaveEvent[]);
+      })
+      .catch(() => {});
+  }, []);
+
   const allEvents = useMemo(
-    () => [...CALENDAR_LEAVE_EVENTS, ...plannedEvents],
-    [plannedEvents]
+    () => [...approvedEvents, ...plannedEvents],
+    [approvedEvents, plannedEvents]
   );
 
   /** 퍼스널컬러 맵 fetch */

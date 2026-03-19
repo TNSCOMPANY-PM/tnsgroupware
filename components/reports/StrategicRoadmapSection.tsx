@@ -7,10 +7,10 @@ import { Label } from "@/components/ui/label";
 import { usePermission } from "@/contexts/PermissionContext";
 import { Pencil, Check, X, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 
+/** 팀장 userId → 담당 로드맵 부서 (김동균 3, 김정섭 5, 박재민 6) */
 const TEAM_LEAD_TO_ROADMAP_DEPT: Record<string, string> = {
-  "5": "쇼핑/플레이스",
-  "4": "쿠팡 & CPC",
   "3": "티제이웹",
+  "5": "쇼핑/플레이스",
   "6": "경영지원",
 };
 

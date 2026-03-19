@@ -2,8 +2,6 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from "react";
 
-const STORAGE_KEY = "groupware-hr-granted-leave";
-
 export type GrantLeaveType = "포상 휴가" | "대체 휴무" | "연차 개수 조정" | "기타";
 
 export interface GrantedLeaveRecord {
@@ -17,16 +15,17 @@ export interface GrantedLeaveRecord {
   grantedAt: string;
 }
 
-function loadGrantedLeaves(): GrantedLeaveRecord[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const s = localStorage.getItem(STORAGE_KEY);
-    if (s) {
-      const parsed = JSON.parse(s) as GrantedLeaveRecord[];
-      return Array.isArray(parsed) ? parsed : [];
-    }
-  } catch {}
-  return [];
+function dbRowToGrantedLeave(row: Record<string, unknown>): GrantedLeaveRecord {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    userName: row.user_name as string,
+    year: Number(row.year),
+    days: Number(row.days),
+    type: row.type as GrantLeaveType,
+    reason: (row.reason as string) ?? undefined,
+    grantedAt: (row.granted_at as string) ?? new Date().toISOString(),
+  };
 }
 
 interface GrantedLeavesContextType {
@@ -38,18 +37,18 @@ interface GrantedLeavesContextType {
 const GrantedLeavesContext = createContext<GrantedLeavesContextType | undefined>(undefined);
 
 export function GrantedLeavesProvider({ children }: { children: React.ReactNode }) {
-  // 서버/클라이언트 첫 렌더를 동일하게 시작 → hydration mismatch 방지
   const [grantedLeaves, setGrantedLeaves] = useState<GrantedLeaveRecord[]>([]);
 
   useEffect(() => {
-    setGrantedLeaves(loadGrantedLeaves());
+    fetch("/api/granted-leaves")
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows: unknown[]) => {
+        if (Array.isArray(rows)) {
+          setGrantedLeaves(rows.map((r) => dbRowToGrantedLeave(r as Record<string, unknown>)));
+        }
+      })
+      .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(grantedLeaves));
-    } catch {}
-  }, [grantedLeaves]);
 
   const addGrantedLeave = useCallback(
     (record: Omit<GrantedLeaveRecord, "id" | "grantedAt">) => {
@@ -58,7 +57,14 @@ export function GrantedLeavesProvider({ children }: { children: React.ReactNode 
         id: `grant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         grantedAt: new Date().toISOString(),
       };
+      // 낙관적 업데이트
       setGrantedLeaves((prev) => [newRecord, ...prev]);
+      // DB 저장 (실패해도 UI는 유지 — 새로고침 시 DB 기준으로 재조회)
+      fetch("/api/granted-leaves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord),
+      }).catch(() => {});
     },
     []
   );

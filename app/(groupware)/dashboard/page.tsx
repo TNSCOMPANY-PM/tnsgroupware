@@ -18,19 +18,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DUMMY_USERS } from "@/constants/users";
-import { CALENDAR_LEAVE_EVENTS } from "@/constants/leaveSchedule";
 import { getBurnoutRiskUsers } from "@/utils/leaveMonitoring";
 import {
   DASHBOARD_ANNOUNCEMENTS,
   LUNCH_MENUS,
 } from "@/constants/dashboard";
 import { parseDashboardFinance, type FinanceCurrentJson } from "@/lib/financeCurrent";
+import {
+  computeDashboardLedgerSummary,
+  loadLedgerCustom,
+  loadLedgerEdits,
+  loadLedgerHidden,
+  type FinanceRowForLedger,
+  type LedgerRowForSummary,
+} from "@/lib/dashboardLedgerSummary";
 import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
 import {
   Calendar,
   UtensilsCrossed,
   Sparkles,
   Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { UserTodoWidget } from "@/components/dashboard/UserTodoWidget";
 import { format, parseISO, subDays } from "date-fns";
@@ -51,6 +60,7 @@ function setStoredHoroscopePeriod(period: string): void {
   localStorage.setItem(HOROSCOPE_STORAGE_KEY, period);
 }
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { formatWonKorean } from "@/utils/formatWon";
 import type { LeaveRequest } from "@/constants/leave";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -62,12 +72,13 @@ import { QuarterlyRoadmapWidget } from "@/components/dashboard/QuarterlyRoadmapW
 import {
   getAnnouncements,
   addAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
   seedDefaultsIfEmpty,
   type DashboardAnnouncement,
 } from "@/lib/dashboardAnnouncementStorage";
 
-const DUMMY_LEAVE_REQUESTS: LeaveRequest[] = [];
-const TODAY = new Date(2026, 2, 9);
+// leave_requests는 useEffect에서 API로 로드 (하드코딩 제거)
 
 const defaultAnnouncements: DashboardAnnouncement[] = DASHBOARD_ANNOUNCEMENTS.map(
   (a) => ({
@@ -87,22 +98,59 @@ export default function DashboardPage() {
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>(defaultAnnouncements);
   const [announceWriteOpen, setAnnounceWriteOpen] = useState(false);
+  const [announceEditId, setAnnounceEditId] = useState<string | null>(null);
   const [announceTitle, setAnnounceTitle] = useState("");
   const [announceBody, setAnnounceBody] = useState("");
   const [announceImportant, setAnnounceImportant] = useState(false);
   const [horoscopeCheckedPeriod, setHoroscopeCheckedPeriod] = useState<string | null>(null);
   const [financeData, setFinanceData] = useState<FinanceCurrentJson | null>(null);
-  const { currentUserId, currentUserName, isCLevel } = usePermission();
+  const [financeRows, setFinanceRows] = useState<FinanceRowForLedger[]>([]);
+  const [ledgerFromApi, setLedgerFromApi] = useState<LedgerRowForSummary[]>([]);
+  const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const { plannedLeaveRequests, addPlannedLeave } = usePlannedLeaves();
 
-  const dashboardFinance = useMemo(
-    () => parseDashboardFinance(financeData),
-    [financeData]
-  );
+  // 통합 원장과 동일: DB + 엑셀(ledgerEntries) + 수동 원장 + ledger API → 당월 PAID만 집계
+  const dashboardFinance = useMemo(() => {
+    const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    const fromExcel = financeData?.ledgerEntries;
+    const ledgerSource: LedgerRowForSummary[] =
+      fromExcel && fromExcel.length > 0
+        ? fromExcel.map((e) => ({
+            id: e.id,
+            date: e.date,
+            amount: e.amount,
+            type: e.type,
+            status: e.status,
+          }))
+        : ledgerFromApi;
+    const custom = loadLedgerCustom();
+    const edits = loadLedgerEdits();
+    const hidden = loadLedgerHidden();
+    const summary = computeDashboardLedgerSummary(
+      financeRows,
+      ledgerSource,
+      custom,
+      edits,
+      hidden,
+      monthKey
+    );
+    if (
+      summary.monthlyRevenue > 0 ||
+      summary.monthlyGrossProfit !== 0 ||
+      summary.survivalBalance !== 0
+    ) {
+      return summary;
+    }
+    return parseDashboardFinance(financeData);
+  }, [financeData, financeRows, ledgerFromApi]);
 
   useEffect(() => {
-    seedDefaultsIfEmpty(DASHBOARD_ANNOUNCEMENTS);
-    setAnnouncements(getAnnouncements());
+    seedDefaultsIfEmpty(DASHBOARD_ANNOUNCEMENTS)
+      .then(() => getAnnouncements())
+      .then((list) => setAnnouncements(list))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -112,8 +160,72 @@ export default function DashboardPage() {
       .catch(() => setFinanceData(null));
   }, []);
 
+  // 통합 원장과 동일 소스: DB finance + ledger API
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/finance").then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/transactions/ledger").then((r) => (r.ok ? r.json() : { ledger: [] })),
+    ])
+      .then(([rows, ledgerRes]) => {
+        setFinanceRows(Array.isArray(rows) ? rows : []);
+        const list = Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : [];
+        setLedgerFromApi(
+          list.map((r: { id: string; date?: string; amount: number; type: string; status: string }) => ({
+            id: r.id,
+            date: r.date ?? "",
+            amount: Number(r.amount) || 0,
+            type: r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT",
+            status: r.status === "PAID" ? "PAID" : "UNMAPPED",
+          }))
+        );
+      })
+      .catch(() => {
+        setFinanceRows([]);
+        setLedgerFromApi([]);
+      });
+  }, []);
+
   useEffect(() => {
     setHoroscopeCheckedPeriod(getStoredHoroscopePeriod());
+  }, []);
+
+  useEffect(() => {
+    if (!isTeamLead && !isCLevel) return;
+    fetch("/api/approvals")
+      .then((r) => r.ok ? r.json() : [])
+      .then((list: { status?: string }[]) => {
+        const n = Array.isArray(list) ? list.filter((a) => a.status === "pending").length : 0;
+        setPendingApprovalsCount(n);
+      })
+      .catch(() => setPendingApprovalsCount(0));
+  }, [isTeamLead, isCLevel]);
+
+  // 실제 휴가 데이터 로드 (번아웃 리스크 · 연차 촉진 계산용)
+  useEffect(() => {
+    fetch("/api/leaves")
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows: unknown[]) => {
+        if (!Array.isArray(rows)) return;
+        setLeaveRequests(
+          rows.map((row) => {
+            const r = row as Record<string, unknown>;
+            return {
+              id: r.id as string,
+              applicantId: r.applicant_id as string,
+              applicantName: r.applicant_name as string,
+              applicantDepartment: r.applicant_department as string,
+              leaveType: r.leave_type as LeaveRequest["leaveType"],
+              startDate: r.start_date as string,
+              endDate: r.end_date as string,
+              days: Number(r.days),
+              reason: (r.reason as string) ?? "",
+              status: r.status as LeaveRequest["status"],
+              createdAt: (r.created_at as string) ?? new Date().toISOString(),
+            };
+          })
+        );
+      })
+      .catch(() => setLeaveRequests([]));
   }, []);
 
   const now = new Date();
@@ -127,8 +239,8 @@ export default function DashboardPage() {
   };
 
   const statuses = useMemo(
-    () => computePromotionStatus(DUMMY_USERS, DUMMY_LEAVE_REQUESTS, plannedLeaveRequests, TODAY),
-    [plannedLeaveRequests]
+    () => computePromotionStatus(DUMMY_USERS, leaveRequests, plannedLeaveRequests, new Date()),
+    [leaveRequests, plannedLeaveRequests]
   );
   const myStatus = statuses.find((s) => s.userId === currentUserId);
   const showPromotionWidget =
@@ -140,18 +252,22 @@ export default function DashboardPage() {
   const today = new Date();
   const todayStr = format(today, "yyyy-MM-dd");
 
+  // 오늘 휴가자: 승인 완료된 실제 데이터에서 파생
   const todayLeavers = useMemo(() => {
-    return CALENDAR_LEAVE_EVENTS.filter((e) => {
-      const start = parseISO(e.startDate);
-      const end = parseISO(e.endDate);
-      const d = parseISO(todayStr);
-      return d >= start && d <= end;
-    }).map((e) => e.userName);
-  }, [todayStr]);
+    const d = parseISO(todayStr);
+    return leaveRequests
+      .filter((r) => {
+        if (r.status !== "승인_완료") return false;
+        const start = parseISO(r.startDate);
+        const end = parseISO(r.endDate);
+        return d >= start && d <= end;
+      })
+      .map((r) => r.applicantName);
+  }, [todayStr, leaveRequests]);
 
   const burnoutRisks = useMemo(
-    () => getBurnoutRiskUsers(DUMMY_USERS, DUMMY_LEAVE_REQUESTS, CALENDAR_LEAVE_EVENTS),
-    []
+    () => getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, []),
+    [leaveRequests]
   );
 
   const currentUser = useMemo(
@@ -161,10 +277,11 @@ export default function DashboardPage() {
   const horoscopeUser = useMemo(
     () => ({
       name: currentUser?.name ?? "게스트",
-      birthdate: "1990-05-15",
+      // 생년월일·성별은 프로필 DB 미연동 상태 — 이름 기반 시드로 개인화
+      birthdate: currentUserId ? `${1985 + (parseInt(currentUserId, 10) % 15)}-${String((parseInt(currentUserId, 10) % 12) + 1).padStart(2, "0")}-15` : "1990-01-01",
       gender: "남",
     }),
-    [currentUser?.name]
+    [currentUser?.name, currentUserId]
   );
   const fortune = useMemo(
     () => generateDailyHoroscope(horoscopeUser, todayStr),
@@ -216,22 +333,46 @@ export default function DashboardPage() {
     setAnnounceTitle("");
     setAnnounceBody("");
     setAnnounceImportant(false);
+    setAnnounceEditId(null);
     setAnnounceWriteOpen(true);
   };
 
-  const submitAnnounceWrite = () => {
+  const openAnnounceEdit = (ann: DashboardAnnouncement) => {
+    setAnnounceTitle(ann.title ?? "");
+    setAnnounceBody(ann.body ?? "");
+    setAnnounceImportant(!!ann.isImportant);
+    setAnnounceEditId(ann.id);
+    setAnnounceWriteOpen(true);
+  };
+
+  const handleAnnounceDelete = async (id: string) => {
+    if (!confirm("이 공지사항을 삭제할까요?")) return;
+    await deleteAnnouncement(id);
+    setAnnouncements(await getAnnouncements());
+  };
+
+  const submitAnnounceWrite = async () => {
     const title = announceTitle.trim();
     if (!title) return;
-    addAnnouncement({
-      title,
-      body: announceBody.trim() || undefined,
-      date: format(new Date(), "yyyy-MM-dd"),
-      isImportant: announceImportant,
-      authorId: currentUserId,
-      authorName: currentUserName,
-    });
-    setAnnouncements(getAnnouncements());
+    if (announceEditId) {
+      await updateAnnouncement(announceEditId, {
+        title,
+        body: announceBody.trim() || undefined,
+        isImportant: announceImportant,
+      });
+    } else {
+      await addAnnouncement({
+        title,
+        body: announceBody.trim() || undefined,
+        date: format(new Date(), "yyyy-MM-dd"),
+        isImportant: announceImportant,
+        authorId: currentUserId,
+        authorName: currentUserName,
+      });
+    }
+    setAnnouncements(await getAnnouncements());
     setAnnounceWriteOpen(false);
+    setAnnounceEditId(null);
   };
 
   return (
@@ -327,6 +468,17 @@ export default function DashboardPage() {
         {/* [2] Row 2 - Core Work: 좌측 할 일 & 프로젝트, 우측 공지사항 */}
         <Card className="relative z-10 rounded-2xl bg-white/80 backdrop-blur-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] col-span-12 lg:col-span-8">
           <CardContent className="pt-5 pb-5">
+            {(isTeamLead || isCLevel) && pendingApprovalsCount > 0 && (
+              <Link
+                href="/approvals"
+                className="mb-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-left transition-colors hover:bg-amber-100/80"
+              >
+                <span className="text-sm font-medium text-amber-800">
+                  결재 대기 <span className="font-bold tabular-nums">{pendingApprovalsCount}</span>건이 있습니다
+                </span>
+                <span className="text-xs text-amber-600">전자결재에서 결재하기 →</span>
+              </Link>
+            )}
             <UserTodoWidget userId={currentUserId} />
           </CardContent>
         </Card>
@@ -369,15 +521,44 @@ export default function DashboardPage() {
                     >
                       {ann.title}
                     </p>
+                    {ann.body && (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                        {ann.body}
+                      </p>
+                    )}
                     {ann.isImportant && (
                       <span className="mt-1 inline-block rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-xs font-medium text-indigo-700">
                         📌 필독
                       </span>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs text-slate-400">
-                    {format(parseISO(ann.date), "M/d")}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                      {format(parseISO(ann.date), "M/d")}
+                    </span>
+                    {isCLevel && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openAnnounceEdit(ann)}
+                          className="rounded-md border border-slate-200 bg-white/70 p-1 text-slate-600 hover:bg-white"
+                          aria-label="공지 수정"
+                          title="수정"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAnnounceDelete(ann.id)}
+                          className="rounded-md border border-rose-200 bg-white/70 p-1 text-rose-600 hover:bg-white"
+                          aria-label="공지 삭제"
+                          title="삭제"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -607,10 +788,18 @@ export default function DashboardPage() {
         onSubmit={handlePlanSubmit}
       />
 
-      <Dialog open={announceWriteOpen} onOpenChange={setAnnounceWriteOpen}>
+      <Dialog
+        open={announceWriteOpen}
+        onOpenChange={(open) => {
+          // 프로덕션에서 권한 오작동 방지 (UI 버튼은 C레벨만 보이지만, state로도 보호)
+          if (open && !isCLevel) return;
+          setAnnounceWriteOpen(open);
+          if (!open) setAnnounceEditId(null);
+        }}
+      >
         <DialogContent className="max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>공지사항 작성</DialogTitle>
+            <DialogTitle>{announceEditId ? "공지사항 수정" : "공지사항 작성"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
@@ -649,7 +838,7 @@ export default function DashboardPage() {
               취소
             </Button>
             <Button onClick={submitAnnounceWrite} disabled={!announceTitle.trim()}>
-              등록
+              {announceEditId ? "저장" : "등록"}
             </Button>
           </DialogFooter>
         </DialogContent>

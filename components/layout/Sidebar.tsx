@@ -12,6 +12,7 @@ import {
   FileStack,
   CalendarDays,
   ClipboardCheck,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -29,14 +30,17 @@ const navItems = [
 const assetsNavItem = { href: "/assets", label: "자산/구독", icon: CreditCard };
 const sheetsNavItem = { href: "/sheets", label: "관리시트", icon: FileStack };
 
+/** 라이브(프로덕션)에서는 미완성 메뉴 숨김 */
+const hideIncompleteMenus = process.env.NODE_ENV === "production";
+
 export function Sidebar() {
   const pathname = usePathname();
   const { isCLevel, isTeamLead } = usePermission();
-  const showAssets = isCLevel || isTeamLead;
+  const showAssets = (isCLevel || isTeamLead) && !hideIncompleteMenus;
   const items = [
     ...navItems,
     ...(showAssets ? [assetsNavItem] : []),
-    sheetsNavItem, // 전체공개
+    ...(hideIncompleteMenus ? [] : [sheetsNavItem]),
   ];
 
   return (

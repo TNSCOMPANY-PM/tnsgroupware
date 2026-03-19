@@ -95,74 +95,70 @@ export interface SalesDetail {
   supplyAmount: number;
 }
 
-/** 엑셀 26년 3월 시트 실제 데이터 기반 샘플 */
+/** finance-current.json 없을 때 폴백 — parse-finance-xlsx.js 로 생성한 26년 3월 스냅샷과 동일 */
 export const SAMPLE_MONTH_SUMMARY: MonthSummary = {
   label: "26년 3월",
-  currentRevenue: 2_886_054.55,
-  currentCost: 66_000,
-  grossProfit: 2_820_054.55,
+  currentRevenue: 29_937_438,
+  currentCost: 4_589_121,
+  grossProfit: 25_348_317,
   workDays: 21,
-  passedWorkDays: 1,
+  passedWorkDays: 7,
   targetGrossProfit: 50_000_000,
-  remainingTarget: 47_179_945.45,
-  achievementRate: 0.0564,   // 5.64%
-  workDayAchievementRate: 0.00878, // 0.88%
+  remainingTarget: 24_651_683,
+  achievementRate: 0.5069663454545454,
+  workDayAchievementRate: 0.17363301212121213,
 };
 
 export const SAMPLE_SURVIVAL_ACCOUNT: SurvivalAccount = {
-  carryOverBalance: 79_527_514,
-  currentBalance: 82_629_574,
+  carryOverBalance: 79_549_764,
+  currentBalance: 107_432_913,
   operatingDeduction: 50_000_000,
-  vatOnGross: 282_005.45,
-  expectedBalance: 32_347_568.55,
-  monthlyPerformance: -47_179_945.45,
+  vatOnGross: 2_534_832,
+  expectedBalance: 54_898_081,
+  monthlyPerformance: -24_651_683,
 };
 
 export const SAMPLE_TEAM_SUMMARY: TeamSummary[] = [
-  { team: "티제이웹", revenue: 30_000, cost: 0, grossProfit: 30_000 },
-  { team: "더널리", revenue: 2_856_054.55, cost: 66_000, grossProfit: 2_790_054.55 },
+  { team: "티제이웹", revenue: 770_000, cost: 0, grossProfit: 770_000 },
+  { team: "더널리", revenue: 28_535_347, cost: 4_589_121, grossProfit: 23_946_226 },
 ];
 
 export const SAMPLE_RECEIVABLES: Receivables[] = [
-  { category: "미수금", item: "나이스페이", amount: 0, paidAmount: 0, difference: 0 },
-  { category: "미지급금", item: "매체비", amount: 1_641_708.18, paidAmount: 0, difference: 1_641_708.18 },
-  { category: "미지급금", item: "CPC", amount: 0, paidAmount: 0, difference: 0 },
+  { category: "미수금", item: "나이스페이", amount: 984_099, paidAmount: 0, difference: 984_099 },
+  { category: "미지급금", item: "매체비", amount: 6_222_308, paidAmount: 0, difference: 6_222_308 },
 ];
 
 export const SAMPLE_CURRENT_STATUS: CurrentStatus = {
-  salesSupply: 115_643_917,
-  salesVat: 11_564_392,
-  salesTotal: 127_208_309,
-  purchaseSupply: 31_868_012,
-  purchaseVat: 3_186_801,
-  purchaseTotal: 35_054_813,
-  grossSupply: 83_775_905,
-  grossVat: 8_377_591,
-  grossTotal: 92_153_496,
-  survivalBalance: 162_302_634,
+  salesSupply: 29_937_438,
+  salesVat: 2_993_744,
+  salesTotal: 32_931_182,
+  purchaseSupply: 4_589_121,
+  purchaseVat: 458_912,
+  purchaseTotal: 5_048_033,
+  grossSupply: 25_348_317,
+  grossVat: 2_534_832,
+  grossTotal: 27_883_149,
+  survivalBalance: 107_432_913,
 };
 
 export const SAMPLE_EXPECTED_RECEIVABLES: ExpectedLineItem[] = [
-  { id: "er1", category: "매출 예정", item: "미수금", supplyAmount: 2_499_717, vat: 249_972, memo: "" },
+  { id: "er1", category: "미수금", item: "나이스페이", supplyAmount: 984_099, vat: 98_410, memo: "" },
 ];
 
 export const SAMPLE_EXPECTED_PAYABLES: ExpectedLineItem[] = [
-  { id: "ep1", category: "매입 예정", item: "", supplyAmount: 22_138_549, vat: 2_213_855, memo: "" },
-  { id: "ep2", category: "매입 예정", item: "위시캣", supplyAmount: 1_159_884, vat: 115_988, memo: "위시캣" },
-  { id: "ep3", category: "매입 예정", item: "", supplyAmount: 3_514_834, vat: 351_483, memo: "" },
-  { id: "ep4", category: "매입 예정", item: "CPC", supplyAmount: 61_730, vat: 6_173, memo: "CPC" },
+  { id: "ep1", category: "미지급금", item: "매체비", supplyAmount: 6_222_308, vat: 622_231, memo: "" },
 ];
 
 export const SAMPLE_TEAM_SALES_REPORT: TeamSalesReportRow[] = [
-  { team: "티제이엠", revenue: 11_902_917, cost: 818_182, grossProfit: 11_084_735, marginRatePct: 93.13 },
-  { team: "더널리", revenue: 106_307_376, cost: 57_924_826, grossProfit: 48_382_550, marginRatePct: 45.51 },
+  { team: "티제이웹", revenue: 770_000, cost: 0, grossProfit: 770_000, marginRatePct: 100 },
+  { team: "더널리", revenue: 28_535_347, cost: 4_589_121, grossProfit: 23_946_226, marginRatePct: 83.92 },
 ];
 
-export const OVERALL_REFUND_RATE_PCT = 0.34;
+export const OVERALL_REFUND_RATE_PCT = 0;
 
 export const SAMPLE_TEAM_TARGET_GP: TeamTargetGp[] = [
-  { team: "티제이엠", target: 8_000_000, grossProfit: 11_084_735, excessAchievement: 3_084_735, achieved: true },
-  { team: "더널리", target: 42_000_000, grossProfit: 48_382_550, excessAchievement: 6_382_550, achieved: true },
+  { team: "티제이웹", target: 1_313_753, grossProfit: 770_000, excessAchievement: -543_753, achieved: false },
+  { team: "더널리", target: 48_686_247, grossProfit: 23_946_226, excessAchievement: -24_740_021, achieved: false },
 ];
 
 /** 분류별 상세 매출/매입 (Data Grid용) */

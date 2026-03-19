@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -15,13 +15,8 @@ import {
   SAMPLE_MONTH_SUMMARY,
   SAMPLE_SURVIVAL_ACCOUNT,
   SAMPLE_CLASSIFICATION_ROWS,
-  SAMPLE_TODAY_SALES,
-  SAMPLE_CURRENT_STATUS,
   SAMPLE_EXPECTED_RECEIVABLES,
   SAMPLE_EXPECTED_PAYABLES,
-  SAMPLE_TEAM_SALES_REPORT,
-  SAMPLE_TEAM_TARGET_GP,
-  OVERALL_REFUND_RATE_PCT,
   type ClassificationRow,
   type ExpectedLineItem,
   type CurrentStatus,
@@ -31,12 +26,14 @@ import {
   type SurvivalAccount,
 } from "@/constants/finance";
 import { parseMonthSummary, parseSurvivalAccount, type FinanceCurrentJson } from "@/lib/financeCurrent";
+import { countBusinessDaysExcludingHolidays } from "@/utils/leaveCalculator";
 import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -75,6 +72,90 @@ function sheetLabelToMonthKey(label: string): string {
   return `${fullYear}-${String(m).padStart(2, "0")}`;
 }
 
+/** row.date(YYYY-MM-DD 또는 YY-MM-DD)가 해당 monthKey(YYYY-MM)와 같은 월인지 */
+function isRowInMonth(rowDate: string, monthKey: string): boolean {
+  if (!rowDate || !monthKey) return false;
+  const ymd = rowDate.replace(/\D/g, "");
+  if (ymd.length >= 6) {
+    let y: number;
+    let m: number;
+    if (ymd.length >= 8 && (ymd.startsWith("19") || ymd.startsWith("20"))) {
+      y = parseInt(ymd.slice(0, 4), 10);
+      m = parseInt(ymd.slice(4, 6), 10);
+    } else {
+      y = 2000 + parseInt(ymd.slice(0, 2), 10);
+      m = parseInt(ymd.slice(2, 4), 10);
+    }
+    const rowMonth = `${y}-${String(m).padStart(2, "0")}`;
+    return rowMonth === monthKey;
+  }
+  return false;
+}
+
+/** row.date → YYYY-MM-DD (isRowInMonth와 동일 연·월 규칙 + 일) */
+function rowDateToYMD(rowDate: string): string | null {
+  if (!rowDate) return null;
+  const ymd = rowDate.replace(/\D/g, "");
+  if (ymd.length < 6) return null;
+  let y: number;
+  let m: number;
+  let d: number;
+  if (ymd.length >= 8 && (ymd.startsWith("19") || ymd.startsWith("20"))) {
+    y = parseInt(ymd.slice(0, 4), 10);
+    m = parseInt(ymd.slice(4, 6), 10);
+    d = parseInt(ymd.slice(6, 8), 10) || 1;
+  } else {
+    y = 2000 + parseInt(ymd.slice(0, 2), 10);
+    m = parseInt(ymd.slice(2, 4), 10);
+    d = ymd.length >= 6 ? parseInt(ymd.slice(4, 6), 10) || 1 : 1;
+  }
+  if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function isRowOnCalendarDay(rowDate: string, dayYmd: string): boolean {
+  const rowYmd = rowDateToYMD(rowDate);
+  return rowYmd !== null && rowYmd === dayYmd;
+}
+
+/** 매출 분석 「팀별」집계: 더널리/티제이웹/기타 3개로 병합 */
+function normalizeLedgerTeamLabel(classification: string | undefined): string {
+  const raw = classification?.trim();
+  if (!raw) return "기타";
+  if (raw === "더널리" || raw === "더널리 충전") return "더널리";
+  if (raw === "티제이웹" || raw === "유지보수") return "티제이웹";
+  return "기타";
+}
+
+/** 팀별 표시 순서: 더널리 → 티제이웹 → 기타 */
+function compareLedgerTeamOrder(a: string, b: string): number {
+  const order: Record<string, number> = { "더널리": 0, "티제이웹": 1, "기타": 2 };
+  return (order[a] ?? 99) - (order[b] ?? 99);
+}
+
+/** 금액(세금 포함) → 공급가액(부가세 제외) + 부가세 (10% 가정) */
+function amountToSupplyVat(amount: number): { supply: number; vat: number } {
+  const supply = Math.round(amount / 1.1);
+  return { supply, vat: amount - supply };
+}
+
+/** 해당 월 영업일 수 (주말·공휴일 제외) */
+function getWorkDaysInMonth(year: number, month: number): number {
+  const first = new Date(year, month - 1, 1);
+  const last = new Date(year, month, 0);
+  return countBusinessDaysExcludingHolidays(first, last);
+}
+
+/** 해당 월 1일 ~ 오늘까지 영업일 수 (주말·공휴일 제외) */
+function getPassedWorkDaysInMonth(year: number, month: number): number {
+  const now = new Date();
+  const first = new Date(year, month - 1, 1);
+  const last = new Date(year, month, 0);
+  if (now < first) return 0;
+  const end = now > last ? last : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return countBusinessDaysExcludingHolidays(first, end);
+}
+
 type FinanceRow = {
   id: string;
   month: string;
@@ -96,6 +177,9 @@ const CLASSIFICATION_OPTIONS = [
 const LEDGER_CUSTOM_STORAGE_KEY = "finance-ledger-custom-entries";
 const LEDGER_EDITS_STORAGE_KEY = "finance-ledger-edits";
 const LEDGER_HIDDEN_STORAGE_KEY = "finance-ledger-hidden-ids";
+const SURVIVAL_CARRYOVER_STORAGE_KEY = "finance-survival-carryover";
+const RECEIVABLES_STORAGE_KEY = "finance-receivables-expected";
+const PAYABLES_STORAGE_KEY = "finance-payables-expected";
 
 function loadLedgerHidden(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -121,7 +205,7 @@ function loadLedgerCustom(): LedgerRow[] {
   }
 }
 
-function loadLedgerEdits(): Record<string, { classification?: string; clientName?: string }> {
+function loadLedgerEdits(): Record<string, Partial<LedgerRow>> {
   if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(LEDGER_EDITS_STORAGE_KEY);
@@ -154,23 +238,26 @@ export default function FinancePage() {
   const [selectedMonth, setSelectedMonth] = useState("26년 3월");
   const [viewMode, setViewMode] = useState<ViewMode>("ledger");
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
-  const [approvedGrossTotal, setApprovedGrossTotal] = useState(0);
   const [ledgerFilter, setLedgerFilter] = useState<"all" | "pending" | "approved">("all");
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [justApprovedId, setJustApprovedId] = useState<string | null>(null);
   const [receivablesExpected, setReceivablesExpected] = useState<ExpectedLineItem[]>(SAMPLE_EXPECTED_RECEIVABLES);
   const [payablesExpected, setPayablesExpected] = useState<ExpectedLineItem[]>(SAMPLE_EXPECTED_PAYABLES);
   const [financeData, setFinanceData] = useState<FinanceCurrentJson | null>(null);
+  const receivablesLoadedRef = useRef(false);
+  const payablesLoadedRef = useRef(false);
   const [customEntries, setCustomEntries] = useState<LedgerRow[]>([]);
-  const [editsOverlay, setEditsOverlay] = useState<Record<string, { classification?: string; clientName?: string }>>({});
+  const [editsOverlay, setEditsOverlay] = useState<Record<string, Partial<LedgerRow>>>({});
   const [addLedgerOpen, setAddLedgerOpen] = useState(false);
+  const [editLedgerRow, setEditLedgerRow] = useState<LedgerRow | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<FinanceRow | null>(null);
+  type AddFormType = "DEPOSIT" | "WITHDRAWAL" | "RECEIVABLE" | "PAYABLE";
   const [addForm, setAddForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     amount: "",
-    type: "DEPOSIT" as "DEPOSIT" | "WITHDRAWAL",
+    type: "DEPOSIT" as AddFormType,
     senderName: "",
     bankName: "무통장",
     classification: "",
@@ -183,12 +270,31 @@ export default function FinancePage() {
   const [smsSaving, setSmsSaving] = useState(false);
 
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [carryOverBalance, setCarryOverBalance] = useState<number>(0);
+  const [carryOverTouched, setCarryOverTouched] = useState(false);
 
+  const carryLoadedFromStorage = useRef(false);
   useEffect(() => {
     setCustomEntries(loadLedgerCustom());
     setEditsOverlay(loadLedgerEdits());
     setHiddenIds(loadLedgerHidden());
+    try {
+      const raw = localStorage.getItem(SURVIVAL_CARRYOVER_STORAGE_KEY);
+      if (raw != null && raw !== "") {
+        const n = Number(raw);
+        if (Number.isFinite(n)) {
+          setCarryOverBalance(n);
+          carryLoadedFromStorage.current = true;
+        }
+      }
+    } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    if (carryOverTouched || carryLoadedFromStorage.current) return;
+    const parsed = parseSurvivalAccount(financeData);
+    if (parsed && Number.isFinite(parsed.carryOverBalance)) setCarryOverBalance(parsed.carryOverBalance);
+  }, [financeData, carryOverTouched]);
 
   // SMS 텍스트 변경 시 실시간 파싱
   const handleSmsChange = (text: string) => {
@@ -251,18 +357,31 @@ export default function FinancePage() {
     }
   }, [fetchFinanceRows]);
 
-  // 페이지 로드 시 Pushbullet 자동 싱크 (새 입금 내역 자동 반영)
+  // 페이지 로드 시 + 주기적 Pushbullet 동기화 (메시지 수신 반영)
   useEffect(() => {
-    fetch("/api/sync-pushbullet")
-      .then((r) => r.json())
-      .then((res: { ok?: boolean; count?: number }) => {
-        if ((res.count ?? 0) > 0) {
-          setSyncToast(`✅ 새 입금 내역 ${res.count}건이 자동으로 추가됐습니다.`);
-          fetchFinanceRows();
-          setTimeout(() => setSyncToast(null), 4000);
-        }
-      })
-      .catch(() => {});
+    let mounted = true;
+    const runSync = () => {
+      if (!mounted) return;
+      fetch("/api/sync-pushbullet")
+        .then((r) => r.json())
+        .then((res: { ok?: boolean; count?: number }) => {
+          if (!mounted) return;
+          if ((res.count ?? 0) > 0) {
+            setSyncToast(`✅ 새 입금 내역 ${res.count}건이 자동으로 추가됐습니다.`);
+            fetchFinanceRows();
+            setTimeout(() => setSyncToast(null), 4000);
+          }
+        })
+        .catch(() => {});
+    };
+    runSync();
+    const retry = setTimeout(runSync, 4000);
+    const interval = setInterval(runSync, 90_000);
+    return () => {
+      mounted = false;
+      clearTimeout(retry);
+      clearInterval(interval);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const summary: MonthSummary = useMemo(
@@ -273,40 +392,64 @@ export default function FinancePage() {
     () => parseSurvivalAccount(financeData) ?? SAMPLE_SURVIVAL_ACCOUNT,
     [financeData]
   );
+
+  /** 선택 월의 영업일 자동 계산 */
+  const monthWorkDays = useMemo(() => {
+    const monthKey = sheetLabelToMonthKey(selectedMonth);
+    const [y, m] = monthKey.split("-").map(Number);
+    if (!y || !m) return { workDays: summary.workDays, passedWorkDays: summary.passedWorkDays };
+    return {
+      workDays: getWorkDaysInMonth(y, m),
+      passedWorkDays: getPassedWorkDaysInMonth(y, m),
+    };
+  }, [selectedMonth, summary.workDays, summary.passedWorkDays]);
+
   const rows = SAMPLE_CLASSIFICATION_ROWS;
-  const today = SAMPLE_TODAY_SALES;
 
   useEffect(() => {
+    try {
+      const rawR = typeof window !== "undefined" ? localStorage.getItem(RECEIVABLES_STORAGE_KEY) : null;
+      const rawP = typeof window !== "undefined" ? localStorage.getItem(PAYABLES_STORAGE_KEY) : null;
+      if (rawR) {
+        const parsed = JSON.parse(rawR) as ExpectedLineItem[];
+        if (Array.isArray(parsed)) {
+          setReceivablesExpected(parsed);
+          receivablesLoadedRef.current = true;
+        }
+      }
+      if (rawP) {
+        const parsed = JSON.parse(rawP) as ExpectedLineItem[];
+        if (Array.isArray(parsed)) {
+          setPayablesExpected(parsed);
+          payablesLoadedRef.current = true;
+        }
+      }
+    } catch { /* ignore */ }
+
     fetch("/finance-current.json")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         const data = d as FinanceCurrentJson | null;
         setFinanceData(data);
-        if (data?.receivablesExpected?.length) setReceivablesExpected(data.receivablesExpected);
-        if (data?.payablesExpected?.length) setPayablesExpected(data.payablesExpected);
+        if (!receivablesLoadedRef.current && data?.receivablesExpected?.length)
+          setReceivablesExpected(data.receivablesExpected);
+        if (!payablesLoadedRef.current && data?.payablesExpected?.length)
+          setPayablesExpected(data.payablesExpected);
       })
       .catch(() => setFinanceData(null));
   }, []);
 
-  const achievementPercent = (summary.achievementRate * 100).toFixed(1);
-  const remainingDays = summary.workDays - summary.passedWorkDays;
-  const dailyAvgProfit =
-    summary.passedWorkDays > 0 ? summary.grossProfit / summary.passedWorkDays : 0;
-  const projectedProfit = dailyAvgProfit * summary.workDays;
-
-  const dbFinanceSummary = useMemo(() => {
-    const monthKey = sheetLabelToMonthKey(selectedMonth);
-    const rows = financeRows.filter((r) => r.month === monthKey && r.status === "completed");
-    const revenue = rows.filter((r) => r.type === "매출").reduce((s, r) => s + Number(r.amount), 0);
-    const purchase = rows.filter((r) => r.type === "매입").reduce((s, r) => s + Number(r.amount), 0);
-    return { revenue, purchase, margin: revenue - purchase };
-  }, [financeRows, selectedMonth]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(RECEIVABLES_STORAGE_KEY, JSON.stringify(receivablesExpected));
+      localStorage.setItem(PAYABLES_STORAGE_KEY, JSON.stringify(payablesExpected));
+    } catch { /* ignore */ }
+  }, [receivablesExpected, payablesExpected]);
 
   const fetchLedger = useCallback(async () => {
     const res = await fetch("/api/transactions/ledger");
     const data = await res.json();
     setLedger(data.ledger || []);
-    setApprovedGrossTotal(data.approvedGrossTotal ?? 0);
   }, []);
 
   useEffect(() => {
@@ -345,25 +488,260 @@ export default function FinancePage() {
     });
   }, [financeRows]);
 
+  // DB(finance) 데이터와 엑셀/ledger 소스(finance-current.json)의 동일 거래가 같이 들어오면서
+  // 같은 행이 2개씩 보이는 현상을 방지하기 위한 중복 제거(현재 선택 월 기준).
+  const ledgerSourceDeduped = useMemo((): LedgerRow[] => {
+    const monthKey = sheetLabelToMonthKey(selectedMonth);
+
+    // 중복 제거를 위해 시그니처를 최대한 단순화:
+    // - 클라이언트명/입금자 문자열이 DB/엑셀에서 미묘하게 달라서 매칭이 깨지는 케이스가 많음
+    // - 그래서 date(type 포함) + amount만 기준으로 우선 dedupe
+    const normalizeDateSig = (dateStr: string) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const monthPart = dateStr.slice(0, 7);
+        const dayPart = dateStr.slice(8, 10);
+        return dayPart === "01" ? `${monthPart}|*` : dateStr;
+      }
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr;
+      return dateStr;
+    };
+
+    const signature = (r: { date?: string; type: "DEPOSIT" | "WITHDRAWAL" | string; amount: number }) => {
+      const date = r.date ?? "";
+      const dateSig = normalizeDateSig(date);
+      return `${dateSig}|${r.type}|${Number(r.amount) || 0}`;
+    };
+
+    const financeSignatures = new Set(
+      ledgerFromFinance.filter((r) => isRowInMonth(r.date, monthKey)).map((r) => signature(r))
+    );
+
+    return ledgerSource.filter((r) => {
+      // 현재 월이 아니면 중복 제거하지 않음(필요 이상으로 숨기지 않기 위함)
+      if (!isRowInMonth(r.date, monthKey)) return true;
+      return !financeSignatures.has(signature(r));
+    });
+  }, [ledgerSource, ledgerFromFinance, selectedMonth]);
+
   const ledgerWithCustomAndEdits = useMemo(() => {
-    const merged = [...ledgerFromFinance, ...customEntries, ...ledgerSource];
-    return merged.map((row) => {
+    const merged = [...ledgerFromFinance, ...customEntries, ...ledgerSourceDeduped];
+    const monthKey = sheetLabelToMonthKey(selectedMonth);
+    const normalizeClient = (r: LedgerRow) => (r.clientName ?? r.senderName ?? "").trim();
+    const normalizeDateSig = (dateStr: string) => {
+      // YYYY-MM-DD 형태면 날짜가 01일(월에서의 placeholder 포함)인 경우 month-level로 묶기
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const monthPart = dateStr.slice(0, 7);
+        const dayPart = dateStr.slice(8, 10);
+        return dayPart === "01" ? `${monthPart}|*` : dateStr;
+      }
+      if (/^\d{4}-\d{2}$/.test(dateStr)) return `${dateStr}|*`;
+      return dateStr;
+    };
+
+    const edited = merged.map((row) => {
       const edit = editsOverlay[row.id];
-      if (!edit) return row;
-      return { ...row, classification: edit.classification ?? row.classification, clientName: edit.clientName ?? row.clientName };
-    }).sort((a, b) => (b.date === a.date ? 0 : b.date > a.date ? 1 : -1));
-  }, [ledgerFromFinance, customEntries, ledgerSource, editsOverlay]);
+      if (!edit || Object.keys(edit).length === 0) return row;
+      // source는 편집에서 덮어쓰지 않음 — DB 행 삭제 시 source 필요
+      return { ...row, ...edit, source: row.source ?? (edit as Partial<LedgerRow>).source };
+    });
+
+    // 월 단위로 중복 시그니처 제거 (id가 달라도 같은 거래는 1줄만)
+    const keepBySig = new Map<string, LedgerRow>();
+    const out: LedgerRow[] = [];
+    for (const row of edited) {
+      if (!isRowInMonth(row.date, monthKey)) {
+        out.push(row);
+        continue;
+      }
+      // 클라이언트명 매칭이 깨져도 같은 거래면 1줄로 보여야 해서,
+      // 우선 date(type 포함) + amount 기준으로 월 단위 dedupe를 수행
+      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}`;
+      const prev = keepBySig.get(sig);
+      if (!prev) {
+        keepBySig.set(sig, row);
+        continue;
+      }
+
+      // 선호 규칙: finance(source) 우선 → PAID 우선 → 기존 유지
+      const prevIsFinance = prev.source === "finance";
+      const rowIsFinance = row.source === "finance";
+      if (!prevIsFinance && rowIsFinance) {
+        keepBySig.set(sig, row);
+        continue;
+      }
+      if (prevIsFinance && !rowIsFinance) continue;
+
+      const prevIsPaid = prev.status === "PAID";
+      const rowIsPaid = row.status === "PAID";
+      if (!prevIsPaid && rowIsPaid) {
+        keepBySig.set(sig, row);
+        continue;
+      }
+      if (prevIsPaid && !rowIsPaid) continue;
+    }
+
+    const dedupedMonthRows = Array.from(keepBySig.values());
+    return [...out, ...dedupedMonthRows].sort((a, b) => (b.date === a.date ? 0 : b.date > a.date ? 1 : -1));
+  }, [ledgerFromFinance, customEntries, ledgerSourceDeduped, editsOverlay, selectedMonth]);
+
+  const ledgerMonthKey = sheetLabelToMonthKey(selectedMonth);
+
+  /** 매출/매입/매출총이익: 통합 원장 모든 소스(DB·수동·엑셀 등) 중 해당 월 승인 완료(PAID)만 합산 */
+  const dbFinanceSummary = useMemo(() => {
+    const rowsInMonthPaid = ledgerWithCustomAndEdits.filter(
+      (r) => isRowInMonth(r.date, ledgerMonthKey) && r.status === "PAID" && !hiddenIds.has(r.id)
+    );
+    const revenue = rowsInMonthPaid.filter((r) => r.type === "DEPOSIT").reduce((s, r) => s + Number(r.amount), 0);
+    const purchase = rowsInMonthPaid.filter((r) => r.type === "WITHDRAWAL").reduce((s, r) => s + Number(r.amount), 0);
+    const revSv = amountToSupplyVat(revenue);
+    const purSv = amountToSupplyVat(purchase);
+    const grossSupply = revSv.supply - purSv.supply;
+    const grossVat = revSv.vat - purSv.vat;
+    return {
+      revenue,
+      revenueSupply: revSv.supply,
+      revenueVat: revSv.vat,
+      purchase,
+      purchaseSupply: purSv.supply,
+      purchaseVat: purSv.vat,
+      margin: revenue - purchase,
+      grossSupply,
+      grossVat,
+    };
+  }, [ledgerWithCustomAndEdits, ledgerMonthKey, hiddenIds]);
+
+  /** 금일(로컬) 기준 승인(PAID) 거래 — 금액별 공급가(부가세 제외) 합계 */
+  const todaySupplySummary = useMemo(() => {
+    const now = new Date();
+    const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const rowsTodayPaid = ledgerWithCustomAndEdits.filter(
+      (r) => isRowOnCalendarDay(r.date, todayYmd) && r.status === "PAID" && !hiddenIds.has(r.id)
+    );
+    let revenueSupply = 0;
+    let purchaseSupply = 0;
+    for (const r of rowsTodayPaid) {
+      const amt = Number(r.amount) || 0;
+      const { supply } = amountToSupplyVat(amt);
+      if (r.type === "DEPOSIT") revenueSupply += supply;
+      else purchaseSupply += supply;
+    }
+    return {
+      revenueSupply,
+      purchaseSupply,
+      marginSupply: revenueSupply - purchaseSupply,
+    };
+  }, [ledgerWithCustomAndEdits, hiddenIds]);
+
+  /** 생존통장: 이월 직접 입력, 현재 = 이월 + 해당월 입금 - 해당월 출금 */
+  const survivalResolved = useMemo(() => ({
+    ...survival,
+    carryOverBalance,
+    currentBalance: carryOverBalance + dbFinanceSummary.revenue - dbFinanceSummary.purchase,
+  }), [survival, carryOverBalance, dbFinanceSummary.revenue, dbFinanceSummary.purchase]);
+
+  /** 매출 분석 탭 「매출 현황」: 선택 월·통합 원장·PAID·부가세 10% 역산 (원장 카드와 동일) */
+  const ledgerDerivedCurrentStatus: CurrentStatus = useMemo(
+    () => ({
+      salesSupply: dbFinanceSummary.revenueSupply,
+      salesVat: dbFinanceSummary.revenueVat,
+      salesTotal: dbFinanceSummary.revenue,
+      purchaseSupply: dbFinanceSummary.purchaseSupply,
+      purchaseVat: dbFinanceSummary.purchaseVat,
+      purchaseTotal: dbFinanceSummary.purchase,
+      grossSupply: dbFinanceSummary.grossSupply,
+      grossVat: dbFinanceSummary.grossVat,
+      grossTotal: dbFinanceSummary.margin,
+      survivalBalance: survivalResolved.currentBalance,
+    }),
+    [dbFinanceSummary, survivalResolved.currentBalance]
+  );
+
+  /** 팀별: 통합 원장 classification(팀) 기준, 선택 월·PAID */
+  const ledgerTeamSalesReport: TeamSalesReportRow[] = useMemo(() => {
+    const rowsInMonthPaid = ledgerWithCustomAndEdits.filter(
+      (r) => isRowInMonth(r.date, ledgerMonthKey) && r.status === "PAID" && !hiddenIds.has(r.id)
+    );
+    const byTeam = new Map<string, { revenue: number; cost: number }>();
+    for (const r of rowsInMonthPaid) {
+      const team = normalizeLedgerTeamLabel(r.classification);
+      if (!byTeam.has(team)) byTeam.set(team, { revenue: 0, cost: 0 });
+      const rec = byTeam.get(team)!;
+      const amt = Number(r.amount) || 0;
+      if (r.type === "DEPOSIT") rec.revenue += amt;
+      else rec.cost += amt;
+    }
+    return Array.from(byTeam.entries())
+      .map(([team, { revenue, cost }]) => {
+        const grossProfit = revenue - cost;
+        const marginRatePct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+        return {
+          team,
+          revenue,
+          cost,
+          grossProfit,
+          marginRatePct: Math.round(marginRatePct * 100) / 100,
+        };
+      })
+      .sort((a, b) => compareLedgerTeamOrder(a.team, b.team));
+  }, [ledgerWithCustomAndEdits, ledgerMonthKey, hiddenIds]);
+
+  /** 목표 매출총이익(고정): 더널리 4,200만 / 티제이웹 800만 / 기타 0 */
+  const ledgerTeamTargetGp: TeamTargetGp[] = useMemo(() => {
+    const targetByTeam: Record<string, number> = {
+      "더널리": 42_000_000,
+      "티제이웹": 8_000_000,
+      "기타": 0,
+    };
+    return ledgerTeamSalesReport.map((t) => {
+      const teamTarget = targetByTeam[t.team] ?? 0;
+      const excessAchievement = t.grossProfit - teamTarget;
+      return {
+        team: t.team,
+        target: teamTarget,
+        grossProfit: t.grossProfit,
+        excessAchievement,
+        achieved: t.grossProfit >= teamTarget,
+      };
+    });
+  }, [ledgerTeamSalesReport]);
+
+  /** 전체 환불율: 통합 원장에서 「환불」이 적요/분류에 포함된 출금 ÷ 입금 합 */
+  const ledgerOverallRefundRatePct = useMemo(() => {
+    const rowsInMonthPaid = ledgerWithCustomAndEdits.filter(
+      (r) => isRowInMonth(r.date, ledgerMonthKey) && r.status === "PAID" && !hiddenIds.has(r.id)
+    );
+    const sales = rowsInMonthPaid.filter((r) => r.type === "DEPOSIT").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const 환불출금 = rowsInMonthPaid
+      .filter((r) => {
+        if (r.type !== "WITHDRAWAL") return false;
+        const hay = `${r.classification ?? ""} ${r.clientName ?? ""} ${r.senderName ?? ""}`;
+        return /환불/i.test(hay);
+      })
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    if (sales <= 0) return 0;
+    return Math.round((환불출금 / sales) * 10000) / 100;
+  }, [ledgerWithCustomAndEdits, ledgerMonthKey, hiddenIds]);
+
+  const achievementPercent = (summary.achievementRate * 100).toFixed(1);
+  const workDays = monthWorkDays.workDays;
+  const passedWorkDays = monthWorkDays.passedWorkDays;
+  const remainingDays = workDays - passedWorkDays;
+  const dailyAvgProfit = passedWorkDays > 0 ? dbFinanceSummary.margin / passedWorkDays : 0;
+  const receivablesTotal = receivablesExpected.reduce((s, x) => s + x.supplyAmount + x.vat, 0);
+  const payablesTotal = payablesExpected.reduce((s, x) => s + x.supplyAmount + x.vat, 0);
+  const projectedProfit = dailyAvgProfit * workDays + receivablesTotal - payablesTotal;
 
   const filteredLedger = useMemo(() => {
     return ledgerWithCustomAndEdits.filter((row) => {
+      if (!isRowInMonth(row.date, ledgerMonthKey)) return false;
       if (hiddenIds.has(row.id)) return false;
       if (ledgerFilter === "pending") return row.status === "UNMAPPED";
       if (ledgerFilter === "approved") return row.status === "PAID";
       return true;
     });
-  }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds]);
+  }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds, ledgerMonthKey]);
 
-  const pendingCount = ledgerWithCustomAndEdits.filter((r) => r.status === "UNMAPPED").length;
+  const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInMonth(r.date, ledgerMonthKey) && r.status === "UNMAPPED").length;
 
   const saveCustomEntries = useCallback((entries: LedgerRow[]) => {
     setCustomEntries(entries);
@@ -382,15 +760,96 @@ export default function FinancePage() {
     });
   }, []);
 
+  const handleSaveEditLedgerRow = useCallback(async (row: LedgerRow, patch: Partial<LedgerRow>) => {
+    if (row.id.startsWith("custom-")) {
+      setCustomEntries((prev) => {
+        const next = prev.map((e) => (e.id === row.id ? { ...e, ...patch } : e));
+        try {
+          localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next));
+        } catch { /* ignore */ }
+        return next;
+      });
+      setEditLedgerRow(null);
+      return;
+    }
+    if (row.source === "finance") {
+      const body: Record<string, unknown> = {};
+      if (patch.amount != null) body.amount = patch.amount;
+      if (patch.date != null) body.date = patch.date;
+      if (patch.classification != null) body.category = patch.classification;
+      if (patch.clientName != null) body.client_name = patch.clientName;
+      if (patch.status != null) body.status = patch.status === "PAID" ? "completed" : "pending";
+      if (patch.type != null) body.type = patch.type === "DEPOSIT" ? "매출" : "매입";
+      const res = await fetch(`/api/finance/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (res.ok) {
+        await fetchFinanceRows();
+        setEditLedgerRow(null);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "저장 실패");
+      }
+      return;
+    }
+    setEditsOverlay((prev) => {
+      const next = { ...prev, [row.id]: { ...prev[row.id], ...patch } };
+      try {
+        localStorage.setItem(LEDGER_EDITS_STORAGE_KEY, JSON.stringify(next));
+      } catch { /* ignore */ }
+      return next;
+    });
+    setEditLedgerRow(null);
+  }, [fetchFinanceRows]);
+
+  const handleAmountChange = useCallback(async (id: string, amount: number, source?: string) => {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (id.startsWith("custom-")) {
+      setCustomEntries((prev) => {
+        const next = prev.map((e) => (e.id === id ? { ...e, amount } : e));
+        try {
+          localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next));
+        } catch { /* ignore */ }
+        return next;
+      });
+      return;
+    }
+    if (source === "finance") {
+      const res = await fetch(`/api/finance/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      if (res.ok) await fetchFinanceRows();
+      else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "금액 저장 실패");
+      }
+      return;
+    }
+    setEditsOverlay((prev) => {
+      const next = { ...prev, [id]: { ...prev[id], amount } };
+      try {
+        localStorage.setItem(LEDGER_EDITS_STORAGE_KEY, JSON.stringify(next));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, [fetchFinanceRows]);
+
   const handleDeleteLedgerRow = useCallback(async (id: string, source?: string) => {
     if (!window.confirm("이 항목을 삭제하시겠습니까?")) return;
 
     if (source === "finance") {
-      const res = await fetch(`/api/finance/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/finance/${String(id)}`, { method: "DELETE" });
+      const err = await res.json().catch(() => ({}));
       if (res.ok) {
         fetchFinanceRows();
+        // 같은 id가 엑셀/ledger 소스에 있으면 목록에서 숨김
+        setHiddenIds((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          try { localStorage.setItem(LEDGER_HIDDEN_STORAGE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+          return next;
+        });
       } else {
-        const err = await res.json().catch(() => ({}));
         alert(err.error || "삭제 실패");
       }
       return;
@@ -405,7 +864,7 @@ export default function FinancePage() {
       return;
     }
 
-    // 데모/트랜잭션 데이터 → hiddenIds에 추가
+    // 데모/엑셀/트랜잭션 데이터 → hiddenIds에 추가
     setHiddenIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -415,18 +874,25 @@ export default function FinancePage() {
   }, [fetchFinanceRows]);
 
   const handleAddLedgerSubmit = useCallback(() => {
-    const amount = Number(addForm.amount);
-    if (!addForm.date || !Number.isFinite(amount) || amount <= 0) return;
+    const amountRaw = addForm.amount.replace(/[^0-9]/g, "");
+    const amount = parseInt(amountRaw, 10) || 0;
+    if (!addForm.date || amount <= 0) return;
+
+    const isReceivable = addForm.type === "RECEIVABLE";
+    const isPayable = addForm.type === "PAYABLE";
+    const ledgerType: "DEPOSIT" | "WITHDRAWAL" = isReceivable ? "DEPOSIT" : isPayable ? "WITHDRAWAL" : (addForm.type as "DEPOSIT" | "WITHDRAWAL");
+    const status: "UNMAPPED" | "PAID" = isReceivable || isPayable ? "UNMAPPED" : "PAID";
+
     const newRow: LedgerRow = {
       id: `custom-${Date.now()}`,
       date: addForm.date,
-      amount: Math.round(amount),
-      senderName: addForm.senderName.trim() || "수동입력",
-      type: addForm.type,
+      amount,
+      senderName: addForm.senderName.trim() || (isReceivable ? "미수금" : isPayable ? "미지급금" : "수동입력"),
+      type: ledgerType,
       bankName: addForm.bankName.trim() || "무통장",
-      status: "PAID",
+      status,
       classification: addForm.classification || undefined,
-      clientName: addForm.clientName.trim() || addForm.senderName.trim() || "수동입력",
+      clientName: addForm.clientName.trim() || addForm.senderName.trim() || (isReceivable ? "미수금" : isPayable ? "미지급금" : "수동입력"),
       createdAt: new Date().toISOString(),
     };
     setCustomEntries((prev) => {
@@ -436,6 +902,22 @@ export default function FinancePage() {
       } catch { /* ignore */ }
       return next;
     });
+
+    if (isReceivable) {
+      const { supply, vat } = amountToSupplyVat(amount);
+      setReceivablesExpected((prev) => [
+        ...prev,
+        { id: `er-${Date.now()}`, category: "미수금", item: addForm.senderName.trim() || addForm.clientName.trim() || "미수금", supplyAmount: supply, vat, memo: "" },
+      ]);
+    }
+    if (isPayable) {
+      const { supply, vat } = amountToSupplyVat(amount);
+      setPayablesExpected((prev) => [
+        ...prev,
+        { id: `ep-${Date.now()}`, category: "미지급금", item: addForm.senderName.trim() || addForm.clientName.trim() || "미지급금", supplyAmount: supply, vat, memo: "" },
+      ]);
+    }
+
     setAddForm({
       date: new Date().toISOString().slice(0, 10),
       amount: "",
@@ -455,7 +937,7 @@ export default function FinancePage() {
 
   const effectiveAchievement =
     summary.targetGrossProfit > 0
-      ? ((summary.grossProfit + approvedGrossTotal) / summary.targetGrossProfit) * 100
+      ? (dbFinanceSummary.margin / summary.targetGrossProfit) * 100
       : 0;
 
   const fetchSyncPushbullet = useCallback(async () => {
@@ -466,10 +948,13 @@ export default function FinancePage() {
         fetchFinanceRows(),
         fetch("/api/sync-pushbullet").then((r) => r.json()).catch(() => ({ ok: false, count: 0 })),
       ]);
-      const added = (pbRes as { ok?: boolean; count?: number }).count ?? 0;
+      const res = pbRes as { ok?: boolean; count?: number; permanents_error?: string };
+      const added = res.count ?? 0;
       if (added > 0) {
         setSyncToast(`✅ 푸시불렛 입금 내역 ${added}건이 새로 추가됐습니다.`);
         await fetchFinanceRows();
+      } else if (res.permanents_error) {
+        setSyncToast(`⚠️ 입금 동기화: SMS 스레드 조회 실패 (${res.permanents_error}). 실시간 수신은 pushbullet-stream.js 실행 필요.`);
       } else {
         setSyncToast("🔄 원장 데이터를 최신으로 갱신했습니다.");
       }
@@ -522,24 +1007,27 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* DB 재무 요약 (finance 테이블) */}
+      {/* 재무 요약 (finance 테이블) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="rounded-xl border border-slate-200/80 bg-white/80">
-          <CardContent className="pt-4">
-            <p className="text-xs font-medium text-slate-500">DB 매출 ({selectedMonth})</p>
+        <Card className="rounded-xl border border-slate-200 bg-white">
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs font-medium text-slate-500">매출 ({selectedMonth})</p>
             <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{formatWonIntl(dbFinanceSummary.revenue)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">입금액 · 공급가 {formatWonIntl(dbFinanceSummary.revenueSupply)}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-xl border border-slate-200/80 bg-white/80">
-          <CardContent className="pt-4">
-            <p className="text-xs font-medium text-slate-500">DB 매입 ({selectedMonth})</p>
+        <Card className="rounded-xl border border-slate-200 bg-white">
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs font-medium text-slate-500">매입 ({selectedMonth})</p>
             <p className="mt-1 text-lg font-bold tabular-nums text-rose-600">-{formatWonIntl(dbFinanceSummary.purchase)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">출금액 · 공급가 {formatWonIntl(dbFinanceSummary.purchaseSupply)}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-xl border border-emerald-200/80 bg-emerald-50/50">
-          <CardContent className="pt-4">
-            <p className="text-xs font-medium text-emerald-700">DB 순이익 ({selectedMonth})</p>
+        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/50">
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs font-medium text-emerald-700">매출총이익 ({selectedMonth})</p>
             <p className="mt-1 text-lg font-bold tabular-nums text-emerald-800">{formatWonIntl(dbFinanceSummary.margin)}</p>
+            <p className="mt-0.5 text-xs text-emerald-700">공급가 {formatWonIntl(dbFinanceSummary.grossSupply)} + 부가세 {formatWonIntl(dbFinanceSummary.grossVat)}</p>
           </CardContent>
         </Card>
       </div>
@@ -567,9 +1055,10 @@ export default function FinancePage() {
                   onClick={() => fetchSyncPushbullet()}
                   disabled={syncLoading}
                   className="shrink-0"
+                  title="원장 갱신 + Pushbullet 입금 메시지 동기화"
                 >
                   <RefreshCw className={`size-4 mr-1 ${syncLoading ? "animate-spin" : ""}`} />
-                  새로고침
+                  입금 동기화
                 </Button>
                 <Button
                   type="button"
@@ -616,21 +1105,22 @@ export default function FinancePage() {
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border-t border-slate-100">
-            <table className="w-full text-sm tracking-tight min-w-[640px]">
+            <table className="w-full text-xs tracking-tight table-fixed">
               <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-sm">
                 <tr className="border-b border-slate-200">
-                  <th className="px-4 py-4 text-left font-medium text-slate-600">날짜</th>
-                  <th className="px-4 py-4 text-left font-medium text-slate-600">카테고리</th>
-                  <th className="px-4 py-4 text-left font-medium text-slate-600">고객사</th>
-                  <th className="px-4 py-4 text-right font-medium text-slate-600">금액</th>
-                  <th className="px-4 py-4 text-center font-medium text-slate-600">상태</th>
-                  <th className="px-4 py-4 text-center font-medium text-slate-600">승인</th>
+                  <th className="w-20 px-2 py-2 text-left font-medium text-slate-600">날짜</th>
+                  <th className="px-2 py-2 text-left font-medium text-slate-600">카테고리</th>
+                  <th className="px-2 py-2 text-left font-medium text-slate-600">고객사</th>
+                  <th className="w-24 px-2 py-2 text-right font-medium text-slate-600">입금액</th>
+                  <th className="w-24 px-2 py-2 text-right font-medium text-slate-600">공급가</th>
+                  <th className="w-16 px-1 py-2 text-center font-medium text-slate-600">상태</th>
+                  <th className="w-20 px-1 py-2 text-center font-medium text-slate-600">승인</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLedger.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-16 text-center text-slate-500">
+                    <td colSpan={7} className="px-2 py-8 text-center text-xs text-slate-500">
                       {ledgerFilter === "pending" ? "승인 대기 건이 없습니다." : ledgerFilter === "approved" ? "정산 완료 건이 없습니다." : "내역이 없습니다."}
                     </td>
                   </tr>
@@ -654,6 +1144,7 @@ export default function FinancePage() {
                             if (!error) {
                               setJustApprovedId(row.id);
                               setTimeout(() => setJustApprovedId(null), 600);
+                              await fetchFinanceRows();
                             } else {
                               alert(error.message || "승인 실패");
                             }
@@ -691,6 +1182,8 @@ export default function FinancePage() {
                         }
                       }}
                       onEdit={handleEditLedgerRow}
+                      onEditRow={row.status === "PAID" ? () => setEditLedgerRow(row) : undefined}
+                      onAmountChange={row.status === "UNMAPPED" ? handleAmountChange : undefined}
                       onDelete={(id) => handleDeleteLedgerRow(id, row.source)}
                       onReceipt={row.source === "finance" ? () => {
                         const fr = financeRows.find((r) => r.id === row.id) ?? null;
@@ -782,12 +1275,17 @@ export default function FinancePage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>금액</Label>
+                  <Label>금액 (부가세 포함)</Label>
                   <Input
-                    type="number"
-                    placeholder="금액"
-                    value={addForm.amount}
-                    onChange={(e) => setAddForm((f) => ({ ...f, amount: e.target.value }))}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={addForm.amount === "" ? "" : formatWonIntl(parseInt(addForm.amount.replace(/[^0-9]/g, ""), 10) || 0)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setAddForm((f) => ({ ...f, amount: raw }));
+                    }}
+                    className="tabular-nums"
                   />
                 </div>
               </div>
@@ -795,12 +1293,19 @@ export default function FinancePage() {
                 <Label>구분</Label>
                 <select
                   value={addForm.type}
-                  onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value as "DEPOSIT" | "WITHDRAWAL" }))}
+                  onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value as AddFormType }))}
                   className="flex h-10 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
                 >
                   <option value="DEPOSIT">입금 (매출)</option>
                   <option value="WITHDRAWAL">출금 (매입)</option>
+                  <option value="RECEIVABLE">미수금 (원장에 미승인)</option>
+                  <option value="PAYABLE">미지급금 (원장에 미승인)</option>
                 </select>
+                {(addForm.type === "RECEIVABLE" || addForm.type === "PAYABLE") && (
+                  <p className="text-xs text-slate-500">
+                    통합 원장에 미승인 상태로 등록되며, 매출 분석 탭의 미수금·미지급금 표에도 반영됩니다.
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label>입금자/업체명</Label>
@@ -852,10 +1357,20 @@ export default function FinancePage() {
           </DialogContent>
         </Dialog>
 
+        {/* 원장 수정 모달 (수동 추가 항목만) */}
+        {editLedgerRow && (
+          <EditLedgerModal
+            key={editLedgerRow.id + (editLedgerRow.source ?? "")}
+            row={editLedgerRow}
+            onSave={(patch) => handleSaveEditLedgerRow(editLedgerRow, patch)}
+            onClose={() => setEditLedgerRow(null)}
+          />
+        )}
+
         {/* [우측 col-span-4] 인사이트 위젯 타워 */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-6 overflow-y-auto min-h-0">
           {/* 1. 생존 통장 & 캐시플로우 */}
-          <Card className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-2xl flex-shrink-0">
+          <Card className="rounded-2xl border border-amber-200/60 bg-amber-50/50 flex-shrink-0">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold text-amber-800">
                 <Wallet className="size-4" />
@@ -863,48 +1378,81 @@ export default function FinancePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm tracking-tight">
+              <div className="flex justify-between items-center gap-2 text-sm">
                 <span className="text-slate-600">이월 잔고</span>
-                <span className="font-medium">{formatWonIntl(survival.carryOverBalance)}</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={carryOverBalance === 0 ? "" : formatWonIntl(carryOverBalance)}
+                  onChange={(e) => {
+                    setCarryOverTouched(true);
+                    const raw = e.target.value.replace(/[^0-9]/g, "");
+                    const v = raw === "" ? 0 : parseInt(raw, 10);
+                    if (Number.isFinite(v)) {
+                      setCarryOverBalance(v);
+                      try {
+                        localStorage.setItem(SURVIVAL_CARRYOVER_STORAGE_KEY, String(v));
+                      } catch { /* ignore */ }
+                    }
+                  }}
+                  onBlur={() => {
+                    try {
+                      localStorage.setItem(SURVIVAL_CARRYOVER_STORAGE_KEY, String(carryOverBalance));
+                    } catch { /* ignore */ }
+                  }}
+                  className="h-8 w-28 text-right text-sm tabular-nums"
+                  placeholder="0"
+                />
               </div>
-              <div className="flex justify-between text-sm tracking-tight">
+              <div className="flex justify-between text-sm">
                 <span className="text-slate-600">현재 잔고</span>
-                <span className="font-bold text-amber-800">{formatWonIntl(survival.currentBalance)}</span>
+                <span className="font-semibold tabular-nums text-amber-800">{formatWonIntl(survivalResolved.currentBalance)}</span>
               </div>
-              <div className="border-t border-amber-200/60 pt-3">
-                <div className="flex justify-between text-sm tracking-tight">
-                  <span className="font-medium text-amber-800">정산 반영 합계</span>
-                  <CountUp value={approvedGrossTotal} className="font-bold text-emerald-600" />
+              <p className="text-xs text-slate-500">
+                이월 + {selectedMonth} 입금 {formatWonIntl(dbFinanceSummary.revenue)} − 출금 {formatWonIntl(dbFinanceSummary.purchase)}
+              </p>
+              <div className="border-t border-amber-200/60 pt-2 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-amber-800">정산 반영 합계</span>
+                  <CountUp value={dbFinanceSummary.margin} className="font-semibold text-emerald-600 tabular-nums" />
                 </div>
+                <p className="text-[11px] leading-snug text-amber-900/70">
+                  {selectedMonth} · 승인(PAID)만 · 통합 원장(DB·엑셀·수동 반영) — 위 입금 합 − 출금 합과 동일
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* 2. 목표 달성률 & 영업일 예상 이익 */}
-          <Card className="rounded-2xl glass-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-2xl flex-shrink-0">
+          {/* 2. 월 목표 달성율 & 영업일 예상 */}
+          <Card className="rounded-2xl border-2 border-slate-200 bg-white shadow-md flex-shrink-0">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                <Target className="size-4 text-[var(--primary)]" />
-                목표 달성률 & 영업일 예상
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+                <Target className="size-5 text-[var(--primary)]" />
+                월 목표 달성율 & 영업일 예상
               </CardTitle>
+              <p className="text-xs text-slate-500">{selectedMonth} 기준</p>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-baseline justify-between">
-                <CountUp value={effectiveAchievement} format="percent" className="text-2xl font-bold text-[var(--primary)]" />
-                <span className="text-xs text-slate-500">목표 {formatWonIntl(summary.targetGrossProfit)}</span>
+            <CardContent className="space-y-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <CountUp value={effectiveAchievement} format="percent" className="text-2xl font-bold tabular-nums text-[var(--primary)]" />
+                <span className="text-xs text-slate-500 shrink-0">목표 {formatWonIntl(summary.targetGrossProfit)}</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-blue-400 transition-all duration-500"
                   style={{ width: `${Math.min(effectiveAchievement, 100)}%` }}
                 />
               </div>
-              <p className="text-sm tracking-tight text-slate-600">
-                {summary.passedWorkDays}/{summary.workDays}일 진행 · 남은 {remainingDays}일
+              <p className="text-sm font-medium text-slate-700">
+                <span className="text-slate-500">{selectedMonth}</span> 영업일 {passedWorkDays}/{workDays}일 진행 · 남은 {remainingDays}일
               </p>
-              <p className="text-base font-bold tracking-tight text-emerald-600">
-                ➡️ 월말 예상 이익: {formatWonIntl(projectedProfit)}
+              <p className="text-sm text-slate-600">
+                일평균 매출총이익 <span className="font-semibold tabular-nums text-slate-800">{formatWonIntl(dailyAvgProfit)}</span>
               </p>
+              <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50/80 px-3 py-3">
+                <p className="text-xs font-semibold text-emerald-700">월말 예상 이익</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-800">{formatWonIntl(projectedProfit)}</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -912,20 +1460,24 @@ export default function FinancePage() {
           <Card className="rounded-2xl glass-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-2xl flex-shrink-0">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">금일 요약</CardTitle>
-              <CardDescription className="text-xs">들어온 돈 · 나간 돈 · 환불</CardDescription>
+              <CardDescription className="text-xs">
+                오늘 날짜·승인(PAID) 거래 기준, 금액은 공급가(부가세 제외, 10% 역산)
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm tracking-tight">
-                <span className="text-slate-600">현재 월 매출</span>
-                <span className="font-semibold text-slate-800">{formatWonIntl(today.currentMonthRevenue)}</span>
+                <span className="text-slate-600">오늘 매출</span>
+                <span className="font-semibold text-slate-800">{formatWonIntl(todaySupplySummary.revenueSupply)}</span>
               </div>
               <div className="flex justify-between text-sm tracking-tight">
-                <span className="text-slate-600">현재 월 매입</span>
-                <span className="font-semibold text-rose-500">-{formatWonIntl(today.currentMonthCost)}</span>
+                <span className="text-slate-600">오늘 매입</span>
+                <span className="font-semibold text-rose-500">-{formatWonIntl(todaySupplySummary.purchaseSupply)}</span>
               </div>
               <div className="flex justify-between text-sm tracking-tight">
-                <span className="text-slate-600">예상 미지급금</span>
-                <span className="font-semibold text-rose-500">{formatWonIntl(today.expectedPayables)}</span>
+                <span className="text-slate-600">오늘 매출총이익</span>
+                <span className={`font-semibold tabular-nums ${todaySupplySummary.marginSupply >= 0 ? "text-slate-800" : "text-rose-600"}`}>
+                  {formatWonIntl(todaySupplySummary.marginSupply)}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -960,25 +1512,29 @@ export default function FinancePage() {
       </div>
       )}
 
-      {/* 매출 분석 뷰: finance-current.json(엑셀 파싱) 우선, 없으면 SAMPLE */}
+      {/* 매출 분석: 수치는 통합 원장·선택 월·PAID 연동 / 목표·운영비 등은 엑셀 JSON(summary·survival) */}
       {viewMode === "analytics" && (
         <SalesAnalysisView
-          currentStatus={financeData?.currentStatus ?? SAMPLE_CURRENT_STATUS}
+          currentStatus={ledgerDerivedCurrentStatus}
           survival={survival}
           receivablesExpected={receivablesExpected}
           setReceivablesExpected={setReceivablesExpected}
           payablesExpected={payablesExpected}
           setPayablesExpected={setPayablesExpected}
-          teamSalesReport={financeData?.teamSalesReport ?? SAMPLE_TEAM_SALES_REPORT}
-          teamTargetGp={financeData?.teamTargetGp ?? SAMPLE_TEAM_TARGET_GP}
-          overallRefundRatePct={financeData?.overallRefundRatePct ?? OVERALL_REFUND_RATE_PCT}
+          teamSalesReport={ledgerTeamSalesReport}
+          teamTargetGp={ledgerTeamTargetGp}
+          overallRefundRatePct={ledgerOverallRefundRatePct}
+          dailyAvgProfit={dailyAvgProfit}
+          workDays={workDays}
+          passedWorkDays={passedWorkDays}
+          selectedMonth={selectedMonth}
         />
       )}
     </div>
   );
 }
 
-/** 매출 분석 뷰: 현재/매출예정/매입예정/마진/예상잔고/팀별 매출/목표 GP */
+/** 매출 분석 뷰 — 엑셀 용어: 매출 현황·미수금/미지급금·매출 총이익 예상·이번달 예상 잔고·팀별·목표 매출총이익 */
 function SalesAnalysisView({
   currentStatus,
   survival,
@@ -989,6 +1545,10 @@ function SalesAnalysisView({
   teamSalesReport,
   teamTargetGp,
   overallRefundRatePct,
+  dailyAvgProfit = 0,
+  workDays = 0,
+  passedWorkDays = 0,
+  selectedMonth = "",
 }: {
   currentStatus: CurrentStatus;
   survival: { operatingDeduction: number; vatOnGross?: number };
@@ -999,6 +1559,10 @@ function SalesAnalysisView({
   teamSalesReport: TeamSalesReportRow[];
   teamTargetGp: TeamTargetGp[];
   overallRefundRatePct: number;
+  dailyAvgProfit?: number;
+  workDays?: number;
+  passedWorkDays?: number;
+  selectedMonth?: string;
 }) {
   const receivablesTotal = receivablesExpected.reduce((s, x) => s + x.supplyAmount + x.vat, 0);
   const receivablesSupply = receivablesExpected.reduce((s, x) => s + x.supplyAmount, 0);
@@ -1029,11 +1593,18 @@ function SalesAnalysisView({
 
   return (
     <div className="view-fade-in space-y-6">
-      {/* 현재 */}
+      {selectedMonth && workDays > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm">
+          <span className="text-slate-600">{selectedMonth} · 통합 원장 연동 · 승인(PAID) · </span>
+          <span className="font-semibold text-slate-800">일평균 매출총이익 {formatWonIntl(dailyAvgProfit)}</span>
+          <span className="text-slate-500"> (해당월 영업일 {passedWorkDays}/{workDays}일)</span>
+        </div>
+      )}
+      {/* 매출 현황 (엑셀 상단 블록과 동일 용어) */}
       <Card className="overflow-hidden rounded-2xl glass-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">현재</CardTitle>
-          <CardDescription className="text-xs">매출액·매입액·매총(공급가액·부가세·합산), 생존통장 잔액</CardDescription>
+          <CardTitle className="text-base">매출 현황</CardTitle>
+          <CardDescription className="text-xs">통합 원장 · 선택 월 · 승인(PAID) — 공급가액·부가세·합산(거래금액), 현재 잔고</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -1058,7 +1629,7 @@ function SalesAnalysisView({
                   <td className="px-4 py-2" />
                 </tr>
                 <tr className="border-b border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-800">매입액</td>
+                  <td className="px-4 py-2 font-medium text-slate-800">매입 [환불제외]</td>
                   <td className="px-3 py-2">-</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(currentStatus.purchaseSupply)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(currentStatus.purchaseVat)}</td>
@@ -1066,7 +1637,7 @@ function SalesAnalysisView({
                   <td className="px-4 py-2" />
                 </tr>
                 <tr className="border-b border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-800">매총</td>
+                  <td className="px-4 py-2 font-medium text-slate-800">매출총이익</td>
                   <td className="px-3 py-2">-</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(currentStatus.grossSupply)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(currentStatus.grossVat)}</td>
@@ -1077,22 +1648,23 @@ function SalesAnalysisView({
             </table>
           </div>
           <p className="px-4 py-3 text-sm font-semibold text-slate-800">
-            생존통장 잔액: <span className="tabular-nums text-[var(--primary)]">{formatWonIntl(currentStatus.survivalBalance)}</span>
+            현재 잔고: <span className="tabular-nums text-[var(--primary)]">{formatWonIntl(currentStatus.survivalBalance)}</span>
+            <span className="ml-2 text-xs font-normal text-slate-500">(이월 + 입금 − 출금, 통합 원장)</span>
           </p>
         </CardContent>
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* 매출 예정액 (미수금) - 기입 가능 */}
+        {/* 미수금 - 기입 가능 */}
         <Card className="overflow-hidden rounded-2xl glass-card">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base">매출 예정액 (미수금)</CardTitle>
-              <CardDescription className="text-xs">행 추가·편집으로 미수금 기입</CardDescription>
+              <CardTitle className="text-base">미수금</CardTitle>
+              <CardDescription className="text-xs">미수금/미지급금 관리 — 미수금. 통합 원장·로컬 저장과 동기화</CardDescription>
             </div>
             <button
               type="button"
-              onClick={() => setReceivablesExpected((prev) => [...prev, { id: `er-${Date.now()}`, category: "매출 예정", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
+              onClick={() => setReceivablesExpected((prev) => [...prev, { id: `er-${Date.now()}`, category: "미수금", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
               className="rounded-lg bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-200"
             >
               + 행 추가
@@ -1102,22 +1674,22 @@ function SalesAnalysisView({
             <ExpectedLinesTable
               rows={receivablesExpected}
               setRows={setReceivablesExpected}
-              totalLabel="매출액"
+              totalLabel="합산"
               showTotalRow={false}
             />
           </CardContent>
         </Card>
 
-        {/* 매입 예정액 (미지급금) - 기입 가능 */}
+        {/* 미지급금 - 기입 가능 */}
         <Card className="overflow-hidden rounded-2xl glass-card">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base">매입 예정액 (미지급금)</CardTitle>
-              <CardDescription className="text-xs">행 추가·편집으로 미지급금 기입</CardDescription>
+              <CardTitle className="text-base">미지급금</CardTitle>
+              <CardDescription className="text-xs">미수금/미지급금 관리 — 미지급금. 통합 원장·로컬 저장과 동기화</CardDescription>
             </div>
             <button
               type="button"
-              onClick={() => setPayablesExpected((prev) => [...prev, { id: `ep-${Date.now()}`, category: "매입 예정", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
+              onClick={() => setPayablesExpected((prev) => [...prev, { id: `ep-${Date.now()}`, category: "미지급금", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
               className="rounded-lg bg-rose-100 px-3 py-1.5 text-sm font-medium text-rose-800 hover:bg-rose-200"
             >
               + 행 추가
@@ -1127,18 +1699,18 @@ function SalesAnalysisView({
             <ExpectedLinesTable
               rows={payablesExpected}
               setRows={setPayablesExpected}
-              totalLabel="매입액"
+              totalLabel="합산"
               showTotalRow
             />
           </CardContent>
         </Card>
       </div>
 
-      {/* 마진 */}
+      {/* 매출 총이익 예상 */}
       <Card className="overflow-hidden rounded-2xl glass-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">마진</CardTitle>
-          <CardDescription className="text-xs">예상 총매출액·총매입액·마진(총이익, 매총 부가세)</CardDescription>
+          <CardTitle className="text-base">매출 총이익 예상</CardTitle>
+          <CardDescription className="text-xs">위 매출 현황 + 미수금·미지급금 반영 (예상 매출·예상 매입·예상 매출총이익)</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -1154,25 +1726,25 @@ function SalesAnalysisView({
               </thead>
               <tbody>
                 <tr className="border-b border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-800">예상 총매출액</td>
+                  <td className="px-4 py-2 font-medium text-slate-800">예상 매출 합계</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(expectedSalesSupply)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(expectedSalesVat)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(expectedSalesTotal)}</td>
                   <td className="px-4 py-2" />
                 </tr>
                 <tr className="border-b border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-800">총매입액</td>
+                  <td className="px-4 py-2 font-medium text-slate-800">예상 매입 합계</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(expectedPurchaseSupply)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(expectedPurchaseVat)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(expectedPurchaseTotal)}</td>
                   <td className="px-4 py-2" />
                 </tr>
                 <tr className="border-b border-slate-100 bg-emerald-50/50">
-                  <td className="px-4 py-2 font-semibold text-emerald-800">총이익</td>
+                  <td className="px-4 py-2 font-semibold text-emerald-800">예상 매출총이익</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{formatWonIntl(marginSupply)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">매총 부가세 {formatWonIntl(vatOnGross)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{formatWonIntl(marginTotal)}</td>
-                  <td className="px-4 py-2 text-xs text-slate-500">마진</td>
+                  <td className="px-4 py-2 text-xs text-slate-500">매출 총이익 예상</td>
                 </tr>
               </tbody>
             </table>
@@ -1180,11 +1752,11 @@ function SalesAnalysisView({
         </CardContent>
       </Card>
 
-      {/* 예상 잔고 */}
+      {/* 이번달 예상 잔고 */}
       <Card className="overflow-hidden rounded-2xl glass-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">예상 잔고</CardTitle>
-          <CardDescription className="text-xs">잔액+매출예정-매입예정, 운영비·매총부가세 차감 후 최종</CardDescription>
+          <CardTitle className="text-base">이번달 예상 잔고</CardTitle>
+          <CardDescription className="text-xs">현재 잔고 + 미수금 − 미지급금 후, 운영비 차감·매총 부가세 반영</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -1193,20 +1765,20 @@ function SalesAnalysisView({
                 <tr className="border-b border-slate-100">
                   <td className="px-4 py-2 font-medium text-slate-800">예상 잔고</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(balanceAfterExpected)}</td>
-                  <td className="px-4 py-2 text-xs text-slate-500">잔액+매출예정액-매입예정액</td>
+                  <td className="px-4 py-2 text-xs text-slate-500">현재 잔고 + 미수금 − 미지급금</td>
                 </tr>
                 <tr className="border-b border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-800">운영비</td>
+                  <td className="px-4 py-2 font-medium text-slate-800">운영비 차감</td>
                   <td className="px-3 py-2 text-right tabular-nums text-rose-600">-{formatWonIntl(operatingDeduction)}</td>
                   <td className="px-4 py-2" />
                 </tr>
                 <tr className="border-b border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-800">매총부가세</td>
+                  <td className="px-4 py-2 font-medium text-slate-800">매총 부가세</td>
                   <td className="px-3 py-2 text-right tabular-nums text-rose-600">-{formatWonIntl(vatOnGross)}</td>
                   <td className="px-4 py-2" />
                 </tr>
                 <tr className="bg-slate-50/80">
-                  <td className="px-4 py-3 font-semibold text-slate-800">예상 잔고</td>
+                  <td className="px-4 py-3 font-semibold text-slate-800">이번달 예상 잔고</td>
                   <td className="px-3 py-3 text-right tabular-nums font-bold text-[var(--primary)]">{formatWonIntl(finalExpectedBalance)}</td>
                   <td className="px-4 py-3" />
                 </tr>
@@ -1220,8 +1792,8 @@ function SalesAnalysisView({
         {/* 팀별 매출 보고 */}
         <Card className="overflow-hidden rounded-2xl glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">팀별 매출 보고</CardTitle>
-            <CardDescription className="text-xs">매출액·매입액·매출총이익·팀별 매출총이익률</CardDescription>
+            <CardTitle className="text-base">팀별</CardTitle>
+            <CardDescription className="text-xs">통합 원장 분류(팀) 기준 · 표시 순서: 더널리 → 티제이웹 → 기타·그 외(분류 없음은 기타)</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -1231,20 +1803,28 @@ function SalesAnalysisView({
                     <th className="px-4 py-2 text-left font-medium text-slate-600">분류</th>
                     <th className="px-3 py-2 text-right font-medium text-slate-600">매출액</th>
                     <th className="px-3 py-2 text-right font-medium text-slate-600">매입액</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-600">매출총이익</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-600">팀별 매출총이익률</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-600">매출 총이익</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-600">매출총이익률</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {teamSalesReport.map((r) => (
-                    <tr key={r.team} className="border-b border-slate-100">
-                      <td className="px-4 py-2 font-medium text-slate-800">{r.team}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.revenue)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.cost)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(r.grossProfit)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{r.marginRatePct.toFixed(2)}%</td>
+                  {teamSalesReport.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                        선택 월에 승인(PAID)된 통합 원장 거래가 없습니다. 팀은 원장의 <strong>분류</strong>(엑셀 팀 열) 기준으로 집계됩니다.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    teamSalesReport.map((r) => (
+                      <tr key={r.team} className="border-b border-slate-100">
+                        <td className="px-4 py-2 font-medium text-slate-800">{r.team}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.revenue)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.cost)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(r.grossProfit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{r.marginRatePct.toFixed(2)}%</td>
+                      </tr>
+                    ))
+                  )}
                   <tr className="border-t-2 border-slate-200/80 bg-slate-50/50 font-semibold">
                     <td className="px-4 py-2 text-slate-800">전체 매출총이익률</td>
                     <td colSpan={3} className="px-3 py-2 text-right" />
@@ -1264,8 +1844,8 @@ function SalesAnalysisView({
         {/* 목표 GP (팀별) */}
         <Card className="overflow-hidden rounded-2xl glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">목표 GP (팀별)</CardTitle>
-            <CardDescription className="text-xs">목표·매출총이익·초과 달성액·달성 여부</CardDescription>
+            <CardTitle className="text-base">목표 매출 총이익 (팀별)</CardTitle>
+            <CardDescription className="text-xs">월 목표 매출 총이익을 팀 매출액 비율로 배분 · 매출 총이익·초과 달성액·달성 여부</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -1273,26 +1853,34 @@ function SalesAnalysisView({
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50/80">
                     <th className="px-4 py-2 text-left font-medium text-slate-600">분류</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-600">목표</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-600">매출총이익</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-600">목표 매출 총이익</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-600">매출 총이익</th>
                     <th className="px-3 py-2 text-right font-medium text-slate-600">초과 달성액</th>
                     <th className="px-3 py-2 text-center font-medium text-slate-600">달성 여부</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {teamTargetGp.map((r) => (
-                    <tr key={r.team} className="border-b border-slate-100">
-                      <td className="px-4 py-2 font-medium text-slate-800">{r.team}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.target)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.grossProfit)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-emerald-600 font-medium">{formatWonIntl(r.excessAchievement)}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={`inline-flex rounded-lg px-2 py-0.5 text-xs font-medium ${r.achieved ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
-                          {r.achieved ? "달성" : "미달성"}
-                        </span>
+                  {teamTargetGp.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                        팀별 매출이 없으면 목표 배분을 할 수 없습니다. 통합 원장에서 분류(팀)를 입력한 뒤 확인하세요.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    teamTargetGp.map((r) => (
+                      <tr key={r.team} className="border-b border-slate-100">
+                        <td className="px-4 py-2 font-medium text-slate-800">{r.team}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.target)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.grossProfit)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-emerald-600 font-medium">{formatWonIntl(r.excessAchievement)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-flex rounded-lg px-2 py-0.5 text-xs font-medium ${r.achieved ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                            {r.achieved ? "달성" : "미달성"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1483,6 +2071,8 @@ function LedgerRowComponent({
   justApprovedId,
   onApprove,
   onEdit,
+  onEditRow,
+  onAmountChange,
   onDelete,
   onReceipt,
 }: {
@@ -1491,6 +2081,8 @@ function LedgerRowComponent({
   justApprovedId: string | null;
   onApprove: (classification: string, clientName: string) => Promise<void>;
   onEdit?: (id: string, patch: { classification?: string; clientName?: string }) => void;
+  onEditRow?: () => void;
+  onAmountChange?: (id: string, amount: number, source?: string) => void;
   onDelete?: (id: string) => void;
   onReceipt?: () => void;
 }) {
@@ -1504,6 +2096,11 @@ function LedgerRowComponent({
   const [clientName, setClientName] = useState(row.clientName ?? "");
   const [showClassDropdown, setShowClassDropdown] = useState(false);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [amountStr, setAmountStr] = useState(String(row.amount));
+  useEffect(() => {
+    setAmountStr(String(row.amount));
+  }, [row.amount]);
+  const amountNum = parseInt(amountStr.replace(/[^0-9]/g, ""), 10) || 0;
 
   const revenueAmount = row.type === "DEPOSIT" ? row.amount : 0;
   const costAmount = row.type === "WITHDRAWAL" ? row.amount : 0;
@@ -1517,8 +2114,8 @@ function LedgerRowComponent({
         justApproved ? "bg-white" : isPending ? "bg-amber-50/50" : "bg-transparent hover:bg-blue-50/40"
       }`}
     >
-      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{row.date}</td>
-      <td className="px-4 py-3">
+      <td className="w-20 px-2 py-2 text-slate-700 whitespace-nowrap text-xs">{row.date}</td>
+      <td className="px-2 py-2 min-w-0">
         {(isPending || canEditPaid) ? (
           <div className="relative">
             <button
@@ -1527,7 +2124,7 @@ function LedgerRowComponent({
                 setShowClassDropdown((v) => !v);
                 setShowClientDropdown(false);
               }}
-              className="flex min-w-[100px] items-center justify-between rounded-lg border border-dashed border-slate-300 bg-white px-2 py-1.5 text-left text-slate-500 hover:border-[var(--primary)]/50 hover:text-slate-700"
+              className="flex min-w-0 w-full items-center justify-between rounded border border-dashed border-slate-300 bg-white px-1.5 py-1 text-left text-xs text-slate-500 hover:border-[var(--primary)]/50 hover:text-slate-700 truncate"
             >
               {(isPending ? classification : row.classification) || "분류 선택"}
               <ChevronDown className="size-4 shrink-0" />
@@ -1556,10 +2153,10 @@ function LedgerRowComponent({
             )}
           </div>
         ) : (
-          <span className="text-slate-800">{row.classification || "-"}</span>
+          <span className="text-xs text-slate-800 truncate block">{row.classification || "-"}</span>
         )}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-2 py-2 min-w-0">
         {(isPending || canEditPaid) ? (
           <div className="relative">
             <button
@@ -1568,7 +2165,7 @@ function LedgerRowComponent({
                 setShowClientDropdown((v) => !v);
                 setShowClassDropdown(false);
               }}
-              className="flex min-w-[120px] items-center justify-between rounded-lg border border-dashed border-slate-300 bg-white px-2 py-1.5 text-left text-slate-500 hover:border-[var(--primary)]/50 hover:text-slate-700"
+              className="flex min-w-0 w-full items-center justify-between rounded border border-dashed border-slate-300 bg-white px-1.5 py-1 text-left text-xs text-slate-500 hover:border-[var(--primary)]/50 hover:text-slate-700 truncate"
             >
               {(isPending ? clientName : row.clientName) || "고객사 선택"}
               <ChevronDown className="size-4 shrink-0" />
@@ -1605,11 +2202,32 @@ function LedgerRowComponent({
             )}
           </div>
         ) : (
-          <span className="text-slate-800">{row.clientName || "-"}</span>
+          <span className="text-xs text-slate-800 truncate block">{row.clientName || "-"}</span>
         )}
       </td>
-      <td className="px-4 py-3 text-right tabular-nums font-medium whitespace-nowrap">
-        {revenueAmount > 0 ? (
+      <td className="w-28 min-w-[7rem] px-2 py-2 text-right text-xs tabular-nums font-medium whitespace-nowrap">
+        {isPending && onAmountChange ? (
+          <div className="flex items-center justify-end gap-0.5">
+            {row.type === "WITHDRAWAL" && <span className="text-rose-500">-</span>}
+            <input
+              type="text"
+              inputMode="numeric"
+              value={amountStr === "" ? "" : formatWonIntl(amountNum)}
+              onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={() => {
+                if (amountNum > 0 && amountNum !== row.amount) {
+                  onAmountChange(row.id, amountNum, row.source);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="w-20 rounded border border-slate-300 bg-white px-1.5 py-1 text-right text-xs tabular-nums focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+            />
+          </div>
+        ) : revenueAmount > 0 ? (
           <span className="text-slate-800">+{formatWonIntl(revenueAmount)}</span>
         ) : costAmount > 0 ? (
           <span className="text-rose-500">-{formatWonIntl(costAmount)}</span>
@@ -1617,53 +2235,177 @@ function LedgerRowComponent({
           "-"
         )}
       </td>
-      <td className="px-4 py-3 text-center whitespace-nowrap">
+      <td className="w-24 px-2 py-2 text-right text-xs tabular-nums text-slate-600 whitespace-nowrap">
+        {row.amount ? (
+          <span>{formatWonIntl(amountToSupplyVat(row.amount).supply)}</span>
+        ) : (
+          "-"
+        )}
+      </td>
+      <td className="w-16 px-1 py-2 text-center whitespace-nowrap">
         {isPending ? (
-          <span className="inline-flex items-center gap-1 rounded-lg border border-amber-300/80 bg-amber-100/80 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-            🚨 분류 필요
+          <span className="inline-flex items-center gap-0.5 rounded border border-amber-300/80 bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+            분류필요
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200/80 bg-emerald-100/80 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-            ✅ 정산 완료
+          <span className="inline-flex items-center gap-0.5 rounded border border-emerald-200/80 bg-emerald-100/80 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
+            완료
           </span>
         )}
       </td>
-      <td className="px-4 py-3 text-center whitespace-nowrap">
-        <div className="flex items-center justify-center gap-2">
+      <td className="w-20 px-1 py-2 text-center whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1">
           {isPending ? (
             <button
               type="button"
               onClick={() => onApprove(classification, clientName)}
               disabled={!canApprove || isApproving}
-              className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--primary)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded bg-[var(--primary)] px-2 py-1 text-xs font-semibold text-white hover:bg-[var(--primary)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isApproving ? "처리 중..." : "✅ 승인"}
+              {isApproving ? "..." : "승인"}
             </button>
           ) : (
-            <span className="text-slate-300">-</span>
+            <span className="text-slate-300 text-xs">-</span>
+          )}
+          {onEditRow && (
+            <button
+              type="button"
+              onClick={onEditRow}
+              className="rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-600"
+              title="수정"
+            >
+              수정
+            </button>
           )}
           {onReceipt && row.source === "finance" && (
             <button
               type="button"
               onClick={onReceipt}
-              className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-blue-50 hover:text-blue-500"
+              className="rounded p-1 text-slate-300 hover:bg-blue-50 hover:text-blue-500"
               title="영수증 / 세금계산서"
             >
-              <FileText className="size-4" />
+              <FileText className="size-3.5" />
             </button>
           )}
           {onDelete && (
             <button
               type="button"
               onClick={() => onDelete(row.id)}
-              className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+              className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
               title="삭제"
             >
-              <Trash2 className="size-4" />
+              <Trash2 className="size-3.5" />
             </button>
           )}
         </div>
       </td>
     </tr>
+  );
+}
+
+function EditLedgerModal({
+  row,
+  onSave,
+  onClose,
+}: {
+  row: LedgerRow;
+  onSave: (patch: Partial<LedgerRow>) => void;
+  onClose: () => void;
+}) {
+  const [date, setDate] = useState(row.date);
+  const [amount, setAmount] = useState(String(row.amount));
+  const [type, setType] = useState<"DEPOSIT" | "WITHDRAWAL">(row.type);
+  const [senderName, setSenderName] = useState(row.senderName ?? "");
+  const [bankName, setBankName] = useState(row.bankName ?? "");
+  const [classification, setClassification] = useState(row.classification ?? "");
+  const [clientName, setClientName] = useState(row.clientName ?? "");
+  const [status, setStatus] = useState<"UNMAPPED" | "PAID">(row.status);
+
+  const amountNum = parseInt(amount.replace(/[^0-9]/g, ""), 10) || 0;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>원장 수정</DialogTitle>
+          <DialogDescription>수동으로 추가한 항목만 수정할 수 있습니다.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>날짜</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>금액 (부가세 포함)</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="0"
+                value={amount === "" ? "" : formatWonIntl(parseInt(amount.replace(/[^0-9]/g, ""), 10) || 0)}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+                className="tabular-nums"
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>구분</Label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as "DEPOSIT" | "WITHDRAWAL")}
+              className="flex h-10 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="DEPOSIT">입금 (매출)</option>
+              <option value="WITHDRAWAL">출금 (매입)</option>
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label>입금자/업체명</Label>
+            <Input placeholder="입금자 또는 업체명" value={senderName} onChange={(e) => setSenderName(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>결제 방식</Label>
+            <Input placeholder="무통장, 카드 등" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>카테고리</Label>
+            <select
+              value={classification}
+              onChange={(e) => setClassification(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="">선택</option>
+              {CLASSIFICATION_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label>고객사</Label>
+            <Input placeholder="고객사/적요" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>승인 상태</Label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as "UNMAPPED" | "PAID")}
+              className="flex h-10 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="UNMAPPED">미승인 (분류필요)</option>
+              <option value="PAID">완료</option>
+            </select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button
+            onClick={() => onSave({ date, amount: amountNum, type, senderName, bankName, classification: classification || undefined, clientName: clientName || undefined, status })}
+            disabled={!date || amountNum <= 0}
+          >
+            저장
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

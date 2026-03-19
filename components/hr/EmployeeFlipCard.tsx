@@ -71,9 +71,6 @@ export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: Employ
           <p className="text-center text-xl font-bold text-slate-800">
             {data.name}
           </p>
-          <p className="mt-0.5 text-center text-lg font-semibold text-slate-700">
-            {data.position}
-          </p>
           <p className="mt-2 text-center text-sm text-slate-500">
             {data.department}
           </p>

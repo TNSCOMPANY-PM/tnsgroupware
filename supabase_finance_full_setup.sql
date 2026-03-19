@@ -47,6 +47,17 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- 4-1. receipt_data 컬럼 (영수증/세금계산서 정보 JSON)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='finance' AND column_name='receipt_data'
+  ) THEN
+    ALTER TABLE public.finance ADD COLUMN receipt_data jsonb;
+    COMMENT ON COLUMN public.finance.receipt_data IS '영수증/세금계산서 입력 데이터 (JSON)';
+  END IF;
+END $$;
+
 -- 5. RLS 활성화
 ALTER TABLE public.finance ENABLE ROW LEVEL SECURITY;
 
@@ -64,6 +75,11 @@ CREATE POLICY "anon_insert_finance"
 DROP POLICY IF EXISTS "anon_update_finance" ON public.finance;
 CREATE POLICY "anon_update_finance"
   ON public.finance FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- 8-1. anon DELETE (통합 원장 개별 삭제)
+DROP POLICY IF EXISTS "anon_delete_finance" ON public.finance;
+CREATE POLICY "anon_delete_finance"
+  ON public.finance FOR DELETE TO anon USING (true);
 
 -- 9. authenticated 전체 권한
 DROP POLICY IF EXISTS "authenticated_all_finance" ON public.finance;

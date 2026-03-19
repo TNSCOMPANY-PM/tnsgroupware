@@ -5,8 +5,6 @@ import type { CalendarLeaveEvent } from "@/constants/leaveSchedule";
 import type { LeaveRequest } from "@/constants/leave";
 import { addDays, parseISO, format } from "date-fns";
 
-const PLANNED_LEAVES_STORAGE_KEY = "groupware-hr-planned-leaves";
-
 interface PlannedLeavesContextType {
   plannedEvents: CalendarLeaveEvent[];
   plannedLeaveRequests: LeaveRequest[];
@@ -34,32 +32,35 @@ function leaveRequestToEvents(req: LeaveRequest, userName: string): CalendarLeav
   return events;
 }
 
-function loadPlannedLeaves(): LeaveRequest[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const s = localStorage.getItem(PLANNED_LEAVES_STORAGE_KEY);
-    if (s) {
-      const parsed = JSON.parse(s) as LeaveRequest[];
-      return Array.isArray(parsed) ? parsed : [];
-    }
-  } catch {}
-  return [];
+function dbRowToLeaveRequest(row: Record<string, unknown>): LeaveRequest {
+  return {
+    id: row.id as string,
+    applicantId: row.applicant_id as string,
+    applicantName: row.applicant_name as string,
+    applicantDepartment: row.applicant_department as string,
+    leaveType: row.leave_type as LeaveRequest["leaveType"],
+    startDate: row.start_date as string,
+    endDate: row.end_date as string,
+    days: Number(row.days),
+    reason: (row.reason as string) ?? "",
+    status: "PLANNED",
+    createdAt: (row.created_at as string) ?? new Date().toISOString(),
+  };
 }
 
 export function PlannedLeavesProvider({ children }: { children: React.ReactNode }) {
-  // 서버/클라이언트 첫 렌더를 동일하게 시작 → hydration mismatch 방지
   const [plannedLeaveRequests, setPlannedLeaveRequests] = useState<LeaveRequest[]>([]);
 
   useEffect(() => {
-    // 클라이언트 마운트 후 localStorage 로드
-    setPlannedLeaveRequests(loadPlannedLeaves());
+    fetch("/api/planned-leaves")
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows: unknown[]) => {
+        if (Array.isArray(rows)) {
+          setPlannedLeaveRequests(rows.map((r) => dbRowToLeaveRequest(r as Record<string, unknown>)));
+        }
+      })
+      .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PLANNED_LEAVES_STORAGE_KEY, JSON.stringify(plannedLeaveRequests));
-    } catch {}
-  }, [plannedLeaveRequests]);
 
   const plannedEvents = useMemo(() => {
     return plannedLeaveRequests.flatMap((r) =>
@@ -69,7 +70,24 @@ export function PlannedLeavesProvider({ children }: { children: React.ReactNode 
 
   const addPlannedLeave = useCallback((req: LeaveRequest) => {
     if (!req.startDate || !req.endDate || req.startDate > req.endDate || req.days <= 0) return;
+    // 낙관적 업데이트
     setPlannedLeaveRequests((prev) => [...prev, { ...req }]);
+    // DB 저장
+    fetch("/api/planned-leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: req.id,
+        applicantId: req.applicantId,
+        applicantName: req.applicantName,
+        applicantDepartment: req.applicantDepartment,
+        leaveType: req.leaveType,
+        startDate: req.startDate,
+        endDate: req.endDate,
+        days: req.days,
+        reason: req.reason,
+      }),
+    }).catch(() => {});
   }, []);
 
   return (
