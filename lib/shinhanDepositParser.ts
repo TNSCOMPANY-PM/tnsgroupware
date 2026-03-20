@@ -16,6 +16,7 @@ export function parseShinhanDepositSms(smsText: string): {
   date: string;
   amount: number;
   client_name: string;
+  time?: string; // "HH:MM"
 } | null {
   const raw = (smsText || "").trim();
   if (!raw) return null;
@@ -27,14 +28,18 @@ export function parseShinhanDepositSms(smsText: string): {
   // 단일 줄로 합쳐진 문자열도 대응
   const flat = lines.join(" ");
 
-  // ── 날짜 추출 ──────────────────────────────────────────────────────────────
-  // 패턴: 신한(임의공백)MM/DD 또는 신한MM/DD (둘 다 대응)
-  const dateMatch = flat.match(/신한\s*(\d{1,2})\/(\d{1,2})/);
+  // ── 날짜·시간 추출 ─────────────────────────────────────────────────────────
+  // 패턴: 신한MM/DD HH:MM (시간은 선택적)
+  const dateMatch = flat.match(/신한\s*(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
   let dateStr: string;
+  let time: string | undefined;
   if (dateMatch) {
     const m = String(parseInt(dateMatch[1], 10)).padStart(2, "0");
     const d = String(parseInt(dateMatch[2], 10)).padStart(2, "0");
     dateStr = `${year}-${m}-${d}`;
+    if (dateMatch[3] && dateMatch[4]) {
+      time = `${String(parseInt(dateMatch[3], 10)).padStart(2, "0")}:${dateMatch[4]}`;
+    }
   } else {
     const now = new Date();
     dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -66,5 +71,5 @@ export function parseShinhanDepositSms(smsText: string): {
     }
   }
 
-  return { date: dateStr, amount, client_name };
+  return { date: dateStr, amount, client_name, time };
 }
