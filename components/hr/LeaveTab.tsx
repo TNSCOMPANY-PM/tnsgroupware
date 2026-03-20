@@ -1380,6 +1380,16 @@ function LeaveApplicationModal({
   const [hourlyStart, setHourlyStart] = useState("09:00");
   const [hourlyEnd, setHourlyEnd] = useState("11:00");
 
+  // leaveType이 바뀌면 캘린더·폼 상태 초기화
+  useEffect(() => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setReason("");
+    setFlexSubType("annual");
+    setHourlyStart("09:00");
+    setHourlyEnd("11:00");
+  }, [leaveType]);
+
   const isAnnualFlow = leaveType === "annual";
   const isRangeMode = isAnnualFlow && flexSubType === "annual";
 
@@ -1412,7 +1422,9 @@ function LeaveApplicationModal({
 
   const handleSubmit = () => {
     if (!startDate || !reason || !leaveType) return;
-    const end = isRangeMode ? (endDate ?? startDate) : startDate;
+    // hourly·반차는 endDate가 없으므로 startDate 사용, 나머지는 endDate 우선
+    const isSingleDay = isAnnualFlow && (flexSubType === "hourly" || flexSubType === "half_am" || flexSubType === "half_pm");
+    const end = isSingleDay ? startDate : (endDate ?? startDate);
     onSubmit({
       leaveType: effectiveLeaveType,
       startDate: format(startDate, "yyyy-MM-dd"),
@@ -1458,6 +1470,7 @@ function LeaveApplicationModal({
               </Label>
               <div className="flex justify-center [&_.rdp]:select-none">
                 <RangeDragDayPicker
+                  key={leaveType ?? "none"}
                   selected={startDate ? { from: startDate, to: endDate ?? startDate } : undefined}
                   onSelect={(r) => {
                     if (!r?.from) return;
@@ -1538,6 +1551,7 @@ function LeaveApplicationModal({
               <div className="flex justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-white p-4 [&_.rdp]:select-none">
                 {isRangeMode ? (
                   <RangeDragDayPicker
+                    key={`annual-range-${leaveType}`}
                     selected={startDate ? { from: startDate, to: endDate ?? startDate } : undefined}
                     onSelect={(r) => {
                       if (r?.from) {
@@ -1551,6 +1565,7 @@ function LeaveApplicationModal({
                   />
                 ) : (
                   <RangeDragDayPicker
+                    key={`annual-single-${flexSubType}`}
                     selected={startDate ? { from: startDate, to: startDate } : undefined}
                     onSelect={(r) => {
                       if (r?.from) {
