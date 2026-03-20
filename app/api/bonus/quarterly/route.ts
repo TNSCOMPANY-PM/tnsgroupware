@@ -44,7 +44,8 @@ function calcBonus(rows: FinRow[]): Record<BonusKey, number> {
   const totalCost    = Object.values(byTeam).reduce((s, v) => s + v.cost, 0);
   const grossTotal   = totalRevenue - totalCost;
 
-  const excessOverTarget = Math.max(0, grossTotal - BONUS_TARGET_GP);
+  const grossTotalSupply = Math.round((totalRevenue - totalCost) / 1.1);
+  const excessOverTarget = Math.max(0, grossTotalSupply - BONUS_TARGET_GP);
   const bonusPool        = Math.round(excessOverTarget * BONUS_POOL_RATE);
   const jaemin           = Math.round(bonusPool * BONUS_JAEMIN_RATE);
   const teamPool         = bonusPool - jaemin;

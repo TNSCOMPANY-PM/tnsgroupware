@@ -428,7 +428,7 @@ export default function ReportsPage() {
       return { ...t, target, excessAchievement: t.grossProfit - target, achieved: t.grossProfit >= target };
     });
 
-    const expectedGross = expectedGrossTotal;
+    const expectedGross = expectedGrossSupply;
     const excessOverTarget = Math.max(0, expectedGross - BONUS_TARGET_GP);
     const bonusPool = Math.round(excessOverTarget * BONUS_POOL_RATE);
     const jaemin = Math.round(bonusPool * BONUS_JAEMIN_RATE);
