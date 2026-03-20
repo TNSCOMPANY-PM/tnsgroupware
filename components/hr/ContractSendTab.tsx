@@ -15,7 +15,7 @@ import {
   formatAmountKorean,
   birthDateKoToIso,
 } from "@/lib/contractFormUtils";
-import { ContractDocument } from "@/lib/contractTemplates";
+import { ContractDocument, A4Page } from "@/lib/contractTemplates";
 import type { ContractType } from "@/types/contract";
 import type { ContractRow } from "@/types/contract";
 import type { Employee } from "@/types/employee";
@@ -261,10 +261,10 @@ export function ContractSendTab({ employees, onSuccess }: ContractSendTabProps) 
           aria-label="계약서 보기"
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl"
+            className="flex max-h-[90vh] w-full max-w-[900px] flex-col rounded-xl border border-slate-200 bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+            <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
               <h4 className="font-semibold text-slate-800">
                 {CONTRACT_TYPE_LABELS[selectedContractForPopup.contract_type as keyof typeof CONTRACT_TYPE_LABELS]}
                 {selectedContractForPopup.created_at && (
@@ -282,8 +282,10 @@ export function ContractSendTab({ employees, onSuccess }: ContractSendTabProps) 
                 <X className="size-5" />
               </button>
             </div>
-            <div className="p-6">
-              <ContractDocument contract={selectedContractForPopup} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <A4Page>
+                <ContractDocument contract={selectedContractForPopup} />
+              </A4Page>
             </div>
           </div>
         </div>
