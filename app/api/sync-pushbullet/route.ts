@@ -175,10 +175,25 @@ export async function GET(request: NextRequest) {
     for (const p of toInsert) {
       const month = p.date.slice(0, 7);
 
+      // clients alias 자동 매핑
+      let finalClientName = p.client_name || null;
+      let autoCategory: string | null = null;
+      if (finalClientName) {
+        const { data: clientMatch } = await supabase
+          .from("clients")
+          .select("name, category")
+          .contains("aliases", [finalClientName])
+          .maybeSingle();
+        if (clientMatch) {
+          finalClientName = clientMatch.name;
+          autoCategory = clientMatch.category;
+        }
+      }
+
       // description에 pb:iden 태그 포함 (중복 체크 정확도 향상)
       const idenTag = p.iden ? ` pb:${p.iden}` : "";
-      const descriptionValue = p.client_name
-        ? `입금자: ${p.client_name}${idenTag}`
+      const descriptionValue = finalClientName
+        ? `입금자: ${finalClientName}${idenTag}`
         : idenTag || null;
 
       // 새 컬럼 포함 INSERT 시도
@@ -186,9 +201,9 @@ export async function GET(request: NextRequest) {
         month,
         type: "매출",
         amount: p.amount,
-        client_name: p.client_name || null,
+        client_name: finalClientName,
         status: "pending",
-        category: null,
+        category: autoCategory,
         date: p.date,
         description: descriptionValue,
       } as Record<string, unknown>);

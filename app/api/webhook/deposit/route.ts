@@ -47,15 +47,30 @@ export async function POST(request: Request) {
       }
     }
 
+    // clients alias 자동 매핑
+    let mappedClientName = parsed.client_name || null;
+    let mappedCategory: string | null = null;
+    if (mappedClientName) {
+      const { data: clientMatch } = await supabase
+        .from("clients")
+        .select("name, category")
+        .contains("aliases", [mappedClientName])
+        .maybeSingle();
+      if (clientMatch) {
+        mappedClientName = clientMatch.name;
+        mappedCategory = clientMatch.category;
+      }
+    }
+
     const { data, error } = await supabase
       .from("finance")
       .insert({
         month,
         type: "매출",
         amount: parsed.amount,
-        client_name: parsed.client_name || null,
+        client_name: mappedClientName,
         status: "pending",
-        category: null,
+        category: mappedCategory,
         date: parsed.date,
         description,
       } as Record<string, unknown>)
@@ -74,7 +89,7 @@ export async function POST(request: Request) {
       id: data?.id,
       date: parsed.date,
       amount: parsed.amount,
-      client_name: parsed.client_name,
+      client_name: mappedClientName,
     });
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));

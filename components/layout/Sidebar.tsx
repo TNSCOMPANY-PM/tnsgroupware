@@ -13,6 +13,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   FileSignature,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -20,6 +21,7 @@ import { usePermission } from "@/contexts/PermissionContext";
 const navItems = [
   { href: "/dashboard",  label: "대시보드", icon: LayoutDashboard },
   { href: "/finance",    label: "매출/매입", icon: Wallet },
+  { href: "/crm",        label: "고객사 CRM", icon: Building2 },
   { href: "/goals",      label: "목표",      icon: Target },
   { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
   { href: "/approvals",  label: "전자결재",  icon: ClipboardCheck },
