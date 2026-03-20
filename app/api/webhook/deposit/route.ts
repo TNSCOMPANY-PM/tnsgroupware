@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const sms_text = typeof body.sms_text === "string" ? body.sms_text : body.smsText ?? "";
+    const iden: string | undefined = typeof body.iden === "string" ? body.iden : undefined;
 
     const parsed = parseShinhanDepositSms(sms_text);
     if (!parsed) {
@@ -20,8 +21,29 @@ export async function POST(request: Request) {
     }
 
     const month = parsed.date.slice(0, 7);
+    const description = iden ? `입금자: ${parsed.client_name || ""} pb:${iden}` : null;
 
     const supabase = await createClient();
+
+    // iden 중복 체크: 이미 같은 iden으로 등록된 행이 있으면 스킵
+    if (iden) {
+      const { data: existing } = await supabase
+        .from("finance")
+        .select("id, amount, date, client_name")
+        .like("description", `%pb:${iden}%`)
+        .maybeSingle();
+      if (existing) {
+        return NextResponse.json({
+          ok: true,
+          duplicate: true,
+          id: existing.id,
+          date: existing.date,
+          amount: existing.amount,
+          client_name: existing.client_name,
+        });
+      }
+    }
+
     const { data, error } = await supabase
       .from("finance")
       .insert({
@@ -32,6 +54,7 @@ export async function POST(request: Request) {
         status: "pending",
         category: null,
         date: parsed.date,
+        description,
       } as Record<string, unknown>)
       .select("id")
       .single();
