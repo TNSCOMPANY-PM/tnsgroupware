@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { FileText, Loader2, ChevronRight, PenLine, FileDown, X } from "lucide-react";
 import { CONTRACT_TYPE_LABELS } from "@/lib/contractForms";
-import { ContractDocument } from "@/lib/contractTemplates";
+import { ContractDocument, A4Page } from "@/lib/contractTemplates";
 import type { ContractRow } from "@/types/contract";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -154,7 +154,7 @@ export function ContractManageTab() {
           aria-label="계약서 상세"
         >
           <div
-            className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl"
+            className="flex max-h-[90vh] w-full max-w-[900px] flex-col rounded-xl border border-slate-200 bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -173,13 +173,11 @@ export function ContractManageTab() {
                 <X className="size-5" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-6">
-              <div
-                ref={printRef}
-                className="rounded-lg border border-slate-100 bg-white p-6 print:border-0"
-                style={{ minHeight: "200px", boxSizing: "border-box" }}
-              >
-                <ContractDocument contract={selectedContract} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div ref={printRef} className="print:border-0">
+                <A4Page>
+                  <ContractDocument contract={selectedContract} />
+                </A4Page>
               </div>
               <div className="mt-4 flex flex-col gap-2 print:hidden">
                 {selectedContract.status !== "signed" ? (

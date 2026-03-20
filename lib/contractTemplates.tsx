@@ -135,6 +135,28 @@ export function NdaContractBody({ content }: { content: OathContractContent }) {
   );
 }
 
+/** A4 용지 래퍼 — 계약서 뷰어/PDF 캡처 공통 사용 */
+export function A4Page({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-slate-200 px-6 py-8 print:bg-white print:p-0">
+      <div
+        className="mx-auto bg-white shadow-md print:shadow-none"
+        style={{
+          width: "210mm",
+          minHeight: "297mm",
+          padding: "20mm 22mm",
+          fontSize: "13px",
+          lineHeight: "1.7",
+          color: "#1e293b",
+          boxSizing: "border-box",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function ContractDocument({ contract }: { contract: ContractRow }) {
   const c = contract.content as SalaryContractContent | EmploymentContractContent | OathContractContent;
   switch (contract.contract_type) {
