@@ -130,7 +130,7 @@ export function QuarterlyRoadmapWidget() {
   );
 
   return (
-    <Card className="relative z-10 rounded-2xl border border-white/80 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_16px_40px_rgb(0,0,0,0.08)]">
+    <Card className="relative z-10 h-full rounded-2xl border border-white/80 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_16px_40px_rgb(0,0,0,0.08)]">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3">
         <div className="flex items-center gap-3">
           <CardTitle className="text-slate-900">🎯 마스터 로드맵 달성도</CardTitle>

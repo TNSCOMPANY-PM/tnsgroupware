@@ -93,6 +93,7 @@ const defaultAnnouncements: DashboardAnnouncement[] = DASHBOARD_ANNOUNCEMENTS.ma
 );
 
 export default function DashboardPage() {
+  const [bonusRevealed, setBonusRevealed] = useState(false);
   const [lunchResult, setLunchResult] = useState<string | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -109,6 +110,11 @@ export default function DashboardPage() {
   const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [quarterlyBonus, setQuarterlyBonus] = useState<{
+    quarter: number; year: number; quarterLabel: string;
+    months: { month: string; bonus: number }[];
+    total: number; paidInMonth: string; bonusKey: string | null;
+  } | null>(null);
   const { plannedLeaveRequests, addPlannedLeave } = usePlannedLeaves();
 
   // 통합 원장과 동일: DB + 엑셀(ledgerEntries) + 수동 원장 + ledger API → 당월 PAID만 집계
@@ -199,6 +205,14 @@ export default function DashboardPage() {
       })
       .catch(() => setPendingApprovalsCount(0));
   }, [isTeamLead, isCLevel]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    fetch(`/api/bonus/quarterly?userId=${currentUserId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d && d.bonusKey) setQuarterlyBonus(d); })
+      .catch(() => {});
+  }, [currentUserId]);
 
   // 실제 휴가 데이터 로드 (번아웃 리스크 · 연차 촉진 계산용)
   useEffect(() => {
@@ -460,8 +474,97 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* [1.5] 2026 분기별 로드맵 달성 현황 (간트 에픽 연동) */}
-        <div className="col-span-12">
+        {/* [1.5] 이번 분기 개인 성과급 */}
+        {quarterlyBonus && quarterlyBonus.bonusKey && (
+          <div className="col-span-12 md:col-span-6 lg:col-span-4 relative z-10 flex flex-col">
+            <div className="relative overflow-hidden rounded-2xl p-[1.5px] h-full shadow-[0_8px_32px_rgba(16,185,129,0.18)] hover:shadow-[0_16px_48px_rgba(16,185,129,0.30)] transition-all duration-500 ease-out hover:-translate-y-1">
+              {/* 그라디언트 테두리 */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-400 opacity-80" />
+              {/* 카드 본체 */}
+              <div className="relative h-full rounded-[14px] bg-gradient-to-br from-[#0f2820] via-[#0d3b2b] to-[#0a1f18] px-5 py-5 overflow-hidden flex flex-col">
+                {/* 배경 글로우 */}
+                <div className="pointer-events-none absolute -right-8 -top-8 size-48 rounded-full bg-emerald-500/10 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-6 -left-6 size-36 rounded-full bg-teal-400/8 blur-2xl" />
+
+                {/* 헤더 */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-7 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
+                      <span className="text-sm">💰</span>
+                    </div>
+                    <span className="text-[11px] font-semibold tracking-wide text-emerald-300/80 uppercase">
+                      예상 성과급
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
+                    {quarterlyBonus.quarterLabel}
+                  </span>
+                </div>
+
+                {/* 금액 + 월별 바 — 누르는 동안만 공개 */}
+                <div className={cn("mb-3 transition-all duration-200 select-none", !bonusRevealed && "blur-sm pointer-events-none")}>
+                  <p className="text-[11px] text-emerald-400/60 mb-0.5">이번 분기 누적</p>
+                  <p className="text-4xl font-black tracking-tighter text-white leading-none">
+                    {formatWonKorean(quarterlyBonus.total)}
+                  </p>
+                  {quarterlyBonus.total === 0 && (
+                    <p className="mt-1 text-xs text-emerald-400/50">이번 달 실적 집계 후 반영됩니다</p>
+                  )}
+                </div>
+
+                <div className={cn("space-y-1.5 mb-3 transition-all duration-200 select-none", !bonusRevealed && "blur-sm pointer-events-none")}>
+                  {quarterlyBonus.months.map((m) => {
+                    const label = m.month.slice(5, 7).replace(/^0/, "") + "월";
+                    const maxBonus = Math.max(...quarterlyBonus.months.map((x) => x.bonus), 1);
+                    const pct = Math.round((m.bonus / maxBonus) * 100);
+                    return (
+                      <div key={m.month} className="flex items-center gap-2">
+                        <span className="w-6 shrink-0 text-[10px] font-medium text-emerald-400/70 tabular-nums">{label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300 transition-all duration-700"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className={cn(
+                          "w-16 shrink-0 text-right text-[10px] font-semibold tabular-nums",
+                          m.bonus > 0 ? "text-emerald-300" : "text-white/20"
+                        )}>
+                          +{formatWonKorean(m.bonus)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 지급 안내 + 공개 버튼 */}
+                <div className="mt-auto flex items-center justify-between gap-2 rounded-lg bg-white/5 px-3 py-2">
+                  <span className="text-[10px] text-emerald-400/60">
+                    {quarterlyBonus.paidInMonth.slice(5, 7).replace(/^0/, "")}월 월급에 포함 지급 예정
+                  </span>
+                  <button
+                    onMouseDown={() => setBonusRevealed(true)}
+                    onMouseUp={() => setBonusRevealed(false)}
+                    onMouseLeave={() => setBonusRevealed(false)}
+                    onTouchStart={() => setBonusRevealed(true)}
+                    onTouchEnd={() => setBonusRevealed(false)}
+                    className={cn(
+                      "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-semibold transition-all duration-150",
+                      bonusRevealed
+                        ? "bg-emerald-400/30 text-emerald-200 scale-95"
+                        : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                    )}
+                  >
+                    {bonusRevealed ? "확인 중" : "👁 확인"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* [1.6] 2026 분기별 로드맵 달성 현황 (간트 에픽 연동) */}
+        <div className={cn(quarterlyBonus && quarterlyBonus.bonusKey ? "col-span-12 md:col-span-6 lg:col-span-8" : "col-span-12", "flex flex-col")}>
           <QuarterlyRoadmapWidget />
         </div>
 

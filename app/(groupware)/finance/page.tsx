@@ -227,6 +227,7 @@ interface LedgerRow {
   status: "UNMAPPED" | "PAID";
   classification?: string;
   clientName?: string;
+  description?: string;
   createdAt: string;
   /** DB finance 테이블 행이면 'finance' (승인 시 Supabase update) */
   source?: "finance";
@@ -482,6 +483,7 @@ export default function FinancePage() {
         status: (r.status === "completed" ? "PAID" : "UNMAPPED") as "UNMAPPED" | "PAID",
         classification: r.category ?? undefined,
         clientName: rawClientName || undefined,
+        description: r.description ?? undefined,
         createdAt: r.created_at,
         source: "finance" as const,
       };
@@ -714,7 +716,7 @@ export default function FinancePage() {
     const 환불출금 = rowsInMonthPaid
       .filter((r) => {
         if (r.type !== "WITHDRAWAL") return false;
-        const hay = `${r.classification ?? ""} ${r.clientName ?? ""} ${r.senderName ?? ""}`;
+        const hay = `${r.classification ?? ""} ${r.clientName ?? ""} ${r.senderName ?? ""} ${r.description ?? ""}`;
         return /환불/i.test(hay);
       })
       .reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -722,7 +724,6 @@ export default function FinancePage() {
     return Math.round((환불출금 / sales) * 10000) / 100;
   }, [ledgerWithCustomAndEdits, ledgerMonthKey, hiddenIds]);
 
-  const achievementPercent = (summary.achievementRate * 100).toFixed(1);
   const workDays = monthWorkDays.workDays;
   const passedWorkDays = monthWorkDays.passedWorkDays;
   const remainingDays = workDays - passedWorkDays;
