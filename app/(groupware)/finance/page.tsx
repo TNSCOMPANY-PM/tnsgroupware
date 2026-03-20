@@ -564,17 +564,43 @@ export default function FinancePage() {
         continue;
       }
 
-      // 둘 다 finance DB 행이면 고객사명까지 포함한 시그니처로 진짜 중복 여부 판단
+      // 둘 다 finance DB 행이면 iden·시간·고객사 기반으로 진짜 중복 여부 판단
       if (prev.source === "finance" && row.source === "finance") {
-        const prevClient = (prev.clientName ?? prev.senderName ?? "").trim();
-        const rowClient = (row.clientName ?? row.senderName ?? "").trim();
-        if (prevClient !== rowClient) {
-          // 고객사가 다르면 실제로 다른 거래 → 둘 다 유지
+        // iden 추출 (description에 "pb:XXXXX" 형태로 저장됨)
+        const extractIden = (r: LedgerRow) => {
+          const m = (r.description ?? "").match(/pb:(\S+)/);
+          return m ? m[1] : null;
+        };
+        // SMS 시간 추출 (description에 "t:HH:MM" 형태로 저장됨)
+        const extractTime = (r: LedgerRow) => {
+          const m = (r.description ?? "").match(/t:(\d{2}:\d{2})/);
+          return m ? m[1] : null;
+        };
+        const prevIden = extractIden(prev);
+        const rowIden = extractIden(row);
+        // 둘 다 iden이 있고 다르면 → 진짜 다른 SMS → 둘 다 유지
+        if (prevIden && rowIden && prevIden !== rowIden) {
           out.push(prev);
           keepBySig.set(sig, row);
           continue;
         }
-        // 고객사까지 같으면 진짜 중복 → PAID 우선, 아니면 기존 유지
+        // iden 없어도 시간이 다르면 → 진짜 다른 거래 → 둘 다 유지
+        const prevTime = extractTime(prev);
+        const rowTime = extractTime(row);
+        if (prevTime && rowTime && prevTime !== rowTime) {
+          out.push(prev);
+          keepBySig.set(sig, row);
+          continue;
+        }
+        // 고객사가 다르면 → 다른 거래 → 둘 다 유지
+        const prevClient = (prev.clientName ?? prev.senderName ?? "").trim();
+        const rowClient = (row.clientName ?? row.senderName ?? "").trim();
+        if (prevClient !== rowClient) {
+          out.push(prev);
+          keepBySig.set(sig, row);
+          continue;
+        }
+        // 이상 모두 같으면 진짜 중복 → PAID 우선, 아니면 기존 유지
         if (row.status === "PAID" && prev.status !== "PAID") {
           keepBySig.set(sig, row);
         }

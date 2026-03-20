@@ -21,7 +21,10 @@ export async function POST(request: Request) {
     }
 
     const month = parsed.date.slice(0, 7);
-    const description = iden ? `입금자: ${parsed.client_name || ""} pb:${iden}` : null;
+    const timeTag = parsed.time ? ` t:${parsed.time}` : "";
+    const description = iden
+      ? `입금자: ${parsed.client_name || ""}${timeTag} pb:${iden}`
+      : parsed.time ? `입금자: ${parsed.client_name || ""}${timeTag}` : null;
 
     const supabase = await createClient();
 
