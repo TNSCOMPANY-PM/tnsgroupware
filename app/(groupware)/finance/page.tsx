@@ -564,10 +564,20 @@ export default function FinancePage() {
         continue;
       }
 
-      // 둘 다 finance DB 행이면 실제로 다른 거래(고유 ID) → dedupe 하지 않음
+      // 둘 다 finance DB 행이면 고객사명까지 포함한 시그니처로 진짜 중복 여부 판단
       if (prev.source === "finance" && row.source === "finance") {
-        out.push(prev);
-        keepBySig.set(sig, row);
+        const prevClient = (prev.clientName ?? prev.senderName ?? "").trim();
+        const rowClient = (row.clientName ?? row.senderName ?? "").trim();
+        if (prevClient !== rowClient) {
+          // 고객사가 다르면 실제로 다른 거래 → 둘 다 유지
+          out.push(prev);
+          keepBySig.set(sig, row);
+          continue;
+        }
+        // 고객사까지 같으면 진짜 중복 → PAID 우선, 아니면 기존 유지
+        if (row.status === "PAID" && prev.status !== "PAID") {
+          keepBySig.set(sig, row);
+        }
         continue;
       }
 
@@ -590,7 +600,10 @@ export default function FinancePage() {
     }
 
     const dedupedMonthRows = Array.from(keepBySig.values());
-    return [...out, ...dedupedMonthRows].sort((a, b) => (b.date === a.date ? 0 : b.date > a.date ? 1 : -1));
+    return [...out, ...dedupedMonthRows].sort((a, b) => {
+      if (a.date !== b.date) return b.date! > a.date! ? 1 : -1;
+      return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+    });
   }, [ledgerFromFinance, customEntries, ledgerSourceDeduped, editsOverlay, selectedMonth]);
 
   const ledgerMonthKey = sheetLabelToMonthKey(selectedMonth);
