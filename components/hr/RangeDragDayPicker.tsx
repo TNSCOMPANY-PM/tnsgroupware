@@ -45,7 +45,9 @@ export function RangeDragDayPicker({
   const isDraggingRef = useRef(false);
   const hasMovedRef = useRef(false);
   const dragRangeRef = useRef<DateRange | undefined>(undefined);
+  const pendingFromRef = useRef<Date | undefined>(undefined);
   dragRangeRef.current = dragRange;
+  pendingFromRef.current = pendingFrom;
 
   const displayRange = dragRange ?? (pendingFrom ? { from: pendingFrom } : selected);
 
@@ -60,18 +62,19 @@ export function RangeDragDayPicker({
       const to = current.to ?? current.from;
       if (wasClick && current.from.getTime() === to.getTime()) {
         const clickedDay = current.from;
-        setPendingFrom((prev) => {
-          if (prev) {
-            const { from, to: toNorm } = normalizeRange(prev, clickedDay);
-            onSelect?.({ from, to: toNorm });
-            return undefined;
-          }
-          return clickedDay;
-        });
+        const prev = pendingFromRef.current;
+        if (prev) {
+          // onSelect를 setState 업데이터 밖에서 호출해야 render 중 setState 오류를 방지
+          const { from, to: toNorm } = normalizeRange(prev, clickedDay);
+          setPendingFrom(undefined);
+          onSelect?.({ from, to: toNorm });
+        } else {
+          setPendingFrom(clickedDay);
+        }
       } else {
         const { from, to: toNorm } = normalizeRange(current.from, to);
-        onSelect?.({ from, to: toNorm });
         setPendingFrom(undefined);
+        onSelect?.({ from, to: toNorm });
       }
     }
     setDragRange(undefined);
