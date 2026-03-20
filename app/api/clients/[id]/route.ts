@@ -7,7 +7,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const body = await req.json();
   const { data, error } = await supabase
     .from("clients")
-    .update({ name: body.name, category: body.category ?? null, aliases: body.aliases ?? [], contact: body.contact ?? null, notes: body.notes ?? null })
+    .update({
+      name: body.name,
+      category: body.category ?? null,
+      aliases: body.aliases ?? [],
+      contact: body.contact ?? null,
+      notes: body.notes ?? null,
+      business_number: body.business_number ?? null,
+      representative: body.representative ?? null,
+      address: body.address ?? null,
+      business_type: body.business_type ?? null,
+      business_item: body.business_item ?? null,
+      email: body.email ?? null,
+    })
     .eq("id", id)
     .select()
     .single();
