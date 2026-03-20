@@ -115,6 +115,11 @@ export default function DashboardPage() {
     months: { month: string; bonus: number }[];
     total: number; paidInMonth: string; bonusKey: string | null;
   } | null>(null);
+  const [teamBonus, setTeamBonus] = useState<{
+    quarterLabel: string; paidInMonth: string; totalPayout: number;
+    memberList: { key: string; name: string; total: number }[];
+  } | null>(null);
+  const [teamBonusRevealed, setTeamBonusRevealed] = useState(false);
   const { plannedLeaveRequests, addPlannedLeave } = usePlannedLeaves();
 
   // 통합 원장과 동일: DB + 엑셀(ledgerEntries) + 수동 원장 + ledger API → 당월 PAID만 집계
@@ -213,6 +218,14 @@ export default function DashboardPage() {
       .then((d) => { if (d && d.bonusKey) setQuarterlyBonus(d); })
       .catch(() => {});
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!isCLevel) return;
+    fetch("/api/bonus/quarterly/team")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setTeamBonus(d); })
+      .catch(() => {});
+  }, [isCLevel]);
 
   // 실제 휴가 데이터 로드 (번아웃 리스크 · 연차 촉진 계산용)
   useEffect(() => {
@@ -557,6 +570,80 @@ export default function DashboardPage() {
                   >
                     {bonusRevealed ? "확인 중" : "👁 확인"}
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* [1.55] C레벨 전용: 분기 성과급 지급 예상액 */}
+        {isCLevel && teamBonus && (
+          <div className="col-span-12 relative z-10">
+            <div className="relative overflow-hidden rounded-2xl p-[1.5px] shadow-[0_8px_32px_rgba(99,102,241,0.15)] hover:shadow-[0_16px_48px_rgba(99,102,241,0.25)] transition-all duration-500 ease-out hover:-translate-y-0.5">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 opacity-70" />
+              <div className="relative rounded-[14px] bg-gradient-to-br from-[#12103a] via-[#1a1560] to-[#0f0d2e] px-5 py-4 overflow-hidden">
+                <div className="pointer-events-none absolute -right-10 -top-10 size-52 rounded-full bg-indigo-500/10 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-8 -left-8 size-40 rounded-full bg-violet-400/8 blur-2xl" />
+
+                {/* 헤더 */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-7 items-center justify-center rounded-full bg-indigo-500/20 ring-1 ring-indigo-400/40">
+                      <span className="text-sm">🏦</span>
+                    </div>
+                    <span className="text-[11px] font-semibold tracking-wide text-indigo-300/80 uppercase">
+                      분기 성과급 지급 예상액
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-indigo-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-400/20">
+                      {teamBonus.quarterLabel}
+                    </span>
+                    <button
+                      onMouseDown={() => setTeamBonusRevealed(true)}
+                      onMouseUp={() => setTeamBonusRevealed(false)}
+                      onMouseLeave={() => setTeamBonusRevealed(false)}
+                      onTouchStart={() => setTeamBonusRevealed(true)}
+                      onTouchEnd={() => setTeamBonusRevealed(false)}
+                      className={cn(
+                        "shrink-0 rounded-md px-2.5 py-1 text-[10px] font-semibold transition-all duration-150",
+                        teamBonusRevealed
+                          ? "bg-indigo-400/30 text-indigo-200 scale-95"
+                          : "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
+                      )}
+                    >
+                      {teamBonusRevealed ? "확인 중" : "👁 확인"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className={cn("transition-all duration-200 select-none", !teamBonusRevealed && "blur-sm pointer-events-none")}>
+                  <div className="flex flex-wrap items-end gap-6 mb-4">
+                    <div>
+                      <p className="text-[10px] text-indigo-400/60 mb-0.5">전체 지급 예상액</p>
+                      <p className="text-3xl font-black tracking-tighter text-white leading-none">
+                        {formatWonKorean(teamBonus.totalPayout)}
+                      </p>
+                    </div>
+                    <p className="text-[10px] text-indigo-400/50 pb-1">
+                      {teamBonus.paidInMonth.slice(5, 7).replace(/^0/, "")}월 월급에 포함 지급 예정
+                    </p>
+                  </div>
+
+                  {/* 멤버별 지급액 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                    {teamBonus.memberList.map((m) => (
+                      <div key={m.key} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2.5">
+                        <p className="text-[10px] font-medium text-indigo-300/70 mb-0.5">{m.name}</p>
+                        <p className={cn(
+                          "text-sm font-bold tabular-nums",
+                          m.total > 0 ? "text-white" : "text-white/25"
+                        )}>
+                          {m.total > 0 ? formatWonKorean(m.total) : "—"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
