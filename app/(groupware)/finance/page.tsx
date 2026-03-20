@@ -1020,22 +1020,22 @@ export default function FinancePage() {
         <Card className="rounded-xl border border-slate-200 bg-white">
           <CardContent className="pt-4 pb-4">
             <p className="text-xs font-medium text-slate-500">매출 ({selectedMonth})</p>
-            <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{formatWonIntl(dbFinanceSummary.revenue)}</p>
-            <p className="mt-0.5 text-xs text-slate-500">입금액 · 공급가 {formatWonIntl(dbFinanceSummary.revenueSupply)}</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{formatWonIntl(dbFinanceSummary.revenueSupply)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">입금액(부가세포함) {formatWonIntl(dbFinanceSummary.revenue)}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl border border-slate-200 bg-white">
           <CardContent className="pt-4 pb-4">
             <p className="text-xs font-medium text-slate-500">매입 ({selectedMonth})</p>
-            <p className="mt-1 text-lg font-bold tabular-nums text-rose-600">-{formatWonIntl(dbFinanceSummary.purchase)}</p>
-            <p className="mt-0.5 text-xs text-slate-500">출금액 · 공급가 {formatWonIntl(dbFinanceSummary.purchaseSupply)}</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-rose-600">-{formatWonIntl(dbFinanceSummary.purchaseSupply)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">출금액(부가세포함) {formatWonIntl(dbFinanceSummary.purchase)}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl border border-emerald-200 bg-emerald-50/50">
           <CardContent className="pt-4 pb-4">
             <p className="text-xs font-medium text-emerald-700">매출총이익 ({selectedMonth})</p>
-            <p className="mt-1 text-lg font-bold tabular-nums text-emerald-800">{formatWonIntl(dbFinanceSummary.margin)}</p>
-            <p className="mt-0.5 text-xs text-emerald-700">공급가 {formatWonIntl(dbFinanceSummary.grossSupply)} + 부가세 {formatWonIntl(dbFinanceSummary.grossVat)}</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-emerald-800">{formatWonIntl(dbFinanceSummary.grossSupply)}</p>
+            <p className="mt-0.5 text-xs text-emerald-700">부가세 포함 {formatWonIntl(dbFinanceSummary.margin)}</p>
           </CardContent>
         </Card>
       </div>
