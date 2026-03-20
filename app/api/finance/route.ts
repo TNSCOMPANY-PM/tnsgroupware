@@ -5,19 +5,30 @@ import { createClient } from "@/utils/supabase/server";
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("finance")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const allRows: unknown[] = [];
+    const PAGE = 1000;
+    let from = 0;
 
-    if (error) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: 500 }
-      );
+    while (true) {
+      const { data, error } = await supabase
+        .from("finance")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: 500 }
+        );
+      }
+
+      allRows.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
     }
 
-    return NextResponse.json(Array.isArray(data) ? data : []);
+    return NextResponse.json(allRows);
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));
     return NextResponse.json(
