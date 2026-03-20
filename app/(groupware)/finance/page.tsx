@@ -564,6 +564,13 @@ export default function FinancePage() {
         continue;
       }
 
+      // 둘 다 finance DB 행이면 실제로 다른 거래(고유 ID) → dedupe 하지 않음
+      if (prev.source === "finance" && row.source === "finance") {
+        out.push(prev);
+        keepBySig.set(sig, row);
+        continue;
+      }
+
       // 선호 규칙: finance(source) 우선 → PAID 우선 → 기존 유지
       const prevIsFinance = prev.source === "finance";
       const rowIsFinance = row.source === "finance";
