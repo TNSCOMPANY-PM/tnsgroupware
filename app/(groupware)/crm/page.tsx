@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
-  Phone, Mail, MapPin, ChevronDown, Pencil, Copy, Check,
+  Phone, Mail, MapPin, ChevronDown, Pencil, Copy, Check, Clock,
 } from "lucide-react";
+import { differenceInDays, parseISO } from "date-fns";
 
 interface Client {
   id: string;
@@ -23,6 +24,30 @@ interface Client {
 }
 
 const CATEGORIES = ["더널리", "티제이웹", "기타"] as const;
+
+// 카테고리별 알림 기준일
+const ALERT_THRESHOLD: Record<string, number> = { "더널리": 30, "티제이웹": 365 };
+
+function LastDepositBadge({ date, category }: { date?: string; category: string | null }) {
+  if (!date) return <span className="text-slate-300">—</span>;
+  const days = differenceInDays(new Date(), parseISO(date));
+  const threshold = category ? ALERT_THRESHOLD[category] : null;
+  const isAlert = threshold != null && days >= threshold;
+  const isWarn = threshold != null && days >= threshold * 0.8;
+  return (
+    <div className={`flex items-center gap-1 text-xs font-medium ${
+      isAlert ? "text-red-600" : isWarn ? "text-amber-600" : "text-emerald-600"
+    }`}>
+      <Clock className="size-3 shrink-0" />
+      <span>{date.slice(5).replace("-", "/")}</span>
+      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+        isAlert ? "bg-red-100" : isWarn ? "bg-amber-100" : "bg-emerald-100"
+      }`}>
+        {days}일 전
+      </span>
+    </div>
+  );
+}
 const CAT_COLOR: Record<string, string> = {
   "더널리":  "bg-blue-100 text-blue-700",
   "티제이웹": "bg-violet-100 text-violet-700",
@@ -57,13 +82,19 @@ export default function CrmPage() {
   const [remapping, setRemapping] = useState(false);
   const [remapMsg, setRemapMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lastDeposits, setLastDeposits] = useState<Record<string, string>>({});
   const aliasInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/clients");
-    const data = res.ok ? await res.json() : [];
+    const [clientsRes, depositsRes] = await Promise.all([
+      fetch("/api/clients"),
+      fetch("/api/clients/last-deposits"),
+    ]);
+    const data = clientsRes.ok ? await clientsRes.json() : [];
+    const deposits = depositsRes.ok ? await depositsRes.json() : {};
     setClients(data);
+    setLastDeposits(deposits);
     setLoading(false);
   }
 
@@ -263,16 +294,17 @@ export default function CrmPage() {
               <th className="px-4 py-3 text-left">입금자명</th>
               <th className="px-4 py-3 text-left">연락처</th>
               <th className="px-4 py-3 text-left">이메일</th>
+              <th className="px-4 py-3 text-left">마지막 입금일</th>
               <th className="px-4 py-3 text-left">메모</th>
               <th className="px-4 py-3 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {loading && (
-              <tr><td colSpan={10} className="py-12 text-center text-slate-400">로딩 중...</td></tr>
+              <tr><td colSpan={11} className="py-12 text-center text-slate-400">로딩 중...</td></tr>
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={10} className="py-12 text-center text-slate-400">
+              <tr><td colSpan={11} className="py-12 text-center text-slate-400">
                 {search || catFilter ? "검색 결과가 없습니다" : "등록된 거래처가 없습니다. 거래처를 추가해보세요."}
               </td></tr>
             )}
@@ -329,6 +361,9 @@ export default function CrmPage() {
                   {c.email
                     ? <div className="flex items-center gap-1"><Mail className="size-3 text-slate-300" />{c.email}</div>
                     : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-4 py-3">
+                  <LastDepositBadge date={lastDeposits[c.name]} category={c.category} />
                 </td>
                 <td className="max-w-[160px] px-4 py-3 text-slate-500">
                   <p className="truncate text-xs">{c.notes || <span className="text-slate-300">—</span>}</p>
