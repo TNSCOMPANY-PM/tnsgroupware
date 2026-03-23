@@ -122,8 +122,8 @@ function isRowOnCalendarDay(rowDate: string, dayYmd: string): boolean {
 function normalizeLedgerTeamLabel(classification: string | undefined): string {
   const raw = classification?.trim();
   if (!raw) return "기타";
-  if (raw === "더널리" || raw === "더널리 충전") return "더널리";
-  if (raw === "티제이웹" || raw === "유지보수") return "티제이웹";
+  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체") return "더널리";
+  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지") return "티제이웹";
   return "기타";
 }
 
@@ -171,7 +171,7 @@ type FinanceRow = {
 };
 
 const CLASSIFICATION_OPTIONS = [
-  "유지보수", "호스팅", "홈페이지", "더널리 충전", "더널리", "광고 매체", "기타",
+  "더널리", "더널리 충전", "티제이웹", "기타",
 ];
 
 const LEDGER_CUSTOM_STORAGE_KEY = "finance-ledger-custom-entries";
@@ -829,7 +829,15 @@ export default function FinancePage() {
       if (patch.type != null) body.type = patch.type === "DEPOSIT" ? "매출" : "매입";
       const res = await fetch(`/api/finance/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (res.ok) {
-        await fetchFinanceRows();
+        setFinanceRows((prev) => prev.map((r) => r.id !== row.id ? r : {
+          ...r,
+          ...(patch.amount != null ? { amount: patch.amount } : {}),
+          ...(patch.date != null ? { date: patch.date } : {}),
+          ...(patch.classification != null ? { category: patch.classification } : {}),
+          ...(patch.clientName != null ? { client_name: patch.clientName } : {}),
+          ...(patch.status != null ? { status: patch.status === "PAID" ? "completed" : "pending" } : {}),
+          ...(patch.type != null ? { type: patch.type === "DEPOSIT" ? "매출" : "매입" } : {}),
+        }));
         setEditLedgerRow(null);
       } else {
         const err = await res.json().catch(() => ({}));
@@ -865,8 +873,9 @@ export default function FinancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
       });
-      if (res.ok) await fetchFinanceRows();
-      else {
+      if (res.ok) {
+        setFinanceRows((prev) => prev.map((r) => r.id === id ? { ...r, amount } : r));
+      } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || "금액 저장 실패");
       }
@@ -888,7 +897,7 @@ export default function FinancePage() {
       const res = await fetch(`/api/finance/${String(id)}`, { method: "DELETE" });
       const err = await res.json().catch(() => ({}));
       if (res.ok) {
-        fetchFinanceRows();
+        setFinanceRows((prev) => prev.filter((r) => r.id !== id));
         // 같은 id가 엑셀/ledger 소스에 있으면 목록에서 숨김
         setHiddenIds((prev) => {
           const next = new Set(prev);
@@ -1191,7 +1200,9 @@ export default function FinancePage() {
                             if (!error) {
                               setJustApprovedId(row.id);
                               setTimeout(() => setJustApprovedId(null), 600);
-                              await fetchFinanceRows();
+                              setFinanceRows((prev) => prev.map((r) => r.id !== row.id ? r : {
+                                ...r, status: "completed", category: classification ?? null, client_name: clientName ?? null,
+                              }));
                             } else {
                               alert(error.message || "승인 실패");
                             }
