@@ -267,10 +267,11 @@ export default function DashboardPage() {
       .map((r) => r.applicantName);
   }, [todayStr, leaveRequests]);
 
-  const burnoutRisks = useMemo(
-    () => getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, []),
-    [leaveRequests]
-  );
+  const isMyselfBurnoutRisk = useMemo(() => {
+    if (!currentUserId) return false;
+    const risks = getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, []);
+    return risks.some((u) => u.userId === currentUserId);
+  }, [leaveRequests, currentUserId]);
 
   const currentUser = useMemo(
     () => DUMMY_USERS.find((u) => u.id === currentUserId),
@@ -753,13 +754,13 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
-            {burnoutRisks.length > 0 && (
+            {isMyselfBurnoutRisk && (
               <div className="rounded-2xl bg-red-50 px-3 py-2">
-                <p className="text-xs font-medium text-red-600">
-                  🚨 번아웃 위험군 알림
+                <p className="text-xs font-semibold text-red-600">
+                  🚨 번아웃 위험
                 </p>
-                <p className="mt-0.5 text-xs text-red-600">
-                  최근 90일간 연차 0일 사용: {burnoutRisks.map((u) => u.userName).join(", ")}
+                <p className="mt-0.5 text-xs text-red-500">
+                  최근 90일간 연차를 사용하지 않았습니다. 휴식이 필요합니다.
                 </p>
               </div>
             )}
