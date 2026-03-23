@@ -37,6 +37,10 @@ type Approval = {
   purchase_password?: string | null;
   item_name?: string | null;
   purpose?: string | null;
+  // 결재선 위계
+  approval_stage?: string | null;
+  first_approver_name?: string | null;
+  first_approved_at?: string | null;
 };
 
 const APPROVAL_TYPES = [
@@ -59,6 +63,13 @@ const STATUS_CONFIG = {
   approved: { label: "승인 완료", icon: CheckCircle2,   cls: "bg-emerald-100 text-emerald-700" },
   rejected: { label: "반려",      icon: XCircle,        cls: "bg-rose-100 text-rose-700" },
 };
+
+function getStatusLabel(a: Approval) {
+  if (a.status === "pending" && (a as unknown as Record<string, unknown>).approval_stage === "팀장승인완료") {
+    return { label: "팀장승인 (C레벨 대기)", icon: Clock, cls: "bg-blue-100 text-blue-700" };
+  }
+  return STATUS_CONFIG[a.status];
+}
 
 const TABS = [
   { id: "all",      label: "전체" },
@@ -245,12 +256,14 @@ export default function ApprovalsPage() {
   };
 
   const updateStatus = async (id: string, status: "approved" | "rejected", reason?: string) => {
+    const approver_role = isCLevel ? "C레벨" : isTeamLead ? "팀장" : "사원";
     const res = await fetch(`/api/approvals/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         status,
         approver_name: currentUserName,
+        approver_role,
         reviewed_at: new Date().toISOString(),
         ...(reason ? { reject_reason: reason } : {}),
       }),

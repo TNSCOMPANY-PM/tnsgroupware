@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   format, startOfMonth, endOfMonth, addDays, addMonths, subMonths,
   isSameMonth, isSameDay, isToday, parseISO, startOfWeek,
 } from "date-fns";
 import { ko } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, X, Loader2, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Loader2, Eye, CalendarDays, Plane } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 import { type CalendarLeaveEvent } from "@/constants/leaveSchedule";
@@ -57,6 +58,7 @@ function getPersonalColorStyle(hex?: string | null): React.CSSProperties | undef
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
   const { currentUserName } = usePermission();
   const { plannedEvents } = usePlannedLeaves();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -67,6 +69,8 @@ export default function CalendarPage() {
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null);
   const [personalColors, setPersonalColors] = useState<Record<string, string>>({});
   const [showLeave, setShowLeave] = useState(false);
+  const [dateAction, setDateAction] = useState<{ date: Date; x: number; y: number } | null>(null);
+  const dateActionRef = useRef<HTMLDivElement>(null);
 
   const allLeaveEvents = useMemo(
     () => [...approvedLeaveEvents, ...plannedEvents],
@@ -110,6 +114,12 @@ export default function CalendarPage() {
     setEditEvent(null);
     setForm({ title: "", start_date: format(date, "yyyy-MM-dd"), end_date: "", description: "", all_day: true });
     setShowModal(true);
+  };
+
+  const handleDayClick = (day: Date, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setDateAction({ date: day, x: rect.left, y: rect.bottom + window.scrollY });
   };
 
   const openEdit = (ev: CalEvent) => {
@@ -177,7 +187,7 @@ export default function CalendarPage() {
     events.filter((e) => isSameDay(parseISO(e.start_date), d));
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5" onClick={() => setDateAction(null)}>
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
@@ -261,7 +271,7 @@ export default function CalendarPage() {
                         "relative min-h-[100px] border-b border-r border-slate-100 p-1.5 cursor-pointer transition-colors hover:bg-slate-50",
                         !isCurrentMonth && "bg-slate-50/50"
                       )}
-                      onClick={() => openAdd(day)}
+                      onClick={(e) => handleDayClick(day, e)}
                     >
                       <div className={cn(
                         "mb-1 flex size-7 items-center justify-center rounded-full text-sm font-medium",
@@ -410,6 +420,36 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 날짜 클릭 액션 팝오버 */}
+      {dateAction && (
+        <div
+          ref={dateActionRef}
+          className="fixed z-50 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+          style={{ top: Math.min(dateAction.y + 4, window.innerHeight - 120), left: Math.min(dateAction.x, window.innerWidth - 200) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-2 text-xs font-semibold text-slate-400 border-b border-slate-100">
+            {format(dateAction.date, "M월 d일 (EEE)", { locale: ko })}
+          </div>
+          <button
+            type="button"
+            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            onClick={() => { setDateAction(null); openAdd(dateAction.date); }}
+          >
+            <CalendarDays className="size-4 text-blue-500" />
+            일정 추가
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            onClick={() => { setDateAction(null); router.push(`/hr?tab=leaves&date=${format(dateAction.date, "yyyy-MM-dd")}`); }}
+          >
+            <Plane className="size-4 text-emerald-500" />
+            휴가 신청
+          </button>
         </div>
       )}
     </div>

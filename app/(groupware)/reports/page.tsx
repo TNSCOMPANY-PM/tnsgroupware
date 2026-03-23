@@ -4,12 +4,12 @@ import { useRef, useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { usePermission } from "@/contexts/PermissionContext";
 import { formatWonIntl } from "@/utils/formatWon";
-import { Lock, FileDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Lock, FileDown, ChevronLeft, ChevronRight, Loader2, Settings2, Save, X } from "lucide-react";
 import { StrategicRoadmapSection, getDefaultRoadmap } from "@/components/reports/StrategicRoadmapSection";
 import { createClient } from "@/utils/supabase/client";
 import { loadGanttOverrides } from "@/lib/ganttStorage";
 import type { RoadmapBlock } from "@/components/reports/StrategicRoadmapSection";
-import { parseSurvivalAccount, type FinanceCurrentJson } from "@/lib/financeCurrent";
+import { parseSurvivalAccount, computeExpectedBalance, type FinanceCurrentJson } from "@/lib/financeCurrent";
 import { isRowInMonth, loadLedgerCustom, loadLedgerEdits, loadLedgerHidden } from "@/lib/dashboardLedgerSummary";
 
 /** 월 키 "YY.MM" 파싱 */
@@ -98,23 +98,14 @@ type ExpectedLineItem = { id: string; category: string; item: string; supplyAmou
 const RECEIVABLES_STORAGE_KEY = "finance-receivables-expected";
 const PAYABLES_STORAGE_KEY = "finance-payables-expected";
 
-// ─────────────────────────────────────────────
-// 인센티브 계산 상수 (비즈니스 규칙, 변경 시 여기만 수정)
-// ─────────────────────────────────────────────
-/** 인센티브 발생 기준 매출총이익 */
-const BONUS_TARGET_GP = 50_000_000;
-/** 초과이익 중 인센티브 풀 비율 (20%) */
-const BONUS_POOL_RATE = 0.2;
-/** 풀 중 경영지원(박재민) 고정 배분 비율 */
-const BONUS_JAEMIN_RATE = 0.15;
-/** 더널리팀 풀 내 개인 배분 비율 */
-const BONUS_DN_JEONGSEOP_RATE = 0.45;   // 김정섭
-const BONUS_DN_YONGJUN_RATE   = 0.275;  // 김용준
-/** 팀별 목표 매출총이익 */
-const BONUS_TARGET_BY_TEAM: Record<string, number> = {
-  "더널리":  42_000_000,
-  "티제이웹":  8_000_000,
-  "기타":         0,
+const DEFAULT_BONUS_SETTINGS: Record<string, number> = {
+  target_gp: 50_000_000,
+  pool_rate: 0.2,
+  jaemin_rate: 0.15,
+  dn_jeongseop_rate: 0.45,
+  dn_yongjun_rate: 0.275,
+  dn_target: 42_000_000,
+  tj_target: 8_000_000,
 };
 
 function amountToSupplyVat(amount: number): { supply: number; vat: number } {
@@ -176,6 +167,12 @@ export default function ReportsPage() {
   const [employeesRows, setEmployeesRows] = useState<EmployeeRow[]>([]);
   const [ganttRows, setGanttRows] = useState<GanttRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bonusSettings, setBonusSettings] = useState<Record<string, number>>(DEFAULT_BONUS_SETTINGS);
+  const [bonusSettingsOpen, setBonusSettingsOpen] = useState(false);
+  const [bonusDraft, setBonusDraft] = useState<Record<string, number>>(DEFAULT_BONUS_SETTINGS);
+  const [bonusSaving, setBonusSaving] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; actor_name: string | null; target_type: string | null; detail: Record<string, unknown> | null; created_at: string }>>([]);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const currentKey = useMemo(() => currentMonthKey(), []);
   const canPrev = monthKey > MIN_MONTH_KEY;
@@ -207,10 +204,16 @@ export default function ReportsPage() {
       fetch(`/api/roadmap/${encodeURIComponent(monthKey)}`).then((r) => r.ok ? r.json() : null),
       fetch("/api/transactions/ledger").then((r) => (r.ok ? r.json() : { ledger: [] })),
       fetch("/finance-current.json").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/bonus/settings").then((r) => r.ok ? r.json() : null),
     ])
-      .then(([fRes, fAllData, eRes, roadmapJson, ledgerRes, currentJson]) => {
+      .then(([fRes, fAllData, eRes, roadmapJson, ledgerRes, currentJson, bonusMap]) => {
         setFinanceRows((fRes.data as FinanceRow[]) ?? []);
         setFinanceRowsAll(Array.isArray(fAllData) ? (fAllData as FinanceRow[]) : []);
+        if (bonusMap && typeof bonusMap === "object") {
+          const merged = { ...DEFAULT_BONUS_SETTINGS, ...bonusMap };
+          setBonusSettings(merged);
+          setBonusDraft(merged);
+        }
         setLedgerApiRows(Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : []);
         setFinanceData((currentJson as FinanceCurrentJson | null) ?? null);
         const allEmps = (eRes.data as EmployeeRow[]) ?? [];
@@ -394,7 +397,6 @@ export default function ReportsPage() {
     const expectedPurchaseTotal = currentStatus.purchaseTotal + payablesTotal;
     const expectedGrossSupply = expectedSalesSupply - expectedPurchaseSupply;
     const expectedGrossTotal = expectedSalesTotal - expectedPurchaseTotal;
-    const vatOnGross = Math.round(expectedGrossSupply * 0.1);
 
     const carryOverRaw =
       typeof window !== "undefined" ? localStorage.getItem("finance-survival-carryover") : null;
@@ -402,8 +404,19 @@ export default function ReportsPage() {
       Number(carryOverRaw ?? parseSurvivalAccount(financeData)?.carryOverBalance ?? 0) || 0;
     const currentBalance = carryOver + revenue - purchase;
     const operatingDeduction = parseSurvivalAccount(financeData)?.operatingDeduction ?? 50_000_000;
-    const expectedBalance = currentBalance + receivablesTotal - payablesTotal;
-    const finalExpectedBalance = expectedBalance - operatingDeduction - vatOnGross;
+    const { vatOnGross, expectedBalance, finalExpectedBalance } = computeExpectedBalance({
+      currentBalance,
+      receivablesTotal,
+      payablesTotal,
+      operatingDeduction,
+      grossSupply: expectedGrossSupply,
+    });
+
+    const bonusTargetByTeam: Record<string, number> = {
+      "더널리": bonusSettings.dn_target ?? 42_000_000,
+      "티제이웹": bonusSettings.tj_target ?? 8_000_000,
+      "기타": 0,
+    };
 
     const byTeam = new Map<"더널리" | "티제이웹" | "기타", { revenue: number; cost: number }>();
     byTeam.set("더널리", { revenue: 0, cost: 0 });
@@ -424,14 +437,14 @@ export default function ReportsPage() {
       })
       .sort((a, b) => compareLedgerTeamOrder(a.team, b.team));
     const targetRows = teamRows.map((t) => {
-      const target = BONUS_TARGET_BY_TEAM[t.team] ?? 0;
+      const target = bonusTargetByTeam[t.team] ?? 0;
       return { ...t, target, excessAchievement: t.grossProfit - target, achieved: t.grossProfit >= target };
     });
 
     const expectedGross = expectedGrossSupply;
-    const excessOverTarget = Math.max(0, expectedGross - BONUS_TARGET_GP);
-    const bonusPool = Math.round(excessOverTarget * BONUS_POOL_RATE);
-    const jaemin = Math.round(bonusPool * BONUS_JAEMIN_RATE);
+    const excessOverTarget = Math.max(0, expectedGross - (bonusSettings.target_gp ?? 50_000_000));
+    const bonusPool = Math.round(excessOverTarget * (bonusSettings.pool_rate ?? 0.2));
+    const jaemin = Math.round(bonusPool * (bonusSettings.jaemin_rate ?? 0.15));
     const teamPool = bonusPool - jaemin;
     const dnGross = Math.max(0, teamRows.find((x) => x.team === "더널리")?.grossProfit ?? 0);
     const tjGross = Math.max(0, teamRows.find((x) => x.team === "티제이웹")?.grossProfit ?? 0);
@@ -440,8 +453,8 @@ export default function ReportsPage() {
     const tjContributionPct = sumGross > 0 ? (tjGross / sumGross) * 100 : 0;
     const tjContributionBonus = sumGross > 0 ? Math.round((teamPool * tjGross) / sumGross) : 0;
     const dnContributionBonus = teamPool - tjContributionBonus;
-    const jeongseop = Math.round(dnContributionBonus * BONUS_DN_JEONGSEOP_RATE);
-    const yongjun   = Math.round(dnContributionBonus * BONUS_DN_YONGJUN_RATE);
+    const jeongseop = Math.round(dnContributionBonus * (bonusSettings.dn_jeongseop_rate ?? 0.45));
+    const yongjun   = Math.round(dnContributionBonus * (bonusSettings.dn_yongjun_rate ?? 0.275));
     const gyuseong  = dnContributionBonus - jeongseop - yongjun;
 
     return {
@@ -470,10 +483,35 @@ export default function ReportsPage() {
         gyuseong,
       },
     };
-  }, [monthKey, ledgerWithCustomAndEdits, receivablesExpected, payablesExpected, financeData]);
+  }, [monthKey, ledgerWithCustomAndEdits, receivablesExpected, payablesExpected, financeData, bonusSettings]);
 
   const handlePdfExport = () => {
     window.print();
+  };
+
+  const handleOpenAuditLog = () => {
+    setAuditOpen(true);
+    fetch("/api/audit-logs?limit=100")
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows) => setAuditLogs(Array.isArray(rows) ? rows : []))
+      .catch(() => {});
+  };
+
+  const handleBonusSave = async () => {
+    setBonusSaving(true);
+    try {
+      const res = await fetch("/api/bonus/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bonusDraft),
+      });
+      if (res.ok) {
+        setBonusSettings({ ...bonusDraft });
+        setBonusSettingsOpen(false);
+      }
+    } finally {
+      setBonusSaving(false);
+    }
   };
 
   if (!isCLevel) {
@@ -633,9 +671,59 @@ export default function ReportsPage() {
           </div>
 
           <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
-            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-              성과급 산정표
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="text-sm font-semibold text-slate-700">성과급 산정표</span>
+              <button
+                onClick={() => { setBonusDraft({ ...bonusSettings }); setBonusSettingsOpen((v) => !v); }}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 print:hidden"
+              >
+                <Settings2 className="size-3.5" />
+                기준 설정
+              </button>
             </div>
+            {bonusSettingsOpen && (
+              <div className="border-b border-slate-200 bg-amber-50/60 p-4 print:hidden">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-amber-800">성과급 기준 설정 (C레벨 전용)</p>
+                  <button onClick={() => setBonusSettingsOpen(false)}><X className="size-4 text-slate-400" /></button>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    { key: "target_gp", label: "기준 매출총이익 (원)", isRate: false },
+                    { key: "dn_target", label: "더널리팀 목표 (원)", isRate: false },
+                    { key: "tj_target", label: "티제이웹팀 목표 (원)", isRate: false },
+                    { key: "pool_rate", label: "인센티브 풀 비율 (%)", isRate: true },
+                    { key: "jaemin_rate", label: "박재민 배분 비율 (%)", isRate: true },
+                    { key: "dn_jeongseop_rate", label: "김정섭 배분 비율 (%)", isRate: true },
+                    { key: "dn_yongjun_rate", label: "김용준 배분 비율 (%)", isRate: true },
+                  ].map(({ key, label, isRate }) => (
+                    <div key={key}>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
+                      <input
+                        type="number"
+                        step={isRate ? "0.1" : "1000000"}
+                        value={isRate ? Math.round((bonusDraft[key] ?? 0) * 10000) / 100 : (bonusDraft[key] ?? 0)}
+                        onChange={(e) => {
+                          const raw = parseFloat(e.target.value) || 0;
+                          setBonusDraft((prev) => ({ ...prev, [key]: isRate ? raw / 100 : raw }));
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={handleBonusSave}
+                    disabled={bonusSaving}
+                    className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                  >
+                    {bonusSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                    저장
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2">
               <div className="overflow-hidden rounded-lg border border-slate-200">
                 <table className="w-full text-sm">
@@ -651,19 +739,19 @@ export default function ReportsPage() {
                       <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatMoney(reportMetrics.bonus.expectedGross)}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">목표(5천만원) 초과달성액</td>
+                      <td className="px-3 py-2 text-slate-700">목표({formatMoney(bonusSettings.target_gp ?? 50_000_000)}) 초과달성액</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatMoney(reportMetrics.bonus.excessOverTarget)}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">20% 성과급 재원</td>
+                      <td className="px-3 py-2 text-slate-700">{Math.round((bonusSettings.pool_rate ?? 0.2) * 100)}% 성과급 재원</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{formatMoney(reportMetrics.bonus.bonusPool)}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">공동기여금(15%) 박재민</td>
+                      <td className="px-3 py-2 text-slate-700">공동기여금({Math.round((bonusSettings.jaemin_rate ?? 0.15) * 100)}%) 박재민</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(reportMetrics.bonus.jaemin)}</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 text-slate-700">팀별기여금(85%)</td>
+                      <td className="px-3 py-2 text-slate-700">팀별기여금({Math.round((1 - (bonusSettings.jaemin_rate ?? 0.15)) * 100)}%)</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(reportMetrics.bonus.teamPool)}</td>
                     </tr>
                   </tbody>
@@ -680,15 +768,15 @@ export default function ReportsPage() {
                   </thead>
                   <tbody>
                     <tr className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">김정섭 (더널리 45%)</td>
+                      <td className="px-3 py-2 text-slate-700">김정섭 (더널리 {Math.round((bonusSettings.dn_jeongseop_rate ?? 0.45) * 100)}%)</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatMoney(reportMetrics.bonus.jeongseop)}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">김용준 (더널리 27.5%)</td>
+                      <td className="px-3 py-2 text-slate-700">김용준 (더널리 {((bonusSettings.dn_yongjun_rate ?? 0.275) * 100).toFixed(1)}%)</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatMoney(reportMetrics.bonus.yongjun)}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="px-3 py-2 text-slate-700">심규성 (더널리 27.5%)</td>
+                      <td className="px-3 py-2 text-slate-700">심규성 (더널리 {((1 - (bonusSettings.dn_jeongseop_rate ?? 0.45) - (bonusSettings.dn_yongjun_rate ?? 0.275)) * 100).toFixed(1)}%)</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatMoney(reportMetrics.bonus.gyuseong)}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
@@ -791,6 +879,55 @@ export default function ReportsPage() {
             roadmapMonthKey={monthKey}
             title="전략 로드맵"
           />
+        </section>
+
+        {/* 섹션 5: 감사 로그 (C레벨 전용, 인쇄 제외) */}
+        <section className="border-t border-slate-100 py-6 print:hidden">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-500">🔍 감사 로그 (C레벨 전용)</h2>
+            <button
+              onClick={handleOpenAuditLog}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            >
+              {auditOpen ? "닫기" : "로그 보기"}
+            </button>
+          </div>
+          {auditOpen && (
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+              {auditLogs.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-slate-400">감사 로그가 없습니다.</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">시간</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">액션</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">수행자</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">대상</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="border-b border-slate-100">
+                        <td className="px-3 py-2 tabular-nums text-slate-500">
+                          {new Date(log.created_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                        <td className="px-3 py-2 font-medium text-slate-700">{log.action}</td>
+                        <td className="px-3 py-2 text-slate-600">{log.actor_name ?? "-"}</td>
+                        <td className="px-3 py-2 text-slate-500">
+                          {log.detail ? (
+                            <span title={JSON.stringify(log.detail)}>
+                              {(log.detail as Record<string, unknown>).title as string ?? log.target_type ?? "-"}
+                            </span>
+                          ) : (log.target_type ?? "-")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </section>
       </div>
     </div>

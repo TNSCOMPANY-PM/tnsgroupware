@@ -95,16 +95,33 @@ export function QuarterlyRoadmapWidget() {
     return () => { cancelled = true; };
   }, [monthKey]);
 
-  // 간트 업데이트 이벤트 수신
+  // 간트/로드맵 업데이트 이벤트 수신 (목표 페이지와 동일 소스 동기화)
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handleGantt = (e: Event) => {
       const detail = (e as CustomEvent<{ monthKey: string }>).detail;
       if (detail?.monthKey === monthKey) {
         setOverrides(loadGanttOverrides(monthKey));
       }
     };
-    window.addEventListener("gantt-updated", handler);
-    return () => window.removeEventListener("gantt-updated", handler);
+    const handleRoadmap = (e: Event) => {
+      const detail = (e as CustomEvent<{ monthKey: string }>).detail;
+      if (detail?.monthKey === monthKey) {
+        fetch(`/api/roadmap/${encodeURIComponent(monthKey)}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            if (Array.isArray(data?.blocks) && data.blocks.length > 0) {
+              setBlocks(data.blocks);
+            }
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener("gantt-updated", handleGantt);
+    window.addEventListener("roadmap-updated", handleRoadmap);
+    return () => {
+      window.removeEventListener("gantt-updated", handleGantt);
+      window.removeEventListener("roadmap-updated", handleRoadmap);
+    };
   }, [monthKey]);
 
   // 팀별 진행률

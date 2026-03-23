@@ -2,20 +2,32 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import type { ContractInsert } from "@/types/contract";
 
-/** GET: employee_id 쿼리로 해당 직원 계약 목록 조회 */
+/** GET: employee_id 쿼리로 해당 직원 계약 목록 조회 / all=true이면 전체 (C레벨용) */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get("employee_id");
-    if (!employeeId) {
-      return NextResponse.json({ error: "employee_id required" }, { status: 400 });
+    const all = searchParams.get("all") === "true";
+    const statusFilter = searchParams.get("status");
+    const typeFilter = searchParams.get("type");
+
+    if (!employeeId && !all) {
+      return NextResponse.json({ error: "employee_id or all=true required" }, { status: 400 });
     }
     const supabase = await createClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("contracts")
       .select("*")
-      .eq("employee_id", employeeId)
       .order("created_at", { ascending: false });
+
+    if (employeeId) query = query.eq("employee_id", employeeId);
+    if (statusFilter) query = query.eq("status", statusFilter);
+    if (typeFilter) {
+      const types = typeFilter.split(",").map((t) => t.trim());
+      query = query.in("contract_type", types);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       const msg = error.message ?? "";

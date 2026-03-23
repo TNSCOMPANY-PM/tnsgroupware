@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { logAudit } from "@/lib/auditLog";
 
 /** GET: 단일 계약 조회 (본인 계약만) */
 export async function GET(
@@ -94,6 +95,13 @@ export async function PATCH(
     if (!row || row.employee_id !== emp.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    // 서명 전 계약 내용 조회 (type + content)
+    const { data: contractData } = await supabase
+      .from("contracts")
+      .select("contract_type, content")
+      .eq("id", id)
+      .single();
+
     const { data: updated, error } = await supabase
       .from("contracts")
       .update({ status: "signed", signed_at: new Date().toISOString() })
@@ -111,6 +119,33 @@ export async function PATCH(
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // 서명 완료 시 직원 정보 자동 반영
+    if (contractData && emp?.id) {
+      const content = contractData.content as Record<string, unknown> ?? {};
+      const empPatch: Record<string, unknown> = {};
+
+      if (contractData.contract_type === "employment") {
+        // 근로계약서 서명 → 입사일 자동 설정
+        if (content.startDate) empPatch.hire_date = String(content.startDate);
+      }
+
+      if (contractData.contract_type === "salary") {
+        // 연봉계약서 서명 → 연봉 정보 반영 (salary 컬럼이 있으면)
+        if (content.totalAnnual) empPatch.salary = Number(content.totalAnnual);
+      }
+
+      if (Object.keys(empPatch).length > 0) {
+        await supabase.from("employees").update(empPatch).eq("id", emp.id);
+      }
+
+      logAudit("contract.signed", {
+        targetId: id,
+        targetType: "contract",
+        detail: { contractType: contractData.contract_type, employeeId: emp.id },
+      }).catch(() => {});
+    }
+
     return NextResponse.json(updated);
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));

@@ -25,7 +25,7 @@ import {
   type MonthSummary,
   type SurvivalAccount,
 } from "@/constants/finance";
-import { parseMonthSummary, parseSurvivalAccount, type FinanceCurrentJson } from "@/lib/financeCurrent";
+import { parseMonthSummary, parseSurvivalAccount, computeExpectedBalance, type FinanceCurrentJson } from "@/lib/financeCurrent";
 import { countBusinessDaysExcludingHolidays } from "@/utils/leaveCalculator";
 import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
 import {
@@ -55,6 +55,7 @@ import {
   Trash2,
   FileText,
 } from "lucide-react";
+import Link from "next/link";
 
 const SHEET_LABELS = [
   "26년 3월", "26년 2월", "26년 1월", "25년12월", "25년 11월",
@@ -276,7 +277,30 @@ export default function FinancePage() {
 
   const carryLoadedFromStorage = useRef(false);
   useEffect(() => {
-    setCustomEntries(loadLedgerCustom());
+    // 수동 항목: API에서 로드, 실패 시 localStorage 폴백
+    fetch("/api/finance/custom")
+      .then((r) => r.ok ? r.json() : null)
+      .then((rows: Record<string, unknown>[] | null) => {
+        if (rows && Array.isArray(rows) && rows.length > 0) {
+          setCustomEntries(rows.map((r) => ({
+            id: String(r.id ?? ""),
+            date: String(r.date ?? ""),
+            amount: Number(r.amount) || 0,
+            senderName: String(r.sender_name ?? "수동입력"),
+            type: (r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT") as "DEPOSIT" | "WITHDRAWAL",
+            bankName: String(r.bank_name ?? "무통장"),
+            status: (r.status === "PAID" ? "PAID" : "UNMAPPED") as "UNMAPPED" | "PAID",
+            classification: r.classification ? String(r.classification) : undefined,
+            clientName: r.client_name ? String(r.client_name) : undefined,
+            description: r.description ? String(r.description) : undefined,
+            createdAt: String(r.created_at ?? new Date().toISOString()),
+            source: undefined,
+          })));
+        } else {
+          setCustomEntries(loadLedgerCustom());
+        }
+      })
+      .catch(() => setCustomEntries(loadLedgerCustom()));
     setEditsOverlay(loadLedgerEdits());
     setHiddenIds(loadLedgerHidden());
     try {
@@ -802,9 +826,7 @@ export default function FinancePage() {
 
   const saveCustomEntries = useCallback((entries: LedgerRow[]) => {
     setCustomEntries(entries);
-    try {
-      localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(entries));
-    } catch { /* ignore */ }
+    try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
   }, []);
 
   const handleEditLedgerRow = useCallback((id: string, patch: { classification?: string; clientName?: string }) => {
@@ -819,11 +841,23 @@ export default function FinancePage() {
 
   const handleSaveEditLedgerRow = useCallback(async (row: LedgerRow, patch: Partial<LedgerRow>) => {
     if (row.id.startsWith("custom-")) {
+      await fetch(`/api/finance/custom/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(patch.date != null ? { date: patch.date } : {}),
+          ...(patch.amount != null ? { amount: patch.amount } : {}),
+          ...(patch.senderName != null ? { senderName: patch.senderName } : {}),
+          ...(patch.type != null ? { type: patch.type } : {}),
+          ...(patch.bankName != null ? { bankName: patch.bankName } : {}),
+          ...(patch.status != null ? { status: patch.status } : {}),
+          ...(patch.classification !== undefined ? { classification: patch.classification } : {}),
+          ...(patch.clientName !== undefined ? { clientName: patch.clientName } : {}),
+        }),
+      }).catch(() => {});
       setCustomEntries((prev) => {
         const next = prev.map((e) => (e.id === row.id ? { ...e, ...patch } : e));
-        try {
-          localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next));
-        } catch { /* ignore */ }
+        try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
       setEditLedgerRow(null);
@@ -868,11 +902,14 @@ export default function FinancePage() {
   const handleAmountChange = useCallback(async (id: string, amount: number, source?: string) => {
     if (!Number.isFinite(amount) || amount <= 0) return;
     if (id.startsWith("custom-")) {
+      await fetch(`/api/finance/custom/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      }).catch(() => {});
       setCustomEntries((prev) => {
         const next = prev.map((e) => (e.id === id ? { ...e, amount } : e));
-        try {
-          localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next));
-        } catch { /* ignore */ }
+        try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
       return;
@@ -922,6 +959,7 @@ export default function FinancePage() {
     }
 
     if (id.startsWith("custom-")) {
+      await fetch(`/api/finance/custom/${id}`, { method: "DELETE" }).catch(() => {});
       setCustomEntries((prev) => {
         const next = prev.filter((e) => e.id !== id);
         try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
@@ -961,11 +999,15 @@ export default function FinancePage() {
       clientName: addForm.clientName.trim() || addForm.senderName.trim() || (isReceivable ? "미수금" : isPayable ? "미지급금" : "수동입력"),
       createdAt: new Date().toISOString(),
     };
+    // API 저장 (실패해도 로컬 상태에는 반영)
+    fetch("/api/finance/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newRow),
+    }).catch(() => {});
     setCustomEntries((prev) => {
       const next = [newRow, ...prev];
-      try {
-        localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next));
-      } catch { /* ignore */ }
+      try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
 
@@ -1222,13 +1264,16 @@ export default function FinancePage() {
                           return;
                         }
                         if (row.id.startsWith("custom-")) {
+                          fetch(`/api/finance/custom/${row.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "PAID", classification, clientName }),
+                          }).catch(() => {});
                           setCustomEntries((prev) => {
                             const next = prev.map((e) =>
                               e.id === row.id ? { ...e, status: "PAID" as const, classification, clientName } : e
                             );
-                            try {
-                              localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next));
-                            } catch { /* ignore */ }
+                            try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
                             return next;
                           });
                           return;
@@ -1653,11 +1698,15 @@ function SalesAnalysisView({
   const marginVat = expectedSalesVat - expectedPurchaseVat;
   const marginTotal = expectedSalesTotal - expectedPurchaseTotal;
 
-  const balanceAfterExpected = currentStatus.survivalBalance + receivablesTotal - payablesTotal;
   const operatingDeduction = survival.operatingDeduction ?? 50_000_000;
-  // 엑셀 S11: (J21-R21)*0.1 → 매총 부가세 = (매출 공급가 - 매입 공급가) × 10%
-  const vatOnGross = Math.round(marginSupply * 0.1);
-  const finalExpectedBalance = balanceAfterExpected - operatingDeduction - vatOnGross;
+  // 공통 유틸로 계산 (Reports, Dashboard와 동일 로직)
+  const { vatOnGross, expectedBalance: balanceAfterExpected, finalExpectedBalance } = computeExpectedBalance({
+    currentBalance: currentStatus.survivalBalance,
+    receivablesTotal,
+    payablesTotal,
+    operatingDeduction,
+    grossSupply: marginSupply,
+  });
 
   const totalTeamRevenue = teamSalesReport.reduce((s, x) => s + x.revenue, 0);
   const totalTeamGross = teamSalesReport.reduce((s, x) => s + x.grossProfit, 0);
@@ -2274,7 +2323,9 @@ function LedgerRowComponent({
             )}
           </div>
         ) : (
-          <span className="text-xs text-slate-800 truncate block">{row.clientName || "-"}</span>
+          row.clientName
+            ? <Link href={`/crm?search=${encodeURIComponent(row.clientName)}`} className="text-xs text-blue-600 hover:underline truncate block" title="CRM에서 보기">{row.clientName}</Link>
+            : <span className="text-xs text-slate-400">-</span>
         )}
       </td>
       <td className="w-28 min-w-[7rem] px-2 py-2 text-right text-xs tabular-nums font-medium whitespace-nowrap">

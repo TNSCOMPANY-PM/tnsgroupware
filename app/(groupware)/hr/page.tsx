@@ -21,6 +21,7 @@ const AnnualLeavePromotionTab = dynamic(() => import("@/components/hr/AnnualLeav
 const LabourLawVerificationDashboard = dynamic(() => import("@/components/hr/LabourLawVerificationDashboard").then((m) => ({ default: m.LabourLawVerificationDashboard })), { ssr: false });
 const ContractSendTab = dynamic(() => import("@/components/hr/ContractSendTab").then((m) => ({ default: m.ContractSendTab })), { ssr: false });
 const ContractManageTab = dynamic(() => import("@/components/hr/ContractManageTab").then((m) => ({ default: m.ContractManageTab })), { ssr: false });
+const PayslipTab = dynamic(() => import("@/components/hr/PayslipTab").then((m) => ({ default: m.PayslipTab })), { ssr: false });
 import { createEmployee } from "./actions";
 import { useSearchParams } from "next/navigation";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -28,7 +29,7 @@ import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { getProfileForEmployee } from "@/constants/profile";
 import { DUMMY_USERS } from "@/constants/users";
-import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck } from "lucide-react";
+import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck, Receipt } from "lucide-react";
 import type { Employee } from "@/types/employee";
 import { format } from "date-fns";
 
@@ -77,6 +78,7 @@ function HRPageContent() {
 
   useEffect(() => {
     if (searchParams.get("tab") === "contracts" && isCLevel) setActiveTab("contracts");
+    if (searchParams.get("tab") === "leaves") setActiveTab("leaves");
   }, [searchParams, isCLevel]);
 
   return (
@@ -129,6 +131,13 @@ function HRPageContent() {
               전자계약 발송
             </TabsTrigger>
           )}
+          <TabsTrigger
+            value="payslip"
+            className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
+          >
+            <Receipt className="size-4" />
+            급여 명세
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="members">
@@ -136,7 +145,7 @@ function HRPageContent() {
         </TabsContent>
 
         <TabsContent value="leave">
-          <LeaveTab />
+          <LeaveTab initialDate={searchParams.get("date") ?? undefined} />
         </TabsContent>
 
         <TabsContent value="promotion">
@@ -154,6 +163,10 @@ function HRPageContent() {
             <ContractSendTabWrapper />
           </TabsContent>
         )}
+
+        <TabsContent value="payslip">
+          <PayslipTab />
+        </TabsContent>
       </Tabs>
 
       {isCLevel && (

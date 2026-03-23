@@ -117,3 +117,26 @@ export function parseSurvivalAccount(data: FinanceCurrentJson | null): SurvivalA
     monthlyPerformance: s.monthlyPerformance,
   };
 }
+
+/**
+ * 생존통장 예상 잔고 계산 (Finance, Reports, Dashboard 공통 로직)
+ *
+ * @param currentBalance 현재 잔고 (이월 + 당월 매출 - 매입)
+ * @param receivablesTotal 미수금 합계 (공급가 + 부가세)
+ * @param payablesTotal 미지급금 합계 (공급가 + 부가세)
+ * @param operatingDeduction 운영비 차감 금액
+ * @param grossSupply 매출총이익 공급가 (VAT 계산 기준)
+ */
+export function computeExpectedBalance(params: {
+  currentBalance: number;
+  receivablesTotal: number;
+  payablesTotal: number;
+  operatingDeduction: number;
+  grossSupply: number;
+}): { vatOnGross: number; expectedBalance: number; finalExpectedBalance: number } {
+  const { currentBalance, receivablesTotal, payablesTotal, operatingDeduction, grossSupply } = params;
+  const vatOnGross = Math.round(grossSupply * 0.1);
+  const expectedBalance = currentBalance + receivablesTotal - payablesTotal;
+  const finalExpectedBalance = expectedBalance - operatingDeduction - vatOnGross;
+  return { vatOnGross, expectedBalance, finalExpectedBalance };
+}

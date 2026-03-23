@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(node scripts/reimport-html-transactions.js)",
+      "Bash(node scripts/import-xlsx-transactions.js)",
+      "Bash(npx vercel:*)",
+      "Bash(python -c \"import openpyxl; print\\(''openpyxl ok''\\)\")",
+      "Bash(python scripts/inspect-xlsx.py)",
+      "Bash(python scripts/reimport-xlsx-python.py)",
+      "Bash(python -c \":*)",
+      "Bash(grep -r \"service_role\\\\|SUPABASE_SERVICE\\\\|supabaseAdmin\\\\|sb_secret\" 'c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware' --include=*.ts --include=*.js --include=*.env* -l)",
+      "Bash(ls \"c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\.env\"*)"
+    ]
+  }
+}
