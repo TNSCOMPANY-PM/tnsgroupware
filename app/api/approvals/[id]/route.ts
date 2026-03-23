@@ -145,7 +145,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   if (isRejecting && data) {
     // 반려 시 연결된 finance 미승인 행 삭제
-    supabase.from("finance").delete().eq("approval_id", id).catch(() => {});
+    supabase.from("finance").delete().eq("approval_id", id).then(() => {}).catch(() => {});
     logAudit("approval.rejected", {
       actorName: body.approver_name as string ?? undefined,
       targetId: id,
