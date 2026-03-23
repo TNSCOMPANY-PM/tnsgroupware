@@ -291,7 +291,8 @@ export default function CalendarPage() {
                       <div className="space-y-0.5">
                         {dayEvents.slice(0, 3).map((ev) => {
                           const pc = ev.author_name ? personalColors[ev.author_name] : undefined;
-                          const timeLabel = ev.start_time ? ev.start_time.slice(0, 5).replace(":", "시 ").replace(/\s0?0$/, "시") : null;
+                          const timeParts = ev.start_time ? ev.start_time.slice(0, 5).split(":") : null;
+                          const timeLabel = timeParts ? (timeParts[1] === "00" ? `${timeParts[0]}시` : `${timeParts[0]}시${timeParts[1]}분`) : null;
                           return (
                             <div
                               key={ev.id}

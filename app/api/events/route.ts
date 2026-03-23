@@ -1,9 +1,8 @@
-import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
