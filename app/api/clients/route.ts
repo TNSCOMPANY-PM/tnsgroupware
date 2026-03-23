@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const supabase = await createClient();
   const body = await req.json();
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("clients")
     .insert({
       name: body.name,
@@ -28,9 +28,7 @@ export async function POST(req: Request) {
       business_type: body.business_type ?? null,
       business_item: body.business_item ?? null,
       email: body.email ?? null,
-    })
-    .select()
-    .single();
+    });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  return NextResponse.json({ ok: true });
 }

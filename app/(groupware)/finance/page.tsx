@@ -270,6 +270,11 @@ export default function FinancePage() {
   const [smsText, setSmsText] = useState("");
   const [smsParsed, setSmsParsed] = useState<{ date: string; amount: number; client_name: string } | null>(null);
   const [smsSaving, setSmsSaving] = useState(false);
+  const [crmClients, setCrmClients] = useState<{ id: string; name: string; aliases: string[]; representative?: string | null }[]>([]);
+  const [autoMapping, setAutoMapping] = useState(false);
+  const [autoMapMsg, setAutoMapMsg] = useState<string | null>(null);
+  const [ledgerDateFrom, setLedgerDateFrom] = useState<string>("");
+  const [ledgerDateTo, setLedgerDateTo] = useState<string>("");
 
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [carryOverBalance, setCarryOverBalance] = useState<number>(0);
@@ -301,6 +306,9 @@ export default function FinancePage() {
         }
       })
       .catch(() => setCustomEntries(loadLedgerCustom()));
+    fetch("/api/clients").then((r) => r.ok ? r.json() : []).then((data: { id: string; name: string; aliases: string[]; representative?: string | null }[]) => {
+      if (Array.isArray(data)) setCrmClients(data);
+    }).catch(() => {});
     setEditsOverlay(loadLedgerEdits());
     setHiddenIds(loadLedgerHidden());
     try {
@@ -812,17 +820,28 @@ export default function FinancePage() {
   const payablesTotal = payablesExpected.reduce((s, x) => s + x.supplyAmount + x.vat, 0);
   const projectedProfit = dailyAvgProfit * workDays + receivablesTotal - payablesTotal;
 
+  const isRowInDateRange = useCallback((rowDate: string): boolean => {
+    if (ledgerDateFrom || ledgerDateTo) {
+      const ymd = rowDateToYMD(rowDate);
+      if (!ymd) return false;
+      if (ledgerDateFrom && ymd < ledgerDateFrom) return false;
+      if (ledgerDateTo && ymd > ledgerDateTo) return false;
+      return true;
+    }
+    return isRowInMonth(rowDate, ledgerMonthKey);
+  }, [ledgerDateFrom, ledgerDateTo, ledgerMonthKey]);
+
   const filteredLedger = useMemo(() => {
     return ledgerWithCustomAndEdits.filter((row) => {
-      if (!isRowInMonth(row.date, ledgerMonthKey)) return false;
+      if (!isRowInDateRange(row.date)) return false;
       if (hiddenIds.has(row.id)) return false;
       if (ledgerFilter === "pending") return row.status === "UNMAPPED";
       if (ledgerFilter === "approved") return row.status === "PAID";
       return true;
     });
-  }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds, ledgerMonthKey]);
+  }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds, isRowInDateRange]);
 
-  const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInMonth(r.date, ledgerMonthKey) && r.status === "UNMAPPED").length;
+  const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInDateRange(r.date) && r.status === "UNMAPPED").length;
 
   const saveCustomEntries = useCallback((entries: LedgerRow[]) => {
     setCustomEntries(entries);
@@ -1144,7 +1163,38 @@ export default function FinancePage() {
       <div className="grid grid-cols-12 gap-6 min-h-0" style={{ height: "calc(100vh - 220px)", minHeight: "420px" }}>
         {/* [좌측 col-span-8] 통합 입출금 원장 */}
         <div className="col-span-12 lg:col-span-8 flex min-h-0 flex-col rounded-2xl border border-white/40 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-2xl overflow-hidden">
-          <div className="flex-shrink-0 border-b border-slate-200/80 bg-slate-50/50 px-5 py-4">
+          <div className="flex-shrink-0 border-b border-slate-200/80 bg-slate-50/50 px-5 py-3">
+            {/* 날짜 필터 */}
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">기간</span>
+              <input
+                type="date"
+                value={ledgerDateFrom}
+                onChange={(e) => setLedgerDateFrom(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+              />
+              <span className="text-xs text-slate-400">~</span>
+              <input
+                type="date"
+                value={ledgerDateTo}
+                onChange={(e) => setLedgerDateTo(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+              />
+              {(ledgerDateFrom || ledgerDateTo) && (
+                <button
+                  type="button"
+                  onClick={() => { setLedgerDateFrom(""); setLedgerDateTo(""); }}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+                >
+                  초기화
+                </button>
+              )}
+              {(ledgerDateFrom || ledgerDateTo) && (
+                <span className="text-xs text-blue-600 font-medium">
+                  {filteredLedger.length}건
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-2 font-semibold text-slate-800">
@@ -1187,6 +1237,36 @@ export default function FinancePage() {
                 >
                   <Plus className="size-4 mr-1" />
                   수동 추가
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={autoMapping}
+                  onClick={async () => {
+                    setAutoMapping(true);
+                    setAutoMapMsg(null);
+                    try {
+                      const res = await fetch("/api/clients/remap", { method: "POST" });
+                      const json = await res.json();
+                      setAutoMapMsg(`✓ ${json.updated}건 자동 매핑`);
+                      if ((json.updated ?? 0) > 0) {
+                        await fetchLedger();
+                        const freshClients = await fetch("/api/clients").then((r) => r.ok ? r.json() : []);
+                        if (Array.isArray(freshClients)) setCrmClients(freshClients);
+                      }
+                    } catch {
+                      setAutoMapMsg("매핑 실패");
+                    } finally {
+                      setAutoMapping(false);
+                      setTimeout(() => setAutoMapMsg(null), 3000);
+                    }
+                  }}
+                  className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  title="입금자명을 CRM 거래처 별칭과 대조해 고객사를 자동으로 채웁니다"
+                >
+                  <RefreshCw className={`size-4 mr-1 ${autoMapping ? "animate-spin" : ""}`} />
+                  {autoMapMsg ?? "거래처 자동 매칭"}
                 </Button>
                 <div className="flex rounded-xl bg-slate-100/80 p-1">
                 {[
@@ -1298,6 +1378,7 @@ export default function FinancePage() {
                       onEditRow={row.status === "PAID" ? () => setEditLedgerRow(row) : undefined}
                       onAmountChange={row.status === "UNMAPPED" ? handleAmountChange : undefined}
                       onDelete={(id) => handleDeleteLedgerRow(id, row.source)}
+                      clients={crmClients}
                       onReceipt={row.source === "finance" ? async () => {
                         const fr = financeRows.find((r) => r.id === row.id) ?? null;
                         if (fr) {
@@ -2196,6 +2277,7 @@ function LedgerRowComponent({
   onAmountChange,
   onDelete,
   onReceipt,
+  clients,
 }: {
   row: LedgerRow;
   approvingId: string | null;
@@ -2206,6 +2288,7 @@ function LedgerRowComponent({
   onAmountChange?: (id: string, amount: number, source?: string) => void;
   onDelete?: (id: string) => void;
   onReceipt?: () => void;
+  clients?: { id: string; name: string; aliases: string[]; representative?: string | null }[];
 }) {
   const isPending = row.status === "UNMAPPED";
   const isApproving = approvingId === row.id;
@@ -2307,6 +2390,42 @@ function LedgerRowComponent({
                     className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                   />
                   <p className="mt-1.5 text-xs text-slate-500">입금자: {row.senderName}</p>
+                  {/* CRM 자동 제안 */}
+                  {(() => {
+                    const raw = (row.senderName ?? "").trim().toLowerCase();
+                    const suggestions = raw && clients
+                      ? clients.filter((c) => {
+                          const rep = (c.representative ?? "").toLowerCase();
+                          return c.name.toLowerCase().includes(raw) ||
+                            c.aliases.some((a) => a.toLowerCase().includes(raw)) ||
+                            raw.includes(c.name.toLowerCase()) ||
+                            c.aliases.some((a) => a && raw.includes(a.toLowerCase())) ||
+                            (rep && (rep.includes(raw) || raw.includes(rep)));
+                        }).slice(0, 4)
+                      : [];
+                    if (suggestions.length === 0) return null;
+                    return (
+                      <div className="mt-1.5">
+                        <p className="mb-1 text-[10px] font-semibold text-blue-600">CRM 매칭 후보</p>
+                        <div className="flex flex-wrap gap-1">
+                          {suggestions.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-100"
+                              onClick={() => {
+                                setClientName(c.name);
+                                setShowClientDropdown(false);
+                                if (canEditPaid && onEdit) onEdit(row.id, { clientName: c.name });
+                              }}
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <button
                     type="button"
                     className="mt-2 rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
