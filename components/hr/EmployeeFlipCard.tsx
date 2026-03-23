@@ -41,7 +41,7 @@ export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: Employ
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick?.()}
-      className="group h-[320px] w-full cursor-pointer font-sans"
+      className="group h-[380px] w-full cursor-pointer font-sans"
       style={{ perspective: "1000px" }}
     >
       <div
@@ -63,15 +63,15 @@ export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: Employ
             />
           )}
           <div
-            className="mb-4 flex size-24 shrink-0 items-center justify-center rounded-full text-3xl font-bold shadow-sm"
+            className="mb-5 flex size-28 shrink-0 items-center justify-center rounded-full text-4xl font-bold shadow-sm"
             style={pc ? { backgroundColor: avatarBg, color: avatarText, border: `2.5px solid ${pc}` } : { backgroundColor: "rgb(226 232 240 / 0.8)", color: "rgb(71 85 105)" }}
           >
             {initial}
           </div>
-          <p className="text-center text-xl font-bold text-slate-800">
+          <p className="text-center text-2xl font-bold text-slate-800">
             {data.name}
           </p>
-          <p className="mt-2 text-center text-sm text-slate-500">
+          <p className="mt-2 text-center text-base text-slate-500">
             {data.department}
           </p>
         </div>
@@ -86,31 +86,31 @@ export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: Employ
             transform: "rotateY(180deg)",
           }}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-              <Users className="size-4 text-emerald-300/90" />
+          <div className="flex items-center gap-4">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+              <Users className="size-5 text-emerald-300/90" />
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-white/50">팀</p>
-              <p className="text-sm font-medium text-white/95">{data.team}</p>
+              <p className="text-base font-medium text-white/95">{data.team}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-              <Calendar className="size-4 text-emerald-300/90" />
+          <div className="flex items-center gap-4">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+              <Calendar className="size-5 text-emerald-300/90" />
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-white/50">입사일</p>
-              <p className="text-sm font-medium text-white/95">{data.joinDate}</p>
+              <p className="text-base font-medium text-white/95">{data.joinDate}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-              <Phone className="size-4 text-emerald-300/90" />
+          <div className="flex items-center gap-4">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+              <Phone className="size-5 text-emerald-300/90" />
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-white/50">연락처</p>
-              <p className="text-sm font-medium text-white/95">{data.contact}</p>
+              <p className="text-base font-medium text-white/95">{data.contact}</p>
             </div>
           </div>
           {onRequestCertificate && (
