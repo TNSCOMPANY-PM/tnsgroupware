@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
@@ -84,7 +84,7 @@ function formatWon(n: number) {
   return n.toLocaleString("ko-KR") + "원";
 }
 
-export default function CrmPage() {
+function CrmPageInner() {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -758,5 +758,13 @@ export default function CrmPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CrmPage() {
+  return (
+    <Suspense>
+      <CrmPageInner />
+    </Suspense>
   );
 }
