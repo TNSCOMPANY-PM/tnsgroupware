@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
   Phone, Mail, MapPin, ChevronDown, Pencil, Copy, Check, Clock,
@@ -84,9 +85,10 @@ function formatWon(n: number) {
 }
 
 export default function CrmPage() {
+  const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const [catFilter, setCatFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Client | null>(null);
@@ -527,14 +529,23 @@ export default function CrmPage() {
             </div>
 
             {/* 원장으로 이동 */}
-            <div className="border-t border-slate-200 px-5 py-3">
+            <div className="border-t border-slate-200 px-5 py-3 flex items-center gap-4">
               <a
                 href="/finance"
                 className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
               >
                 <ArrowRight className="size-4" />
-                통합 입출금 원장에서 확인
+                통합 입출금 원장
               </a>
+              {panelClient.name && (
+                <a
+                  href={`/crm?search=${encodeURIComponent(panelClient.name)}`}
+                  className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-700"
+                >
+                  <TrendingUp className="size-4" />
+                  매출 상세 검색
+                </a>
+              )}
             </div>
           </div>
         </>

@@ -429,7 +429,7 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
   );
 }
 
-export function LeaveTab() {
+export function LeaveTab({ initialDate }: { initialDate?: string }) {
   const { currentRole, isCLevel, isTeamLead, currentUserId } = usePermission();
   const { showRealtimeToast } = useRealtimeToast() ?? {};
   useSupabaseRealtime("leaves", { onRealtime: showRealtimeToast });
@@ -460,6 +460,7 @@ export function LeaveTab() {
             isCLevel={isCLevel}
             isTeamLead={isTeamLead}
             currentUserId={currentUserId}
+            initialDate={initialDate}
           />
         </TabsContent>
 
@@ -488,11 +489,13 @@ function LeaveOverviewTab({
   isCLevel,
   isTeamLead,
   currentUserId,
+  initialDate,
 }: {
   currentRole: string;
   isCLevel: boolean;
   isTeamLead: boolean;
   currentUserId: string;
+  initialDate?: string;
 }) {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const fetchLeaves = useCallback(async () => {
@@ -504,7 +507,7 @@ function LeaveOverviewTab({
     } catch {}
   }, []);
   useEffect(() => { fetchLeaves(); }, [fetchLeaves]);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(() => !!initialDate);
   const [selectedLeaveType, setSelectedLeaveType] = useState<LeaveTypeKey | null>(
     null
   );

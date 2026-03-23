@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")",
+      "Bash(find \"c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\\\\\\\\\(groupware\\\\\\\\\\)\" -name \"page.tsx\")",
+      "Bash(grep -r \"fetch\\(\" \"c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\\\\\\\\\(groupware\\\\\\\\\\)/dashboard\" --include=\"*.tsx\")",
+      "Bash(xargs wc:*)",
+      "Bash(head -20 \"app/\\(groupware\\)/layout.tsx\")",
+      "Bash(find \"c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\(groupware\\)\" -type f -name \"page.tsx\")",
+      "Bash(find 'c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\(groupware\\)/admin' -type f -name *.tsx)",
+      "Bash(find 'c:/Users/user1/Dropbox/Vibe coding project/groupware/app/api' -type f -name *.ts)",
+      "Bash(grep \"\\\\.ts$\")",
+      "Bash(wc -l \"c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\(groupware\\)/finance/page.tsx\")",
+      "Bash(wc -l \"c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\(groupware\\)/approvals/page.tsx\")",
+      "Bash(wc -l \"c:/Users/user1/Dropbox/Vibe coding project/groupware/app/\\(groupware\\)/reports/page.tsx\")",
+      "Bash(find 'c:/Users/user1/Dropbox/Vibe coding project/groupware' -type f -name *.sql)",
+      "Bash(ls \"c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\app\\\\\\(groupware\\)\\\\admin\")",
+      "Bash(ls \"c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\app\\\\\\(groupware\\)\\\\admin\\\\contracts\")",
+      "Bash(ls \"c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\app\\\\\\(groupware\\)\")",
+      "Bash(ls \"c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\app\\\\\\(groupware\\)\\\\admin\\\\contracts\\\\new\")"
+    ]
+  }
+}

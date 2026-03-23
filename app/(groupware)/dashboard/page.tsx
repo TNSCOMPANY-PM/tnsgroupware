@@ -98,6 +98,7 @@ export default function DashboardPage() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>(defaultAnnouncements);
+  const [announceAllOpen, setAnnounceAllOpen] = useState(false);
   const [announceWriteOpen, setAnnounceWriteOpen] = useState(false);
   const [announceEditId, setAnnounceEditId] = useState<string | null>(null);
   const [announceTitle, setAnnounceTitle] = useState("");
@@ -107,6 +108,7 @@ export default function DashboardPage() {
   const [financeData, setFinanceData] = useState<FinanceCurrentJson | null>(null);
   const [financeRows, setFinanceRows] = useState<FinanceRowForLedger[]>([]);
   const [ledgerFromApi, setLedgerFromApi] = useState<LedgerRowForSummary[]>([]);
+  const [ledgerCustom, setLedgerCustom] = useState<LedgerRowForSummary[]>(() => loadLedgerCustom());
   const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -136,13 +138,12 @@ export default function DashboardPage() {
             status: e.status,
           }))
         : ledgerFromApi;
-    const custom = loadLedgerCustom();
     const edits = loadLedgerEdits();
     const hidden = loadLedgerHidden();
     const summary = computeDashboardLedgerSummary(
       financeRows,
       ledgerSource,
-      custom,
+      ledgerCustom,
       edits,
       hidden,
       monthKey
@@ -155,7 +156,7 @@ export default function DashboardPage() {
       return summary;
     }
     return parseDashboardFinance(financeData);
-  }, [financeData, financeRows, ledgerFromApi]);
+  }, [financeData, financeRows, ledgerFromApi, ledgerCustom]);
 
   useEffect(() => {
     seedDefaultsIfEmpty(DASHBOARD_ANNOUNCEMENTS)
@@ -172,7 +173,17 @@ export default function DashboardPage() {
       fetch("/api/finance").then((r) => r.ok ? r.json() : []).catch(() => []),
       fetch("/api/transactions/ledger").then((r) => r.ok ? r.json() : { ledger: [] }).catch(() => ({ ledger: [] })),
       fetch("/api/leaves").then((r) => r.ok ? r.json() : []).catch(() => []),
-    ]).then(([currentJson, rows, ledgerRes, leavesRows]) => {
+      fetch("/api/finance/custom").then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([currentJson, rows, ledgerRes, leavesRows, customRows]) => {
+      if (customRows && Array.isArray(customRows) && customRows.length > 0) {
+        setLedgerCustom(customRows.map((r: Record<string, unknown>) => ({
+          id: String(r.id ?? ""),
+          date: String(r.date ?? ""),
+          amount: Number(r.amount) || 0,
+          type: (r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT") as "DEPOSIT" | "WITHDRAWAL",
+          status: (r.status === "PAID" ? "PAID" : "UNMAPPED") as "UNMAPPED" | "PAID",
+        })));
+      }
       setFinanceData(currentJson as FinanceCurrentJson | null);
       setFinanceRows(Array.isArray(rows) ? rows : []);
       const list = Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : [];
@@ -655,16 +666,27 @@ export default function DashboardPage() {
             <CardTitle className="flex items-center gap-2 text-slate-900">
               📢 공지사항
             </CardTitle>
-            {isCLevel && (
-              <button
-                type="button"
-                onClick={openAnnounceWrite}
-                className="shrink-0 rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97]"
-              >
-                <Plus className="size-3.5 mr-1 inline" />
-                새 글 쓰기
-              </button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {announcements.length > 4 && (
+                <button
+                  type="button"
+                  onClick={() => setAnnounceAllOpen(true)}
+                  className="rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  전체 보기 ({announcements.length})
+                </button>
+              )}
+              {isCLevel && (
+                <button
+                  type="button"
+                  onClick={openAnnounceWrite}
+                  className="rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97]"
+                >
+                  <Plus className="size-3.5 mr-1 inline" />
+                  새 글 쓰기
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
@@ -953,6 +975,39 @@ export default function DashboardPage() {
         department={DUMMY_USERS.find((u) => u.id === currentUserId)?.department ?? ""}
         onSubmit={handlePlanSubmit}
       />
+
+      {/* 공지사항 전체 보기 모달 */}
+      <Dialog open={announceAllOpen} onOpenChange={setAnnounceAllOpen}>
+        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>공지사항 전체</DialogTitle>
+          </DialogHeader>
+          <ul className="space-y-3 py-2">
+            {announcements.map((ann) => (
+              <li key={ann.id} className={cn("rounded-xl px-4 py-3", ann.isImportant ? "bg-indigo-50/80" : "bg-slate-50/60")}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-sm font-medium text-slate-800", ann.isImportant && "font-bold")}>{ann.title}</p>
+                    {ann.body && <p className="mt-1 text-xs text-slate-600 whitespace-pre-wrap">{ann.body}</p>}
+                    {ann.isImportant && (
+                      <span className="mt-1.5 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">📌 필독</span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-xs text-slate-400">{format(parseISO(ann.date), "M/d")}</span>
+                    {isCLevel && (
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => { setAnnounceAllOpen(false); openAnnounceEdit(ann); }} className="rounded border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"><Pencil className="size-3" /></button>
+                        <button type="button" onClick={async () => { await handleAnnounceDelete(ann.id); }} className="rounded border border-rose-200 bg-white p-1 text-rose-500 hover:bg-rose-50"><Trash2 className="size-3" /></button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={announceWriteOpen}
