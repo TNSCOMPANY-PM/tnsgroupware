@@ -12,7 +12,7 @@ export async function GET() {
     while (true) {
       const { data, error } = await supabase
         .from("finance")
-        .select("*")
+        .select("id,month,type,amount,category,description,created_at,status,client_name,date")
         .order("created_at", { ascending: false })
         .range(from, from + PAGE - 1);
 
