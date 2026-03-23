@@ -299,7 +299,7 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
               C레벨
             </h2>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {cLevelCards.map(renderCard)}
             </div>
           </section>
@@ -309,7 +309,7 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
               멤버
             </h2>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {memberCards.map(renderCard)}
             </div>
           </section>
