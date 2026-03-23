@@ -23,6 +23,7 @@ type CalEvent = {
   all_day?: boolean;
   description?: string;
   author_name?: string;
+  start_time?: string | null;
 };
 
 function getLeaveTypeShort(type: string): string {
@@ -78,7 +79,7 @@ export default function CalendarPage() {
   );
 
   const [form, setForm] = useState({
-    title: "", start_date: "", end_date: "", description: "", all_day: true,
+    title: "", start_date: "", end_date: "", description: "", all_day: true, start_time: "",
   });
 
   const fetchEvents = useCallback(async () => {
@@ -112,7 +113,7 @@ export default function CalendarPage() {
 
   const openAdd = (date: Date) => {
     setEditEvent(null);
-    setForm({ title: "", start_date: format(date, "yyyy-MM-dd"), end_date: "", description: "", all_day: true });
+    setForm({ title: "", start_date: format(date, "yyyy-MM-dd"), end_date: "", description: "", all_day: true, start_time: "" });
     setShowModal(true);
   };
 
@@ -130,6 +131,7 @@ export default function CalendarPage() {
       end_date: ev.end_date ?? "",
       description: ev.description ?? "",
       all_day: ev.all_day ?? true,
+      start_time: ev.start_time ?? "",
     });
     setShowModal(true);
   };
@@ -142,6 +144,7 @@ export default function CalendarPage() {
       end_date: form.end_date || null,
       description: form.description || null,
       all_day: form.all_day,
+      start_time: form.start_time || null,
       author_name: currentUserName,
     };
     if (editEvent) {
@@ -184,7 +187,9 @@ export default function CalendarPage() {
   }, [currentMonth]);
 
   const eventsOnDay = (d: Date) =>
-    events.filter((e) => isSameDay(parseISO(e.start_date), d));
+    events
+      .filter((e) => isSameDay(parseISO(e.start_date), d))
+      .sort((a, b) => (a.start_time ?? "99:99").localeCompare(b.start_time ?? "99:99"));
 
   return (
     <div className="flex flex-col gap-5" onClick={() => setDateAction(null)}>
@@ -286,6 +291,7 @@ export default function CalendarPage() {
                       <div className="space-y-0.5">
                         {dayEvents.slice(0, 3).map((ev) => {
                           const pc = ev.author_name ? personalColors[ev.author_name] : undefined;
+                          const timeLabel = ev.start_time ? ev.start_time.slice(0, 5).replace(":", "시 ").replace(/\s0?0$/, "시") : null;
                           return (
                             <div
                               key={ev.id}
@@ -296,7 +302,7 @@ export default function CalendarPage() {
                               style={getPersonalColorStyle(pc)}
                               onClick={(e) => { e.stopPropagation(); openEdit(ev); }}
                             >
-                              {ev.title}
+                              {timeLabel && <span className="mr-0.5 opacity-70">{timeLabel}</span>}{ev.title}
                             </div>
                           );
                         })}
@@ -382,13 +388,21 @@ export default function CalendarPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600">종료일</label>
-                    <input type="date"
+                    <label className="text-xs font-medium text-slate-600">시간 (선택)</label>
+                    <input type="time"
                       className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                      value={form.end_date}
-                      onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                      value={form.start_time}
+                      onChange={(e) => setForm({ ...form, start_time: e.target.value })}
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600">종료일</label>
+                  <input type="date"
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    value={form.end_date}
+                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-600">설명</label>
