@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,13 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmployeeFlipCard, type EmployeeFlipCardData } from "@/components/hr/EmployeeFlipCard";
-import { ProfileCardSheet } from "@/components/hr/ProfileCardSheet";
-import { LeaveTab } from "@/components/hr/LeaveTab";
-import { AnnualLeavePromotionTab } from "@/components/hr/AnnualLeavePromotionTab";
-import { LabourLawVerificationDashboard } from "@/components/hr/LabourLawVerificationDashboard";
 import { NewEmployeeModal, type NewEmployeeFormData } from "@/components/hr/NewEmployeeModal";
-import { ContractSendTab } from "@/components/hr/ContractSendTab";
-import { ContractManageTab } from "@/components/hr/ContractManageTab";
+
+const ProfileCardSheet = dynamic(() => import("@/components/hr/ProfileCardSheet").then((m) => ({ default: m.ProfileCardSheet })), { ssr: false });
+const LeaveTab = dynamic(() => import("@/components/hr/LeaveTab").then((m) => ({ default: m.LeaveTab })), { ssr: false, loading: () => <div className="flex items-center justify-center py-20"><Loader2 className="size-6 animate-spin text-slate-400" /></div> });
+const AnnualLeavePromotionTab = dynamic(() => import("@/components/hr/AnnualLeavePromotionTab").then((m) => ({ default: m.AnnualLeavePromotionTab })), { ssr: false });
+const LabourLawVerificationDashboard = dynamic(() => import("@/components/hr/LabourLawVerificationDashboard").then((m) => ({ default: m.LabourLawVerificationDashboard })), { ssr: false });
+const ContractSendTab = dynamic(() => import("@/components/hr/ContractSendTab").then((m) => ({ default: m.ContractSendTab })), { ssr: false });
+const ContractManageTab = dynamic(() => import("@/components/hr/ContractManageTab").then((m) => ({ default: m.ContractManageTab })), { ssr: false });
 import { createEmployee } from "./actions";
 import { useSearchParams } from "next/navigation";
 import { usePermission } from "@/contexts/PermissionContext";

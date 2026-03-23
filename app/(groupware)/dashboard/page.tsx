@@ -164,77 +164,30 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    fetch("/finance-current.json")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => setFinanceData(d as FinanceCurrentJson | null))
-      .catch(() => setFinanceData(null));
-  }, []);
-
-  // 통합 원장과 동일 소스: DB finance + ledger API
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/finance").then((r) => (r.ok ? r.json() : [])),
-      fetch("/api/transactions/ledger").then((r) => (r.ok ? r.json() : { ledger: [] })),
-    ])
-      .then(([rows, ledgerRes]) => {
-        setFinanceRows(Array.isArray(rows) ? rows : []);
-        const list = Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : [];
-        setLedgerFromApi(
-          list.map((r: { id: string; date?: string; amount: number; type: string; status: string }) => ({
-            id: r.id,
-            date: r.date ?? "",
-            amount: Number(r.amount) || 0,
-            type: r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT",
-            status: r.status === "PAID" ? "PAID" : "UNMAPPED",
-          }))
-        );
-      })
-      .catch(() => {
-        setFinanceRows([]);
-        setLedgerFromApi([]);
-      });
-  }, []);
-
+  // 통합 원장과 동일 소스: finance-current.json + DB finance + ledger API + leaves 병렬 로드
   useEffect(() => {
     setHoroscopeCheckedPeriod(getStoredHoroscopePeriod());
-  }, []);
-
-  useEffect(() => {
-    if (!isTeamLead && !isCLevel) return;
-    fetch("/api/approvals")
-      .then((r) => r.ok ? r.json() : [])
-      .then((list: { status?: string }[]) => {
-        const n = Array.isArray(list) ? list.filter((a) => a.status === "pending").length : 0;
-        setPendingApprovalsCount(n);
-      })
-      .catch(() => setPendingApprovalsCount(0));
-  }, [isTeamLead, isCLevel]);
-
-  useEffect(() => {
-    if (!currentUserId) return;
-    fetch(`/api/bonus/quarterly?userId=${currentUserId}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d && d.bonusKey) setQuarterlyBonus(d); })
-      .catch(() => {});
-  }, [currentUserId]);
-
-  useEffect(() => {
-    if (!isCLevel) return;
-    fetch("/api/bonus/quarterly/team")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setTeamBonus(d); })
-      .catch(() => {});
-  }, [isCLevel]);
-
-  // 실제 휴가 데이터 로드 (번아웃 리스크 · 연차 촉진 계산용)
-  useEffect(() => {
-    fetch("/api/leaves")
-      .then((r) => r.ok ? r.json() : [])
-      .then((rows: unknown[]) => {
-        if (!Array.isArray(rows)) return;
+    Promise.all([
+      fetch("/finance-current.json").then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch("/api/finance").then((r) => r.ok ? r.json() : []).catch(() => []),
+      fetch("/api/transactions/ledger").then((r) => r.ok ? r.json() : { ledger: [] }).catch(() => ({ ledger: [] })),
+      fetch("/api/leaves").then((r) => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([currentJson, rows, ledgerRes, leavesRows]) => {
+      setFinanceData(currentJson as FinanceCurrentJson | null);
+      setFinanceRows(Array.isArray(rows) ? rows : []);
+      const list = Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : [];
+      setLedgerFromApi(
+        list.map((r: { id: string; date?: string; amount: number; type: string; status: string }) => ({
+          id: r.id,
+          date: r.date ?? "",
+          amount: Number(r.amount) || 0,
+          type: r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT",
+          status: r.status === "PAID" ? "PAID" : "UNMAPPED",
+        }))
+      );
+      if (Array.isArray(leavesRows)) {
         setLeaveRequests(
-          rows.map((row) => {
+          leavesRows.map((row: unknown) => {
             const r = row as Record<string, unknown>;
             return {
               id: r.id as string,
@@ -251,9 +204,31 @@ export default function DashboardPage() {
             };
           })
         );
-      })
-      .catch(() => setLeaveRequests([]));
+      }
+    });
   }, []);
+
+  useEffect(() => {
+    if (!isTeamLead && !isCLevel) return;
+    fetch("/api/approvals")
+      .then((r) => r.ok ? r.json() : [])
+      .then((list: { status?: string }[]) => {
+        const n = Array.isArray(list) ? list.filter((a) => a.status === "pending").length : 0;
+        setPendingApprovalsCount(n);
+      })
+      .catch(() => setPendingApprovalsCount(0));
+  }, [isTeamLead, isCLevel]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    Promise.all([
+      fetch(`/api/bonus/quarterly?userId=${currentUserId}`).then((r) => r.ok ? r.json() : null).catch(() => null),
+      isCLevel ? fetch("/api/bonus/quarterly/team").then((r) => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+    ]).then(([quarterly, team]) => {
+      if (quarterly?.bonusKey) setQuarterlyBonus(quarterly);
+      if (team) setTeamBonus(team);
+    });
+  }, [currentUserId, isCLevel]);
 
   const now = new Date();
   const horoscopePeriodStart = getHoroscopePeriodStart(now);
