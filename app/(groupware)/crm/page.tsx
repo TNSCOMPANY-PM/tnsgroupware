@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
   Phone, Mail, MapPin, ChevronDown, Pencil, Copy, Check, Clock,
+  TrendingUp, ArrowRight,
 } from "lucide-react";
-import { differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, parseISO, format } from "date-fns";
 
 interface Client {
   id: string;
@@ -68,6 +69,20 @@ function formatBizNum(v: string) {
   return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
 }
 
+type DepositRow = {
+  id: string;
+  date: string | null;
+  amount: number;
+  type: string;
+  status: string | null;
+  category: string | null;
+  client_name: string | null;
+};
+
+function formatWon(n: number) {
+  return n.toLocaleString("ko-KR") + "원";
+}
+
 export default function CrmPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +98,10 @@ export default function CrmPage() {
   const [remapMsg, setRemapMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [lastDeposits, setLastDeposits] = useState<Record<string, string>>({});
+  // 입금내역 사이드 패널
+  const [panelClient, setPanelClient] = useState<Client | null>(null);
+  const [deposits, setDeposits] = useState<DepositRow[]>([]);
+  const [depositsLoading, setDepositsLoading] = useState(false);
   const aliasInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -115,6 +134,19 @@ export default function CrmPage() {
       return catOk && searchOk;
     });
   }, [clients, search, catFilter]);
+
+  async function openPanel(c: Client) {
+    setPanelClient(c);
+    setDeposits([]);
+    setDepositsLoading(true);
+    try {
+      const res = await fetch(`/api/clients/${c.id}/deposits`);
+      const data = res.ok ? await res.json() : [];
+      setDeposits(data);
+    } finally {
+      setDepositsLoading(false);
+    }
+  }
 
   function openNew() {
     setEditTarget(null);
@@ -222,7 +254,7 @@ export default function CrmPage() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-slate-50">
+    <div className="flex h-full flex-col bg-slate-50 relative">
       {/* ── 헤더 ── */}
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
         <div className="flex items-center gap-3">
@@ -309,7 +341,11 @@ export default function CrmPage() {
               </td></tr>
             )}
             {filtered.map((c, i) => (
-              <tr key={c.id} className="group transition hover:bg-slate-50">
+              <tr
+                key={c.id}
+                className="group cursor-pointer transition hover:bg-blue-50/50"
+                onClick={() => openPanel(c)}
+              >
                 <td className="px-4 py-3 text-slate-400">{i + 1}</td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-800">{c.name}</div>
@@ -370,7 +406,7 @@ export default function CrmPage() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
-                    onClick={() => openEdit(c)}
+                    onClick={(e) => { e.stopPropagation(); openEdit(c); }}
                     className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 opacity-0 shadow-sm transition hover:border-slate-300 hover:text-slate-700 group-hover:opacity-100"
                   >
                     <Pencil className="size-3.5" />
@@ -381,6 +417,128 @@ export default function CrmPage() {
           </tbody>
         </table>
       </div>
+
+      {/* ── 입금내역 사이드 패널 ── */}
+      {panelClient && (
+        <>
+          {/* 딤 배경 */}
+          <div
+            className="fixed inset-0 z-30 bg-black/20"
+            onClick={() => setPanelClient(null)}
+          />
+          {/* 패널 */}
+          <div className="fixed right-0 top-0 z-40 flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+            {/* 패널 헤더 */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="size-4 text-slate-500" />
+                <div>
+                  <h2 className="font-semibold text-slate-800">{panelClient.name}</h2>
+                  {panelClient.category && (
+                    <span className={`text-xs font-medium ${CAT_COLOR[panelClient.category] ?? "text-slate-500"}`}>
+                      {panelClient.category}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setPanelClient(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* 요약 */}
+            {!depositsLoading && deposits.length > 0 && (() => {
+              const thisMonth = new Date().toISOString().slice(0, 7);
+              const thisMonthTotal = deposits
+                .filter((d) => (d.date ?? "").startsWith(thisMonth) && d.type === "매출")
+                .reduce((s, d) => s + (d.amount ?? 0), 0);
+              const total = deposits
+                .filter((d) => d.type === "매출")
+                .reduce((s, d) => s + (d.amount ?? 0), 0);
+              return (
+                <div className="flex gap-0 border-b border-slate-100">
+                  <div className="flex-1 px-5 py-3">
+                    <p className="text-xs text-slate-400">이번달 입금</p>
+                    <p className="mt-0.5 text-base font-bold text-slate-800">{formatWon(thisMonthTotal)}</p>
+                  </div>
+                  <div className="flex-1 border-l border-slate-100 px-5 py-3">
+                    <p className="text-xs text-slate-400">누적 총 입금</p>
+                    <p className="mt-0.5 text-base font-bold text-slate-800">{formatWon(total)}</p>
+                  </div>
+                  <div className="flex-1 border-l border-slate-100 px-5 py-3">
+                    <p className="text-xs text-slate-400">입금 횟수</p>
+                    <p className="mt-0.5 text-base font-bold text-slate-800">{deposits.filter((d) => d.type === "매출").length}건</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 내역 목록 */}
+            <div className="flex-1 overflow-y-auto">
+              {depositsLoading ? (
+                <div className="flex h-32 items-center justify-center text-sm text-slate-400">로딩 중...</div>
+              ) : deposits.length === 0 ? (
+                <div className="flex h-32 flex-col items-center justify-center gap-1 text-sm text-slate-400">
+                  <p>입금 내역이 없습니다.</p>
+                  <p className="text-xs">입금자명(별칭)을 추가하면 자동 매핑됩니다.</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-slate-50 text-xs font-medium text-slate-500">
+                    <tr className="border-b border-slate-200">
+                      <th className="px-4 py-2 text-left">날짜</th>
+                      <th className="px-4 py-2 text-left">구분</th>
+                      <th className="px-4 py-2 text-right">금액</th>
+                      <th className="px-4 py-2 text-center">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {deposits.map((d) => (
+                      <tr key={d.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-2.5 tabular-nums text-slate-600">
+                          {d.date ? format(new Date(d.date), "yy/MM/dd") : "—"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-xs font-medium ${d.type === "매출" ? "text-emerald-600" : "text-rose-500"}`}>
+                            {d.type === "매출" ? "입금" : "출금"}
+                          </span>
+                          {d.category && (
+                            <span className="ml-1.5 text-xs text-slate-400">{d.category}</span>
+                          )}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${d.type === "매출" ? "text-slate-800" : "text-rose-500"}`}>
+                          {d.type === "매출" ? "" : "−"}{formatWon(d.amount ?? 0)}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            d.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                          }`}>
+                            {d.status === "completed" ? "완료" : "미승인"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* 원장으로 이동 */}
+            <div className="border-t border-slate-200 px-5 py-3">
+              <a
+                href="/finance"
+                className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+              >
+                <ArrowRight className="size-4" />
+                통합 입출금 원장에서 확인
+              </a>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── 등록/수정 모달 ── */}
       {modalOpen && (

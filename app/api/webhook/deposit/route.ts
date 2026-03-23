@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
+import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
 
 /**
  * 신한은행 입금 SMS 웹훅.
@@ -47,18 +48,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // clients alias 자동 매핑
+    // clients 매핑: 정확 alias → 퍼지 매칭 순서로 시도
     let mappedClientName = parsed.client_name || null;
     let mappedCategory: string | null = null;
     if (mappedClientName) {
-      const { data: clientMatch } = await supabase
+      // 1차: 정확 alias 매칭
+      const { data: exactMatch } = await supabase
         .from("clients")
         .select("name, category")
         .contains("aliases", [mappedClientName])
         .maybeSingle();
-      if (clientMatch) {
-        mappedClientName = clientMatch.name;
-        mappedCategory = clientMatch.category;
+      if (exactMatch) {
+        mappedClientName = exactMatch.name;
+        mappedCategory = exactMatch.category;
+      } else {
+        // 2차: 퍼지 매칭 (정규화 후 부분 문자열 포함)
+        const { data: allClients } = await supabase
+          .from("clients")
+          .select("id, name, category, aliases");
+        const fuzzy = matchClient(mappedClientName, (allClients ?? []) as ClientForMatch[]);
+        if (fuzzy) {
+          mappedClientName = fuzzy.client.name;
+          mappedCategory = fuzzy.client.category;
+        }
       }
     }
 
