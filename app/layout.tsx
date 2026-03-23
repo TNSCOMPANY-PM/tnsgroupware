@@ -46,7 +46,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className="h-screen w-full overflow-x-hidden overflow-y-auto font-sans antialiased text-slate-800">
-        <div className="fixed inset-0 z-[-1] bg-[#f8fafc] overflow-hidden">
+        <div className="fixed inset-0 z-[-1] bg-[#f8fafc] overflow-hidden pointer-events-none" aria-hidden="true">
           <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-200/15 blur-[120px]" />
           <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-100/20 blur-[100px]" />
           <div className="absolute top-[40%] left-[30%] w-[400px] h-[400px] rounded-full bg-slate-200/30 blur-[120px]" />
