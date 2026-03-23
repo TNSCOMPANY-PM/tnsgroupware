@@ -140,20 +140,28 @@ export default function DashboardPage() {
         : ledgerFromApi;
     const edits = loadLedgerEdits();
     const hidden = loadLedgerHidden();
+    // DB finance 테이블이 주 소스 — JSON/SMS ledger는 중복 집계되므로 제외
     const summary = computeDashboardLedgerSummary(
       financeRows,
-      ledgerSource,
+      [],
       ledgerCustom,
       edits,
       hidden,
       monthKey
     );
+
+    // 생존통장 예상 잔고: JSON 현재 잔고 - 운영비 - 매출총이익 부가세
+    const sa = financeData?.survivalAccount;
+    const survivalBalance = sa?.currentBalance
+      ? sa.currentBalance - (sa.operatingDeduction ?? 0) - Math.round(summary.monthlyGrossProfit * 0.1)
+      : summary.monthlyGrossProfit;
+
     if (
       summary.monthlyRevenue > 0 ||
       summary.monthlyGrossProfit !== 0 ||
-      summary.survivalBalance !== 0
+      survivalBalance !== 0
     ) {
-      return summary;
+      return { ...summary, survivalBalance };
     }
     return parseDashboardFinance(financeData);
   }, [financeData, financeRows, ledgerFromApi, ledgerCustom]);

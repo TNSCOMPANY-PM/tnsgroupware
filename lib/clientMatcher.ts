@@ -22,6 +22,7 @@ export type ClientForMatch = {
   name: string;
   category: string | null;
   aliases: string[];
+  representative?: string | null;
 };
 
 export type MatchResult = {
@@ -75,7 +76,7 @@ export function matchClient(
   let best: MatchResult | null = null;
 
   for (const client of clients) {
-    const candidates = [client.name, ...client.aliases];
+    const candidates = [client.name, ...client.aliases, client.representative].filter(Boolean) as string[];
     for (const candidate of candidates) {
       if (!candidate) continue;
       const score = scorePair(senderName, candidate);

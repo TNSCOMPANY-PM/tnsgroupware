@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
-  Phone, Mail, MapPin, ChevronDown, Pencil, Copy, Check, Clock,
-  TrendingUp, ArrowRight,
+  Phone, ChevronDown, Pencil, Copy, Check, Clock,
+  TrendingUp, ArrowRight, AlertCircle, UserPlus,
 } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
 
@@ -31,22 +31,18 @@ const CATEGORIES = ["더널리", "티제이웹", "기타"] as const;
 const ALERT_THRESHOLD: Record<string, number> = { "더널리": 30, "티제이웹": 365 };
 
 function LastDepositBadge({ date, category }: { date?: string; category: string | null }) {
-  if (!date) return <span className="text-slate-300">—</span>;
+  if (!date) return <span className="text-slate-200">—</span>;
   const days = differenceInDays(new Date(), parseISO(date));
   const threshold = category ? ALERT_THRESHOLD[category] : null;
   const isAlert = threshold != null && days >= threshold;
   const isWarn = threshold != null && days >= threshold * 0.8;
+  const color = isAlert ? "text-red-600" : isWarn ? "text-amber-600" : "text-emerald-600";
+  const bgColor = isAlert ? "bg-red-100" : isWarn ? "bg-amber-100" : "bg-emerald-100";
   return (
-    <div className={`flex items-center gap-1 text-xs font-medium ${
-      isAlert ? "text-red-600" : isWarn ? "text-amber-600" : "text-emerald-600"
-    }`}>
+    <div className={`flex min-w-0 items-center gap-1 text-[11px] font-medium ${color}`}>
       <Clock className="size-3 shrink-0" />
-      <span>{date.slice(5).replace("-", "/")}</span>
-      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-        isAlert ? "bg-red-100" : isWarn ? "bg-amber-100" : "bg-emerald-100"
-      }`}>
-        {days}일 전
-      </span>
+      <span className="shrink-0">{date.slice(5).replace("-", "/")}</span>
+      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${bgColor}`}>{days}일 전</span>
     </div>
   );
 }
@@ -80,12 +76,21 @@ type DepositRow = {
   client_name: string | null;
 };
 
+type UnmatchedRow = {
+  name: string;
+  count: number;
+  total: number;
+  lastDate: string;
+  type: string;
+};
+
 function formatWon(n: number) {
   return n.toLocaleString("ko-KR") + "원";
 }
 
 function CrmPageInner() {
   const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"clients" | "unmatched">("clients");
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
@@ -104,6 +109,9 @@ function CrmPageInner() {
   const [panelClient, setPanelClient] = useState<Client | null>(null);
   const [deposits, setDeposits] = useState<DepositRow[]>([]);
   const [depositsLoading, setDepositsLoading] = useState(false);
+  // 미매핑 탭
+  const [unmatched, setUnmatched] = useState<UnmatchedRow[]>([]);
+  const [unmatchedLoading, setUnmatchedLoading] = useState(false);
   const aliasInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -119,15 +127,35 @@ function CrmPageInner() {
     setLoading(false);
   }
 
+  async function loadUnmatched() {
+    setUnmatchedLoading(true);
+    try {
+      const res = await fetch("/api/clients/unmatched");
+      const data = res.ok ? await res.json() : [];
+      setUnmatched(Array.isArray(data) ? data : []);
+    } finally {
+      setUnmatchedLoading(false);
+    }
+  }
+
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (activeTab === "unmatched" && unmatched.length === 0 && !unmatchedLoading) {
+      void loadUnmatched();
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+    const qNoHyphen = q.replace(/-/g, "");
     return clients.filter((c) => {
       const catOk = !catFilter || c.category === catFilter;
+      const bizNum = c.business_number ?? "";
       const searchOk = !q ||
         c.name.toLowerCase().includes(q) ||
-        (c.business_number ?? "").includes(q) ||
+        bizNum.includes(q) ||
+        (qNoHyphen && bizNum.replace(/-/g, "").includes(qNoHyphen)) ||
         (c.representative ?? "").toLowerCase().includes(q) ||
         (c.contact ?? "").includes(q) ||
         (c.email ?? "").toLowerCase().includes(q) ||
@@ -255,6 +283,13 @@ function CrmPageInner() {
     setTimeout(() => setCopiedId(null), 1500);
   }
 
+  function openNewWithAlias(alias: string) {
+    setEditTarget(null);
+    setForm({ ...emptyForm(), aliases: [alias], name: alias });
+    setAliasInput("");
+    setModalOpen(true);
+  }
+
   return (
     <div className="flex h-full flex-col bg-slate-50 relative">
       {/* ── 헤더 ── */}
@@ -265,6 +300,35 @@ function CrmPageInner() {
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
             {clients.length}개
           </span>
+          {/* 탭 */}
+          <div className="ml-4 flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <button
+              onClick={() => setActiveTab("clients")}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                activeTab === "clients"
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              거래처
+            </button>
+            <button
+              onClick={() => setActiveTab("unmatched")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition ${
+                activeTab === "unmatched"
+                  ? "bg-white text-amber-700 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <AlertCircle className="size-3.5" />
+              원장 미매핑
+              {unmatched.length > 0 && (
+                <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+                  {unmatched.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {remapMsg && (
@@ -288,7 +352,80 @@ function CrmPageInner() {
         </div>
       </div>
 
+      {/* ── 원장 미매핑 탭 ── */}
+      {activeTab === "unmatched" && (
+        <div className="flex-1 overflow-auto">
+          <div className="sticky top-0 z-10 border-b border-slate-200 bg-amber-50 px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  원장 미매핑 입금자 목록
+                </p>
+                <p className="text-xs text-amber-600">
+                  통합 입출금 원장에 있지만 거래처(CRM)와 연결되지 않은 입금자입니다.
+                  거래처 등록 후 &quot;미매핑 재적용&quot;을 클릭하면 자동 매핑됩니다.
+                </p>
+              </div>
+              <button
+                onClick={loadUnmatched}
+                disabled={unmatchedLoading}
+                className="flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+              >
+                <RefreshCw className={`size-3 ${unmatchedLoading ? "animate-spin" : ""}`} />
+                새로고침
+              </button>
+            </div>
+          </div>
+          {unmatchedLoading ? (
+            <div className="flex h-40 items-center justify-center text-sm text-slate-400">로딩 중...</div>
+          ) : unmatched.length === 0 ? (
+            <div className="flex h-40 flex-col items-center justify-center gap-2 text-sm text-slate-400">
+              <Check className="size-8 text-emerald-400" />
+              <p>미매핑 항목이 없습니다. 모든 원장 항목이 매핑되었습니다.</p>
+            </div>
+          ) : (
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-[73px] z-10 bg-slate-50">
+                <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3 text-left">No.</th>
+                  <th className="px-4 py-3 text-left">입금자명 (원장)</th>
+                  <th className="px-4 py-3 text-right">건수</th>
+                  <th className="px-4 py-3 text-right">총액</th>
+                  <th className="px-4 py-3 text-left">최근 입금일</th>
+                  <th className="px-4 py-3 text-right"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {unmatched.map((row, i) => (
+                  <tr key={row.name} className="group hover:bg-amber-50/50">
+                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{row.name}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">{row.count}건</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-slate-800">
+                      {row.total.toLocaleString("ko-KR")}원
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {row.lastDate ? row.lastDate.slice(0, 10) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => openNewWithAlias(row.name)}
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 opacity-0 shadow-sm transition hover:border-slate-300 hover:text-slate-800 group-hover:opacity-100"
+                      >
+                        <UserPlus className="size-3.5" />
+                        거래처 등록
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* ── 필터바 ── */}
+      {activeTab === "clients" && (
       <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-6 py-3">
         {/* 카테고리 */}
         <div className="relative">
@@ -314,104 +451,115 @@ function CrmPageInner() {
           />
         </div>
       </div>
+      )}
 
       {/* ── 테이블 ── */}
+      {activeTab === "clients" && (
       <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full table-fixed border-collapse text-sm">
+          <colgroup>
+            <col className="w-12" />
+            <col className="w-[220px]" />
+            <col className="w-[90px]" />
+            <col className="w-[180px]" />
+            <col className="w-[148px]" />
+            <col className="w-[72px]" />
+            <col className="w-[120px]" />
+            <col className="w-[130px]" />
+            <col />
+            <col className="w-10" />
+          </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-50">
-            <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3 text-left">No.</th>
-              <th className="px-4 py-3 text-left">상호(법인명)</th>
-              <th className="px-4 py-3 text-left">사업자등록번호</th>
-              <th className="px-4 py-3 text-left">대표자</th>
-              <th className="px-4 py-3 text-left">카테고리</th>
-              <th className="px-4 py-3 text-left">입금자명</th>
-              <th className="px-4 py-3 text-left">연락처</th>
-              <th className="px-4 py-3 text-left">이메일</th>
-              <th className="px-4 py-3 text-left">마지막 입금일</th>
-              <th className="px-4 py-3 text-left">메모</th>
-              <th className="px-4 py-3 text-right"></th>
+            <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              <th className="px-3 py-2.5 text-center">No.</th>
+              <th className="px-3 py-2.5 text-left">상호(법인명)</th>
+              <th className="px-3 py-2.5 text-left">카테고리</th>
+              <th className="px-3 py-2.5 text-left">입금자명</th>
+              <th className="px-3 py-2.5 text-left">사업자등록번호</th>
+              <th className="px-3 py-2.5 text-left">대표자</th>
+              <th className="px-3 py-2.5 text-left">연락처</th>
+              <th className="px-3 py-2.5 text-left">마지막 입금일</th>
+              <th className="px-3 py-2.5 text-left">메모</th>
+              <th className="px-3 py-2.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {loading && (
-              <tr><td colSpan={11} className="py-12 text-center text-slate-400">로딩 중...</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-slate-400">로딩 중...</td></tr>
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={11} className="py-12 text-center text-slate-400">
+              <tr><td colSpan={10} className="py-12 text-center text-slate-400">
                 {search || catFilter ? "검색 결과가 없습니다" : "등록된 거래처가 없습니다. 거래처를 추가해보세요."}
               </td></tr>
             )}
             {filtered.map((c, i) => (
               <tr
                 key={c.id}
-                className="group cursor-pointer transition hover:bg-blue-50/50"
+                className="group cursor-pointer transition hover:bg-blue-50/40"
                 onClick={() => openPanel(c)}
               >
-                <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium text-slate-800">{c.name}</div>
-                  {c.address && (
-                    <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
-                      <MapPin className="size-3" />{c.address}
-                    </div>
-                  )}
+                <td className="px-3 py-2.5 text-center text-xs text-slate-300">{i + 1}</td>
+                <td className="px-3 py-2.5">
+                  <span className="block truncate font-medium text-slate-800">{c.name}</span>
                 </td>
-                <td className="px-4 py-3">
-                  {c.business_number ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-slate-600">{c.business_number}</span>
-                      <button
-                        onClick={() => copyBizNum(c.business_number!, c.id)}
-                        className="text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100"
-                      >
-                        {copiedId === c.id
-                          ? <Check className="size-3.5 text-emerald-500" />
-                          : <Copy className="size-3.5" />}
-                      </button>
-                    </div>
-                  ) : <span className="text-slate-300">—</span>}
-                </td>
-                <td className="px-4 py-3 text-slate-700">{c.representative || <span className="text-slate-300">—</span>}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
                   {c.category
-                    ? <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CAT_COLOR[c.category] ?? "bg-slate-100 text-slate-600"}`}>{c.category}</span>
-                    : <span className="text-slate-300">—</span>}
+                    ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CAT_COLOR[c.category] ?? "bg-slate-100 text-slate-600"}`}>{c.category}</span>
+                    : <span className="text-slate-200">—</span>}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
                   {c.aliases.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {c.aliases.slice(0, 2).map((a) => (
-                        <span key={a} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{a}</span>
-                      ))}
-                      {c.aliases.length > 2 && (
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">+{c.aliases.length - 2}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="truncate rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                        {c.aliases[0]}
+                      </span>
+                      {c.aliases.length > 1 && (
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-400">+{c.aliases.length - 1}</span>
                       )}
                     </div>
-                  ) : <span className="text-slate-300">—</span>}
+                  ) : <span className="text-slate-200">—</span>}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
+                  {c.business_number ? (
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-xs text-slate-500">{c.business_number}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyBizNum(c.business_number!, c.id); }}
+                        className="shrink-0 text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100"
+                      >
+                        {copiedId === c.id
+                          ? <Check className="size-3 text-emerald-500" />
+                          : <Copy className="size-3" />}
+                      </button>
+                    </div>
+                  ) : <span className="text-slate-200">—</span>}
+                </td>
+                <td className="px-3 py-2.5">
+                  <span className="truncate block text-xs text-slate-600">{c.representative || <span className="text-slate-200">—</span>}</span>
+                </td>
+                <td className="px-3 py-2.5">
                   {c.contact
-                    ? <div className="flex items-center gap-1 text-slate-600"><Phone className="size-3 text-slate-300" />{c.contact}</div>
-                    : <span className="text-slate-300">—</span>}
+                    ? <div className="flex items-center gap-1 text-xs text-slate-500"><Phone className="size-3 shrink-0 text-slate-300" /><span className="truncate">{c.contact}</span></div>
+                    : <span className="text-slate-200">—</span>}
                 </td>
-                <td className="px-4 py-3 text-slate-600">
-                  {c.email
-                    ? <div className="flex items-center gap-1"><Mail className="size-3 text-slate-300" />{c.email}</div>
-                    : <span className="text-slate-300">—</span>}
+                <td className="px-3 py-2.5">
+                  <LastDepositBadge
+                    date={
+                      lastDeposits[c.name] ??
+                      c.aliases.map((a) => lastDeposits[a]).filter(Boolean).sort().reverse()[0]
+                    }
+                    category={c.category}
+                  />
                 </td>
-                <td className="px-4 py-3">
-                  <LastDepositBadge date={lastDeposits[c.name]} category={c.category} />
+                <td className="px-3 py-2.5">
+                  <span className="truncate block text-xs text-slate-400">{c.notes || ""}</span>
                 </td>
-                <td className="max-w-[160px] px-4 py-3 text-slate-500">
-                  <p className="truncate text-xs">{c.notes || <span className="text-slate-300">—</span>}</p>
-                </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-2 py-2.5 text-right">
                   <button
                     onClick={(e) => { e.stopPropagation(); openEdit(c); }}
-                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 opacity-0 shadow-sm transition hover:border-slate-300 hover:text-slate-700 group-hover:opacity-100"
+                    className="rounded-lg border border-slate-200 bg-white p-1 text-slate-300 opacity-0 shadow-sm transition hover:border-slate-300 hover:text-slate-600 group-hover:opacity-100"
                   >
-                    <Pencil className="size-3.5" />
+                    <Pencil className="size-3" />
                   </button>
                 </td>
               </tr>
@@ -419,6 +567,7 @@ function CrmPageInner() {
           </tbody>
         </table>
       </div>
+      )}
 
       {/* ── 입금내역 사이드 패널 ── */}
       {panelClient && (
@@ -443,12 +592,75 @@ function CrmPageInner() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setPanelClient(null)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="size-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setPanelClient(null); openEdit(panelClient); }}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Pencil className="size-3" />
+                  수정
+                </button>
+                <button
+                  onClick={() => setPanelClient(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 사업자 정보 */}
+            <div className="border-b border-slate-100 px-5 py-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                {panelClient.business_number && (
+                  <>
+                    <span className="text-slate-400">사업자등록번호</span>
+                    <span className="font-mono text-slate-700">{panelClient.business_number}</span>
+                  </>
+                )}
+                {panelClient.representative && (
+                  <>
+                    <span className="text-slate-400">대표자</span>
+                    <span className="text-slate-700">{panelClient.representative}</span>
+                  </>
+                )}
+                {panelClient.business_type && (
+                  <>
+                    <span className="text-slate-400">업태</span>
+                    <span className="text-slate-700">{panelClient.business_type}</span>
+                  </>
+                )}
+                {panelClient.business_item && (
+                  <>
+                    <span className="text-slate-400">종목</span>
+                    <span className="text-slate-700">{panelClient.business_item}</span>
+                  </>
+                )}
+                {panelClient.contact && (
+                  <>
+                    <span className="text-slate-400">전화</span>
+                    <span className="text-slate-700">{panelClient.contact}</span>
+                  </>
+                )}
+                {panelClient.email && (
+                  <>
+                    <span className="text-slate-400">세금계산서 이메일</span>
+                    <span className="truncate text-slate-700">{panelClient.email}</span>
+                  </>
+                )}
+                {panelClient.address && (
+                  <>
+                    <span className="text-slate-400">주소</span>
+                    <span className="text-slate-600">{panelClient.address}</span>
+                  </>
+                )}
+                {panelClient.aliases.length > 0 && (
+                  <>
+                    <span className="text-slate-400">입금자명</span>
+                    <span className="text-slate-700">{panelClient.aliases.join(", ")}</span>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* 요약 */}
@@ -690,8 +902,8 @@ function CrmPageInner() {
                       <span className="ml-1 font-normal text-slate-400">— SMS 입금자명과 일치해야 자동 매핑됩니다</span>
                     </label>
                     <div className="min-h-[40px] flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 focus-within:ring-2 focus-within:ring-slate-200">
-                      {aliases.map((a) => (
-                        <span key={a} className="flex items-center gap-0.5 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                      {aliases.map((a, ai) => (
+                        <span key={`${a}-${ai}`} className="flex items-center gap-0.5 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
                           {a}
                           <button onClick={() => removeAlias(a)} className="ml-0.5 text-slate-400 hover:text-slate-700"><X className="size-3" /></button>
                         </span>

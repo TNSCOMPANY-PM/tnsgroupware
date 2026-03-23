@@ -268,12 +268,14 @@ export default function ApprovalsPage() {
         ...(reason ? { reject_reason: reason } : {}),
       }),
     });
+    const result = await res.json().catch(() => null);
     if (res.ok) {
-      const updated = await res.json();
-      setApprovals((p) => p.map((a) => a.id === id ? updated : a));
-      setDetailItem(updated);
+      setApprovals((p) => p.map((a) => a.id === id ? result : a));
+      setDetailItem(result);
       setShowRejectInput(false);
       setRejectReason("");
+    } else {
+      alert(result?.error || "처리에 실패했습니다.");
     }
   };
 
@@ -986,6 +988,22 @@ export default function ApprovalsPage() {
               </div>
             )}
 
+            {/* 매출매입 연동 현황 */}
+            {(detailItem.type === "expense" || detailItem.type === "purchase") && detailItem.amount != null && Number(detailItem.amount) > 0 && (
+              <div className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${
+                detailItem.status === "approved"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}>
+                <span>{detailItem.status === "approved" ? "✅" : "⏳"}</span>
+                <span>
+                  매출매입 원장 {detailItem.status === "approved" ? "승인 완료" : "미승인 매입으로 대기 중"}
+                  {" · "}{Number(detailItem.amount).toLocaleString()}원
+                </span>
+                <a href="/finance" className="ml-auto text-blue-600 hover:underline">원장 보기 →</a>
+              </div>
+            )}
+
             {/* 결재 버튼 (권한자만) */}
             {canApprove && detailItem.status === "pending" && (
               <div className="mt-4 space-y-2">
@@ -996,7 +1014,7 @@ export default function ApprovalsPage() {
                       onClick={() => updateStatus(detailItem.id, "approved")}
                       className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                     >
-                      <Check className="size-4" /> 결재 후 완료
+                      <Check className="size-4" /> 결재 완료 (매입 승인)
                     </button>
                     <button
                       type="button"

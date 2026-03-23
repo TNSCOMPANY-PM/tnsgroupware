@@ -5,7 +5,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const supabase = await createClient();
   const { id } = await params;
   const body = await req.json();
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("clients")
     .update({
       name: body.name,
@@ -20,11 +20,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       business_item: body.business_item ?? null,
       email: body.email ?? null,
     })
-    .eq("id", id)
-    .select()
-    .single();
+    .eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {

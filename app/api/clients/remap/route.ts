@@ -8,7 +8,7 @@ export async function POST() {
   // 모든 clients 가져오기
   const { data: clients, error: clientsErr } = await supabase
     .from("clients")
-    .select("id, name, category, aliases");
+    .select("id, name, category, aliases, representative");
   if (clientsErr) return NextResponse.json({ error: clientsErr.message }, { status: 500 });
 
   const clientsForMatch = (clients ?? []) as ClientForMatch[];
@@ -20,13 +20,15 @@ export async function POST() {
     for (const alias of c.aliases ?? []) {
       if (alias) aliasMap.set(alias.trim(), { name: c.name, category: c.category });
     }
+    if (c.representative) aliasMap.set(c.representative.trim(), { name: c.name, category: c.category });
   }
 
-  // 미매핑 finance 행 조회 (category 없는 행)
+  // client_name이 있는 모든 finance 행 조회 (승인 여부 관계없이)
   const { data: rows, error: rowsErr } = await supabase
     .from("finance")
     .select("id, client_name, category")
-    .is("category", null);
+    .not("client_name", "is", null)
+    .neq("client_name", "");
   if (rowsErr) return NextResponse.json({ error: rowsErr.message }, { status: 500 });
 
   let updated = 0;
@@ -46,6 +48,9 @@ export async function POST() {
     }
 
     if (!matchResult) continue;
+
+    // 이미 동일하게 매핑된 경우 스킵
+    if (row.client_name === matchResult.name && row.category === matchResult.category) continue;
 
     const { error: upErr } = await supabase
       .from("finance")
