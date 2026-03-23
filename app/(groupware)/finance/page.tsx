@@ -349,7 +349,17 @@ export default function FinancePage() {
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "finance" },
-          () => { fetchFinanceRows(); }
+          (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+            if (payload.eventType === "INSERT") {
+              setFinanceRows((prev) => [payload.new as FinanceRow, ...prev]);
+            } else if (payload.eventType === "UPDATE") {
+              setFinanceRows((prev) =>
+                prev.map((r) => r.id === (payload.new as FinanceRow).id ? { ...r, ...(payload.new as FinanceRow) } : r)
+              );
+            } else if (payload.eventType === "DELETE") {
+              setFinanceRows((prev) => prev.filter((r) => r.id !== (payload.old as { id: string }).id));
+            }
+          }
         )
         .subscribe();
       return () => {
@@ -1243,9 +1253,13 @@ export default function FinancePage() {
                       onEditRow={row.status === "PAID" ? () => setEditLedgerRow(row) : undefined}
                       onAmountChange={row.status === "UNMAPPED" ? handleAmountChange : undefined}
                       onDelete={(id) => handleDeleteLedgerRow(id, row.source)}
-                      onReceipt={row.source === "finance" ? () => {
+                      onReceipt={row.source === "finance" ? async () => {
                         const fr = financeRows.find((r) => r.id === row.id) ?? null;
-                        setReceiptTarget(fr);
+                        if (fr) {
+                          const res = await fetch(`/api/finance/${row.id}`);
+                          const json = res.ok ? await res.json() : {};
+                          setReceiptTarget({ ...fr, receipt_data: json.receipt_data ?? null });
+                        }
                       } : undefined}
                     />
                   ))
