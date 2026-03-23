@@ -67,7 +67,7 @@ function monthKeyToRange(key: string): { first: string; last: string } {
   return { first, last };
 }
 
-type FinanceRow = { id: string; month: string; type: string; amount: number; category: string | null; description: string | null };
+type FinanceRow = { id: string; month: string; type: string; amount: number; category: string | null; description: string | null; date?: string; status?: string; client_name?: string | null; created_at?: string };
 type EmployeeRow = { id: string; name: string; department: string; role: string; hire_date: string };
 type GanttRow = { id: string; name: string; team: string; progress: number };
 type LedgerApiRow = {
@@ -124,8 +124,8 @@ function amountToSupplyVat(amount: number): { supply: number; vat: number } {
 
 function normalizeLedgerTeamLabel(classification: string | undefined): "더널리" | "티제이웹" | "기타" {
   const raw = (classification ?? "").trim();
-  if (raw === "더널리" || raw === "더널리 충전") return "더널리";
-  if (raw === "티제이웹" || raw === "유지보수") return "티제이웹";
+  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체") return "더널리";
+  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지") return "티제이웹";
   return "기타";
 }
 
@@ -202,15 +202,15 @@ export default function ReportsPage() {
     setLoading(true);
     Promise.all([
       supabase.from("finance").select("id,month,type,amount,category,description").eq("month", financeMonth),
-      supabase.from("finance").select("id,month,type,amount,category,description,date,status,client_name,created_at"),
+      fetch("/api/finance").then((r) => r.ok ? r.json() : []),
       supabase.from("employees").select("id,name,department,role,hire_date"),
       fetch(`/api/roadmap/${encodeURIComponent(monthKey)}`).then((r) => r.ok ? r.json() : null),
       fetch("/api/transactions/ledger").then((r) => (r.ok ? r.json() : { ledger: [] })),
       fetch("/finance-current.json").then((r) => (r.ok ? r.json() : null)),
     ])
-      .then(([fRes, fAllRes, eRes, roadmapJson, ledgerRes, currentJson]) => {
+      .then(([fRes, fAllData, eRes, roadmapJson, ledgerRes, currentJson]) => {
         setFinanceRows((fRes.data as FinanceRow[]) ?? []);
-        setFinanceRowsAll((fAllRes.data as FinanceRow[]) ?? []);
+        setFinanceRowsAll(Array.isArray(fAllData) ? (fAllData as FinanceRow[]) : []);
         setLedgerApiRows(Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : []);
         setFinanceData((currentJson as FinanceCurrentJson | null) ?? null);
         const allEmps = (eRes.data as EmployeeRow[]) ?? [];
