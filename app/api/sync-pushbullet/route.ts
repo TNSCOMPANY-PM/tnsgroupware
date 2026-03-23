@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
+import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -172,21 +173,31 @@ export async function GET(request: NextRequest) {
 
     const added: { date: string; amount: number; client_name: string }[] = [];
 
+    // 루프 전 clients 전체 1회 로드 (퍼지 매칭용)
+    const { data: allClients } = await supabase.from("clients").select("id, name, category, aliases");
+    const clientsForMatch = (allClients ?? []) as ClientForMatch[];
+
     for (const p of toInsert) {
       const month = p.date.slice(0, 7);
 
-      // clients alias 자동 매핑
+      // clients 매핑: 정확 alias → 퍼지 매칭 순서로 시도
       let finalClientName = p.client_name || null;
       let autoCategory: string | null = null;
       if (finalClientName) {
-        const { data: clientMatch } = await supabase
-          .from("clients")
-          .select("name, category")
-          .contains("aliases", [finalClientName])
-          .maybeSingle();
-        if (clientMatch) {
-          finalClientName = clientMatch.name;
-          autoCategory = clientMatch.category;
+        // 1차: 정확 alias 매칭
+        const exactClient = clientsForMatch.find((c) =>
+          c.aliases.some((a) => a.trim() === finalClientName)
+        );
+        if (exactClient) {
+          finalClientName = exactClient.name;
+          autoCategory = exactClient.category;
+        } else {
+          // 2차: 퍼지 매칭
+          const fuzzy = matchClient(finalClientName, clientsForMatch);
+          if (fuzzy) {
+            finalClientName = fuzzy.client.name;
+            autoCategory = fuzzy.client.category;
+          }
         }
       }
 

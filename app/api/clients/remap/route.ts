@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
 
 export async function POST() {
   const supabase = await createClient();
@@ -10,15 +11,18 @@ export async function POST() {
     .select("id, name, category, aliases");
   if (clientsErr) return NextResponse.json({ error: clientsErr.message }, { status: 500 });
 
-  // 매핑 테이블: alias → { name, category }
+  const clientsForMatch = (clients ?? []) as ClientForMatch[];
+
+  // 정확 alias 매핑 테이블
   const aliasMap = new Map<string, { name: string; category: string | null }>();
-  for (const c of clients ?? []) {
+  for (const c of clientsForMatch) {
+    aliasMap.set(c.name.trim(), { name: c.name, category: c.category });
     for (const alias of c.aliases ?? []) {
       if (alias) aliasMap.set(alias.trim(), { name: c.name, category: c.category });
     }
   }
 
-  // 미매핑 finance 행 조회 (category 없거나 pending 상태)
+  // 미매핑 finance 행 조회 (category 없는 행)
   const { data: rows, error: rowsErr } = await supabase
     .from("finance")
     .select("id, client_name, category")
@@ -29,14 +33,25 @@ export async function POST() {
   for (const row of rows ?? []) {
     const raw = (row.client_name ?? "").trim();
     if (!raw) continue;
-    const match = aliasMap.get(raw);
-    if (!match) continue;
+
+    // 1차: 정확 alias/name 매칭
+    let matchResult = aliasMap.get(raw);
+
+    // 2차: 퍼지 매칭
+    if (!matchResult) {
+      const fuzzy = matchClient(raw, clientsForMatch);
+      if (fuzzy) {
+        matchResult = { name: fuzzy.client.name, category: fuzzy.client.category };
+      }
+    }
+
+    if (!matchResult) continue;
 
     const { error: upErr } = await supabase
       .from("finance")
       .update({
-        client_name: match.name,
-        category: match.category,
+        client_name: matchResult.name,
+        category: matchResult.category,
       })
       .eq("id", row.id);
     if (!upErr) updated++;
