@@ -116,7 +116,7 @@ export type PurchaseTemplate = {
 
 export default function ApprovalsPage() {
   const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
-  const canApprove = isCLevel || isTeamLead;
+  const canApprove = isTeamLead; // 전자결재는 팀장(박재민)만 결재
 
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);

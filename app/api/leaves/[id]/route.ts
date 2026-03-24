@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 async function notifyPushbullet(title: string, body: string) {
@@ -17,7 +17,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const body = await req.json();
   const { id } = await params;
 
@@ -72,7 +72,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { id } = await params;
 
   const { error } = await supabase
