@@ -619,45 +619,55 @@ export default function FinancePage() {
         continue;
       }
 
-      // 둘 다 finance DB 행이면 iden·시간·고객사 기반으로 진짜 중복 여부 판단
+      // 둘 다 finance DB 행이면 iden·시간 기반으로 진짜 중복 여부 판단
       if (prev.source === "finance" && row.source === "finance") {
-        // iden 추출 (description에 "pb:XXXXX" 형태로 저장됨)
         const extractIden = (r: LedgerRow) => {
           const m = (r.description ?? "").match(/pb:(\S+)/);
           return m ? m[1] : null;
         };
-        // SMS 시간 추출 (description에 "t:HH:MM" 형태로 저장됨)
         const extractTime = (r: LedgerRow) => {
           const m = (r.description ?? "").match(/t:(\d{2}:\d{2})/);
           return m ? m[1] : null;
         };
-        const prevIden = extractIden(prev);
-        const rowIden = extractIden(row);
-        // 둘 다 iden이 있고 다르면 → 진짜 다른 SMS → 둘 다 유지
-        if (prevIden && rowIden && prevIden !== rowIden) {
-          out.push(prev);
-          keepBySig.set(sig, row);
+
+        // ① PAID vs UNMAPPED → PAID 무조건 우선 (iden 달라도 같은 입금건으로 간주)
+        //    승인된 건이 있으면 미승인 중복 건은 항상 숨김
+        if (prev.status === "PAID" && row.status !== "PAID") {
+          continue; // prev(PAID) 유지, row(UNMAPPED) 버림
+        }
+        if (row.status === "PAID" && prev.status !== "PAID") {
+          keepBySig.set(sig, row); // row(PAID)로 교체
           continue;
         }
-        // 한쪽만 iden 있으면 → 다른 출처(자동 vs 수동) → 둘 다 유지
+
+        // ② 이하는 둘 다 UNMAPPED인 경우만
+        const prevIden = extractIden(prev);
+        const rowIden = extractIden(row);
+        const prevTime = extractTime(prev);
+        const rowTime = extractTime(row);
+
+        // 둘 다 iden이 다르고 시간도 다르면 → 진짜 다른 입금 → 둘 다 유지
+        if (prevIden && rowIden && prevIden !== rowIden) {
+          if (prevTime && rowTime && prevTime !== rowTime) {
+            out.push(prev);
+            keepBySig.set(sig, row);
+          }
+          // iden 다르지만 시간 동일/불명 → 같은 입금의 push+SMS 중복 → 기존 유지
+          continue;
+        }
+        // 한쪽만 iden(자동) + 다른 쪽 no iden(수동 붙여넣기) → 다른 출처 → 둘 다 유지
         if ((!prevIden && rowIden) || (prevIden && !rowIden)) {
           out.push(prev);
           keepBySig.set(sig, row);
           continue;
         }
-        // iden 없어도 시간이 다르면 → 진짜 다른 거래 → 둘 다 유지
-        const prevTime = extractTime(prev);
-        const rowTime = extractTime(row);
+        // 시간이 다르면 → 진짜 다른 거래 → 둘 다 유지
         if (prevTime && rowTime && prevTime !== rowTime) {
           out.push(prev);
           keepBySig.set(sig, row);
           continue;
         }
-        // 클라이언트명은 승인 시 변경될 수 있으므로 중복 판단 기준에서 제외
-        // → PAID 우선, 아니면 기존 유지
-        if (row.status === "PAID" && prev.status !== "PAID") {
-          keepBySig.set(sig, row);
-        }
+        // 그 외 → 기존 유지
         continue;
       }
 
