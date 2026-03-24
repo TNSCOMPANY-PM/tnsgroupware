@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { countBusinessDays } from "@/utils/leaveCalculator";
 
-/** Vercel Cron: 매일 자정 실행. 3영업일 경과 또는 휴가 당일 도달 시 pending → approved, auto_approved = true */
+/** Vercel Cron: 매일 자정 실행.
+ *  3영업일 경과(신청일 포함) 또는 휴가 당일 도달 시 → 승인_완료 (auto_approved = true)
+ *  대상 상태: 팀장_1차_승인_대기, C레벨_최종_승인_대기
+ */
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -19,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   let supabase;
   try {
-    supabase = await createClient();
+    supabase = createAdminClient();
   } catch {
     return NextResponse.json(
       { ok: false, error: "Supabase not configured", updated: 0 },
@@ -31,12 +34,11 @@ export async function GET(request: NextRequest) {
   const todayStr = toDateOnly(now);
 
   const { data: pendingLeaves, error: fetchError } = await supabase
-    .from("leaves")
+    .from("leave_requests")
     .select("id, created_at, start_date")
-    .eq("status", "pending");
+    .in("status", ["팀장_1차_승인_대기", "C레벨_최종_승인_대기"]);
 
   if (fetchError) {
-    console.error("[auto-approve] fetch", fetchError);
     return NextResponse.json(
       { ok: false, error: fetchError.message, updated: 0 },
       { status: 200 }
@@ -69,16 +71,15 @@ export async function GET(request: NextRequest) {
   }
 
   const { error: updateError } = await supabase
-    .from("leaves")
+    .from("leave_requests")
     .update({
-      status: "approved",
+      status: "승인_완료",
       auto_approved: true,
-      approved_by: null,
+      c_level_approved_at: now.toISOString(),
     })
     .in("id", toApprove);
 
   if (updateError) {
-    console.error("[auto-approve] update", updateError);
     return NextResponse.json(
       { ok: false, error: updateError.message, updated: 0 },
       { status: 200 }
