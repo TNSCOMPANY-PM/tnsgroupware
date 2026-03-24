@@ -829,6 +829,7 @@ function HrInfoTab({
           <InfoRow icon={Banknote} label="급여 형태" value={payroll.salaryType} />
         </Section>
 
+        {profile.role !== "C레벨" && (
         <Section title="휴가 정보">
           <div className="flex flex-wrap gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all duration-200 ease-in-out hover:shadow-sm">
             <div>
@@ -861,6 +862,7 @@ function HrInfoTab({
             </Button>
           </div>
         </Section>
+        )}
 
         {/* 문서 발급 (Documents) — 본인만 */}
         {isOwnProfile && (

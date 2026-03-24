@@ -787,8 +787,8 @@ function LeaveOverviewTab({
         </div>
       )}
 
-      {/* 휴가 등록 */}
-      <section>
+      {/* 휴가 등록 — C레벨 제외 */}
+      {!isCLevel && <section>
         <h3 className="mb-4 text-lg font-bold text-[var(--foreground)]">
           휴가 등록
         </h3>
@@ -823,10 +823,10 @@ function LeaveOverviewTab({
             );
           })}
         </div>
-      </section>
+      </section>}
 
-      {/* 사용한 기록 */}
-      <section>
+      {/* 사용한 기록 — C레벨 제외 */}
+      {!isCLevel && <section>
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-bold text-[var(--foreground)]">
             사용한 기록
@@ -910,7 +910,7 @@ function LeaveOverviewTab({
             ))
           )}
         </div>
-      </section>
+      </section>}
 
       {/* 취소 확인 모달 */}
       <Dialog open={!!cancelConfirm} onOpenChange={(o) => !o && setCancelConfirm(null)}>

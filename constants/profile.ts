@@ -426,6 +426,7 @@ export function getProfileForEmployee(
       )
     : 0;
   const dept = e.department === "경영" ? "경영" : "마케팅사업부";
+  const isCLevel = e.role === "C레벨";
   return {
     id: e.id,
     name: e.name,
@@ -452,15 +453,15 @@ export function getProfileForEmployee(
       emergencyContact: "-",
     },
     employment: {
-      type: "정규직",
+      type: isCLevel ? "임원" : "정규직",
       joinDate,
       tenure: "-",
       tenureDays,
       tenureMaxDays: 1825,
       status: "재직",
     },
-    payroll: { salaryAccount: "-", salaryType: "월급" },
-    leave: { granted: 15, used: 0, remaining: 15 },
+    payroll: { salaryAccount: "-", salaryType: isCLevel ? "연봉" : "월급" },
+    leave: { granted: 0, used: 0, remaining: 0 },
     sidebar: {
       reportLine: "-",
       reportDepartment: e.department,
