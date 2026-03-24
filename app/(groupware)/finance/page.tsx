@@ -612,7 +612,7 @@ export default function FinancePage() {
       }
       // 클라이언트명 매칭이 깨져도 같은 거래면 1줄로 보여야 해서,
       // 우선 date(type 포함) + amount 기준으로 월 단위 dedupe를 수행
-      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}|${(row.senderName ?? "").trim()}`;
+      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}`;
       const prev = keepBySig.get(sig);
       if (!prev) {
         keepBySig.set(sig, row);
@@ -646,13 +646,17 @@ export default function FinancePage() {
         const prevTime = extractTime(prev);
         const rowTime = extractTime(row);
 
-        // 둘 다 iden이 다르고 시간도 다르면 → 진짜 다른 입금 → 둘 다 유지
+        // 둘 다 iden이 다르면 → 시간 또는 입금자명으로 진짜 다른 입금 여부 판단
         if (prevIden && rowIden && prevIden !== rowIden) {
-          if (prevTime && rowTime && prevTime !== rowTime) {
+          const prevName = (prev.senderName ?? "").trim();
+          const rowName = (row.senderName ?? "").trim();
+          const nameDiffers = prevName && rowName && prevName !== rowName;
+          if ((prevTime && rowTime && prevTime !== rowTime) || nameDiffers) {
+            // 시간 다르거나 입금자명 다르면 → 진짜 다른 입금 → 둘 다 유지
             out.push(prev);
             keepBySig.set(sig, row);
           }
-          // iden 다르지만 시간 동일/불명 → 같은 입금의 push+SMS 중복 → 기존 유지
+          // iden 다르지만 시간·이름 동일 → 같은 입금의 push+SMS 중복 → 기존 유지
           continue;
         }
         // 한쪽만 iden(자동) + 다른 쪽 no iden(수동 붙여넣기) → 다른 출처 → 둘 다 유지
