@@ -430,7 +430,7 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
 }
 
 export function LeaveTab({ initialDate }: { initialDate?: string }) {
-  const { currentRole, isCLevel, isTeamLead, currentUserId } = usePermission();
+  const { currentRole, isCLevel, isTeamLead, currentUserId, currentUserName } = usePermission();
   const { showRealtimeToast } = useRealtimeToast() ?? {};
   useSupabaseRealtime("leaves", { onRealtime: showRealtimeToast });
   const [subTab, setSubTab] = useState("overview");
@@ -460,6 +460,7 @@ export function LeaveTab({ initialDate }: { initialDate?: string }) {
             isCLevel={isCLevel}
             isTeamLead={isTeamLead}
             currentUserId={currentUserId}
+            currentUserName={currentUserName}
             initialDate={initialDate}
           />
         </TabsContent>
@@ -489,12 +490,14 @@ function LeaveOverviewTab({
   isCLevel,
   isTeamLead,
   currentUserId,
+  currentUserName,
   initialDate,
 }: {
   currentRole: string;
   isCLevel: boolean;
   isTeamLead: boolean;
   currentUserId: string;
+  currentUserName: string;
   initialDate?: string;
 }) {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -596,7 +599,7 @@ function LeaveOverviewTab({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         applicantId: currentUserId,
-        applicantName: applicant?.name ?? "사용자",
+        applicantName: currentUserName || applicant?.name || "사용자",
         applicantDepartment: applicant?.department ?? "마케팅사업부",
         leaveType: form.leaveType,
         startDate: form.startDate,
@@ -610,7 +613,7 @@ function LeaveOverviewTab({
     await fetchLeaves();
     setModalOpen(false);
     setSelectedLeaveType(null);
-  }, [currentUser, currentUserId, currentRole, fetchLeaves]);
+  }, [currentUser, currentUserId, currentUserName, currentRole, fetchLeaves]);
 
   const handleApprove = useCallback(async (id: string) => {
     const req = leaveRequests.find((r) => r.id === id);
