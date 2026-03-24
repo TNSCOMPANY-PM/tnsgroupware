@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermission } from "@/contexts/PermissionContext";
 import { usePlannedLeaves } from "@/contexts/PlannedLeavesContext";
-import { DUMMY_USERS } from "@/constants/users";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { AnnualLeavePromotionWidget } from "@/components/leave/AnnualLeavePromotionWidget";
 import { AnnualLeavePlanModal } from "@/components/leave/AnnualLeavePlanModal";
 import { computePromotionStatus } from "@/utils/leavePromotionEngine";
@@ -12,25 +12,42 @@ import { formatWonKorean } from "@/utils/formatWon";
 import { format } from "date-fns";
 import { Shield, Check, Clock, DollarSign } from "lucide-react";
 import type { LeaveRequest } from "@/constants/leave";
+import type { Employee } from "@/types/employee";
+import type { User, UserRole, EmploymentStatus } from "@/constants/users";
+
+function employeeToUser(emp: Employee): User {
+  return {
+    id: emp.id,
+    name: emp.name,
+    position: emp.position ?? emp.role,
+    department: (emp.department === "경영" || emp.department === "마케팅사업부") ? emp.department as "경영" | "마케팅사업부" : "마케팅사업부",
+    role: (emp.role === "C레벨" || emp.role === "팀장" || emp.role === "사원") ? emp.role as UserRole : "사원",
+    joinDate: emp.hire_date?.replace(/-/g, "."),
+    employmentStatus: (emp.employment_status === "재직" || emp.employment_status === "휴직" || emp.employment_status === "퇴직") ? emp.employment_status as EmploymentStatus : "재직",
+    email: emp.email ?? undefined,
+    phone: emp.phone ?? undefined,
+  };
+}
 
 const TODAY = new Date(2026, 2, 9);
 const AVG_DAILY_WAGE = 180000;
 
 export function AnnualLeavePromotionTab() {
-  const { currentUserId, isCLevel } = usePermission();
+  const { currentUserId, currentEmployee, isCLevel } = usePermission();
   const { plannedLeaveRequests, addPlannedLeave } = usePlannedLeaves();
+  const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
   const [planModalOpen, setPlanModalOpen] = useState(false);
 
   const leaveRequests: LeaveRequest[] = [];
   const statuses = useMemo(
     () =>
       computePromotionStatus(
-        DUMMY_USERS,
+        employees.map(employeeToUser),
         leaveRequests,
         plannedLeaveRequests,
         TODAY
       ),
-    [leaveRequests, plannedLeaveRequests]
+    [employees, leaveRequests, plannedLeaveRequests]
   );
 
   const myStatus = statuses.find((s) => s.userId === currentUserId);
@@ -41,9 +58,7 @@ export function AnnualLeavePromotionTab() {
     !myStatus.planSubmitted;
 
   const handlePlanSubmit = (selectedDates: Date[]) => {
-    if (!myStatus) return;
-    const user = DUMMY_USERS.find((u) => u.id === currentUserId);
-    if (!user) return;
+    if (!myStatus || !currentEmployee) return;
 
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
     const startDate = format(sorted[0]!, "yyyy-MM-dd");
@@ -52,8 +67,8 @@ export function AnnualLeavePromotionTab() {
     const req: LeaveRequest = {
       id: `planned-${Date.now()}`,
       applicantId: currentUserId,
-      applicantName: user.name,
-      applicantDepartment: user.department,
+      applicantName: currentEmployee.name,
+      applicantDepartment: currentEmployee.department,
       leaveType: "annual",
       startDate,
       endDate,
@@ -182,8 +197,8 @@ export function AnnualLeavePromotionTab() {
         onClose={() => setPlanModalOpen(false)}
         remainingDays={myStatus?.remainingDays ?? 0}
         userId={currentUserId}
-        userName={DUMMY_USERS.find((u) => u.id === currentUserId)?.name ?? ""}
-        department={DUMMY_USERS.find((u) => u.id === currentUserId)?.department ?? ""}
+        userName={currentEmployee?.name ?? ""}
+        department={currentEmployee?.department ?? ""}
         onSubmit={handlePlanSubmit}
       />
     </div>
