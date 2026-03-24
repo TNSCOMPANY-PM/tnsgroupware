@@ -6,19 +6,19 @@ const DEFAULT_PASSWORD = "12345678";
 const CLEVEL_USERS = [
   {
     name: "김태정",
-    empNumber: "TNS-20180601",
+    empNumber: "TNS-20161104",
     email: "taejeong@tns.kr",
     department: "경영",
     role: "C레벨",
-    hireDate: "2018-06-01",
+    hireDate: "2016-11-04",
   },
   {
     name: "한혜경",
-    empNumber: "TNS-20180901",
+    empNumber: "TNS-20170102",
     email: "hyekyung@tns.kr",
     department: "경영",
     role: "C레벨",
-    hireDate: "2018-09-01",
+    hireDate: "2017-01-02",
   },
 ];
 

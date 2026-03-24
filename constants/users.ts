@@ -33,6 +33,8 @@ export const DUMMY_USERS: User[] = [
     employmentStatus: "재직",
     email: "taejeong@tns.kr",
     phone: "010-1234-5001",
+    emp_number: "TNS-20161104",
+    joinDate: "2016.11.04",
   },
   {
     id: "2",
@@ -43,6 +45,8 @@ export const DUMMY_USERS: User[] = [
     employmentStatus: "재직",
     email: "hyekyung@tns.kr",
     phone: "010-1234-5002",
+    emp_number: "TNS-20170102",
+    joinDate: "2017.01.02",
   },
   {
     id: "3",
