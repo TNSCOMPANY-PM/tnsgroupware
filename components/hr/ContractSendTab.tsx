@@ -20,14 +20,12 @@ import type { ContractType } from "@/types/contract";
 import type { ContractRow } from "@/types/contract";
 import type { Employee } from "@/types/employee";
 import { getProfileForEmployee } from "@/constants/profile";
-import { DUMMY_USERS } from "@/constants/users";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
-/** 직원 이름으로 표시용 팀/부서 반환 (DUMMY_USERS displayDepartment 우선) */
+/** 직원 표시용 부서 반환 (display_department 우선) */
 function getDisplayDepartment(emp: Employee): string {
-  const u = DUMMY_USERS.find((x) => x.name === emp.name);
-  return u?.displayDepartment ?? emp.department;
+  return emp.display_department ?? emp.department;
 }
 
 /** 이전 계약서 더미 (직원 선택 시 해당 직원 정보로 채워서 사용) */

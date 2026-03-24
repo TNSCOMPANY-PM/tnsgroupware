@@ -17,8 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DUMMY_USERS } from "@/constants/users";
+import type { User, UserRole, EmploymentStatus } from "@/constants/users";
 import { getBurnoutRiskUsers } from "@/utils/leaveMonitoring";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import type { Employee } from "@/types/employee";
 import {
   DASHBOARD_ANNOUNCEMENTS,
   LUNCH_MENUS,
@@ -78,6 +80,20 @@ import {
   type DashboardAnnouncement,
 } from "@/lib/dashboardAnnouncementStorage";
 
+function toUserAdapter(emp: Employee): User {
+  return {
+    id: emp.id,
+    name: emp.name,
+    position: emp.position ?? emp.role,
+    department: (emp.department === "경영" || emp.department === "마케팅사업부") ? emp.department as "경영" | "마케팅사업부" : "마케팅사업부",
+    role: (emp.role === "C레벨" || emp.role === "팀장" || emp.role === "사원") ? emp.role as UserRole : "사원",
+    joinDate: emp.hire_date?.replace(/-/g, "."),
+    employmentStatus: (emp.employment_status === "재직" || emp.employment_status === "휴직" || emp.employment_status === "퇴직") ? emp.employment_status as EmploymentStatus : "재직",
+    email: emp.email ?? undefined,
+    phone: emp.phone ?? undefined,
+  };
+}
+
 // leave_requests는 useEffect에서 API로 로드 (하드코딩 제거)
 
 const defaultAnnouncements: DashboardAnnouncement[] = DASHBOARD_ANNOUNCEMENTS.map(
@@ -109,7 +125,8 @@ export default function DashboardPage() {
   const [financeRows, setFinanceRows] = useState<FinanceRowForLedger[]>([]);
   const [ledgerFromApi, setLedgerFromApi] = useState<LedgerRowForSummary[]>([]);
   const [ledgerCustom, setLedgerCustom] = useState<LedgerRowForSummary[]>(() => loadLedgerCustom());
-  const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
+  const { currentUserId, currentUserName, isCLevel, isTeamLead, currentEmployee } = usePermission();
+  const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [quarterlyBonus, setQuarterlyBonus] = useState<{
@@ -260,8 +277,8 @@ export default function DashboardPage() {
   };
 
   const statuses = useMemo(
-    () => computePromotionStatus(DUMMY_USERS, leaveRequests, plannedLeaveRequests, new Date()),
-    [leaveRequests, plannedLeaveRequests]
+    () => computePromotionStatus(employees.map(toUserAdapter), leaveRequests, plannedLeaveRequests, new Date()),
+    [employees, leaveRequests, plannedLeaveRequests]
   );
   const myStatus = statuses.find((s) => s.userId === currentUserId);
   const showPromotionWidget =
@@ -288,22 +305,18 @@ export default function DashboardPage() {
 
   const isMyselfBurnoutRisk = useMemo(() => {
     if (!currentUserId) return false;
-    const risks = getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, []);
+    const risks = getBurnoutRiskUsers(employees.map(toUserAdapter), leaveRequests, []);
     return risks.some((u) => u.userId === currentUserId);
-  }, [leaveRequests, currentUserId]);
+  }, [employees, leaveRequests, currentUserId]);
 
-  const currentUser = useMemo(
-    () => DUMMY_USERS.find((u) => u.id === currentUserId),
-    [currentUserId]
-  );
   const horoscopeUser = useMemo(
     () => ({
-      name: currentUser?.name ?? "게스트",
+      name: currentEmployee?.name ?? "게스트",
       // 생년월일·성별은 프로필 DB 미연동 상태 — 이름 기반 시드로 개인화
-      birthdate: currentUserId ? `${1985 + (parseInt(currentUserId, 10) % 15)}-${String((parseInt(currentUserId, 10) % 12) + 1).padStart(2, "0")}-15` : "1990-01-01",
+      birthdate: currentUserId ? `${1985 + (currentUserId.charCodeAt(0) % 15)}-${String((currentUserId.charCodeAt(0) % 12) + 1).padStart(2, "0")}-15` : "1990-01-01",
       gender: "남",
     }),
-    [currentUser?.name, currentUserId]
+    [currentEmployee?.name, currentUserId]
   );
   const fortune = useMemo(
     () => generateDailyHoroscope(horoscopeUser, todayStr),
@@ -311,17 +324,15 @@ export default function DashboardPage() {
   );
 
   const handlePlanSubmit = (selectedDates: Date[]) => {
-    if (!myStatus) return;
-    const user = DUMMY_USERS.find((u) => u.id === currentUserId);
-    if (!user) return;
+    if (!myStatus || !currentEmployee) return;
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
     const startDate = format(sorted[0]!, "yyyy-MM-dd");
     const endDate = format(sorted[sorted.length - 1]!, "yyyy-MM-dd");
     const req: LeaveRequest = {
       id: `planned-${Date.now()}`,
       applicantId: currentUserId,
-      applicantName: user.name,
-      applicantDepartment: user.department,
+      applicantName: currentEmployee.name,
+      applicantDepartment: currentEmployee.department,
       leaveType: "annual",
       startDate,
       endDate,
@@ -979,8 +990,8 @@ export default function DashboardPage() {
         onClose={() => setPlanModalOpen(false)}
         remainingDays={myStatus?.remainingDays ?? 0}
         userId={currentUserId}
-        userName={DUMMY_USERS.find((u) => u.id === currentUserId)?.name ?? ""}
-        department={DUMMY_USERS.find((u) => u.id === currentUserId)?.department ?? ""}
+        userName={currentEmployee?.name ?? ""}
+        department={currentEmployee?.department ?? ""}
         onSubmit={handlePlanSubmit}
       />
 

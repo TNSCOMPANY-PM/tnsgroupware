@@ -12,4 +12,10 @@ export interface Employee {
   created_at: string;
   avatar_url?: string | null;
   personal_color?: string | null;
+  // 표시용 필드 (DB에서 관리)
+  position?: string | null;
+  position_display?: string | null;
+  display_department?: string | null;
+  phone?: string | null;
+  employment_status?: string | null;
 }

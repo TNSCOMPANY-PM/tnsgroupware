@@ -28,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DUMMY_USERS } from "@/constants/users";
 import {
   getApprovalSteps,
   getLeaveTypeDisplayName,
@@ -41,8 +40,11 @@ import {
   type LeaveTypeKey,
 } from "@/constants/leaveTypes";
 import { usePermission } from "@/contexts/PermissionContext";
+import type { EmployeeProfile } from "@/contexts/PermissionContext";
+import type { User, UserRole, EmploymentStatus } from "@/constants/users";
 import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import type { Employee } from "@/types/employee";
 import { usePlannedLeaves } from "@/contexts/PlannedLeavesContext";
 import {
   getAnnualLeaveGranted,
@@ -76,6 +78,20 @@ import { ko } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CompanyLeaveCalendar } from "@/components/hr/CompanyLeaveCalendar";
 import { AnnualLeavePlanModal } from "@/components/leave/AnnualLeavePlanModal";
+
+function employeeToUser(emp: Employee): User {
+  return {
+    id: emp.id,
+    name: emp.name,
+    position: emp.position ?? emp.role,
+    department: (emp.department === "경영" || emp.department === "마케팅사업부") ? emp.department as "경영" | "마케팅사업부" : "마케팅사업부",
+    role: (emp.role === "C레벨" || emp.role === "팀장" || emp.role === "사원") ? emp.role as UserRole : "사원",
+    joinDate: emp.hire_date?.replace(/-/g, "."),
+    employmentStatus: (emp.employment_status === "재직" || emp.employment_status === "휴직" || emp.employment_status === "퇴직") ? emp.employment_status as EmploymentStatus : "재직",
+    email: emp.email ?? undefined,
+    phone: emp.phone ?? undefined,
+  };
+}
 
 /** DB row(snake_case) → LeaveRequest(camelCase) 변환 */
 function dbRowToLeaveRequest(row: Record<string, unknown>): LeaveRequest {
@@ -200,6 +216,7 @@ function GrantLeaveModal({
   const [type, setType] = useState<GrantLeaveType>("포상 휴가");
   const [days, setDays] = useState<string>("1");
   const [reason, setReason] = useState("");
+  const [grantableEmployees, setGrantableEmployees] = useState<Employee[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -207,20 +224,26 @@ function GrantLeaveModal({
       setType("포상 휴가");
       setDays("1");
       setReason("");
+      fetch("/api/employees")
+        .then((r) => r.json())
+        .then((data: Employee[]) => {
+          if (Array.isArray(data)) setGrantableEmployees(data.filter((e) => e.role !== "C레벨"));
+        })
+        .catch(() => {});
     }
   }, [open]);
 
   const handleSubmit = () => {
     const numDays = Number(days);
     if (Number.isNaN(numDays)) return;
-    const user = DUMMY_USERS.find((u) => u.id === userId);
-    if (!user) return;
+    const emp = grantableEmployees.find((e) => e.id === userId);
+    if (!emp) return;
     setLoading(true);
     setTimeout(() => {
       const year = new Date().getFullYear();
       addGrantedLeave({
         userId,
-        userName: user.name,
+        userName: emp.name,
         year,
         days: numDays,
         type,
@@ -228,8 +251,8 @@ function GrantLeaveModal({
       });
       const message =
         numDays > 0
-          ? `✅ ${user.name} 님에게 ${type} ${numDays}일이 부여되었습니다.`
-          : `✅ ${user.name} 님 연차가 ${numDays}일 차감되었습니다.`;
+          ? `✅ ${emp.name} 님에게 ${type} ${numDays}일이 부여되었습니다.`
+          : `✅ ${emp.name} 님 연차가 ${numDays}일 차감되었습니다.`;
       onSuccess(message);
       setLoading(false);
       onOpenChange(false);
@@ -255,9 +278,9 @@ function GrantLeaveModal({
                 <SelectValue placeholder="사원 선택" />
               </SelectTrigger>
               <SelectContent>
-                {DUMMY_USERS.filter((u) => u.role !== "C레벨").map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name} ({u.department})
+                {grantableEmployees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.name} ({e.display_department ?? e.department})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -330,9 +353,9 @@ function GrantLeaveModal({
 function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
   const { plannedLeaveRequests, addPlannedLeave } = usePlannedLeaves();
   const { getGrantedDaysForUser } = useGrantedLeaves();
+  const { currentEmployee } = usePermission();
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const currentUser = DUMMY_USERS.find((u) => u.id === currentUserId);
-  const joinDateStr = currentUser?.joinDate ?? "";
+  const joinDateStr = currentEmployee?.hire_date?.replace(/-/g, ".") ?? "";
   const filterYear = new Date().getFullYear();
 
   const [storedLeaveRequests, setStoredLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -363,15 +386,15 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
   const myPlans = plannedLeaveRequests.filter((r) => r.applicantId === currentUserId);
 
   const handlePlanSubmit = (selectedDates: Date[]) => {
-    if (!currentUser || selectedDates.length === 0) return;
+    if (!currentEmployee || selectedDates.length === 0) return;
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
     const startDate = format(sorted[0]!, "yyyy-MM-dd");
     const endDate = format(sorted[sorted.length - 1]!, "yyyy-MM-dd");
     const req: LeaveRequest = {
       id: `planned-${Date.now()}`,
       applicantId: currentUserId,
-      applicantName: currentUser.name,
-      applicantDepartment: currentUser.department,
+      applicantName: currentEmployee.name,
+      applicantDepartment: currentEmployee.department,
       leaveType: "annual",
       startDate,
       endDate,
@@ -421,8 +444,8 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
         onClose={() => setPlanModalOpen(false)}
         remainingDays={Math.max(1, remainingDays)}
         userId={currentUserId}
-        userName={currentUser?.name ?? ""}
-        department={currentUser?.department ?? ""}
+        userName={currentEmployee?.name ?? ""}
+        department={currentEmployee?.department ?? ""}
         onSubmit={handlePlanSubmit}
       />
     </Card>
@@ -525,8 +548,9 @@ function LeaveOverviewTab({
   const [grantToast, setGrantToast] = useState<string | null>(null);
 
   const { getGrantedDaysForUser } = useGrantedLeaves();
-  const currentUser = DUMMY_USERS.find((u) => u.id === currentUserId);
-  const joinDateStr = currentUser?.joinDate ?? "";
+  const { currentEmployee } = usePermission();
+  const joinDateStr = currentEmployee?.hire_date?.replace(/-/g, ".") ?? "";
+  const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
 
   const annualGranted = joinDateStr
     ? getAnnualLeaveGranted(joinDateStr, filterYear)
@@ -582,11 +606,10 @@ function LeaveOverviewTab({
     days: number;
     reason: string;
   }) => {
-    if (!currentUser) return;
+    if (!currentEmployee) return;
     if (form.startDate > form.endDate) return;
     const card = LEAVE_TYPE_CARDS.find((c) => c.key === form.leaveType);
     if (card?.fixedDays != null && form.days > card.fixedDays) return;
-    const applicant = DUMMY_USERS.find((u) => u.id === currentUserId);
     const requiresProof = getRequiresProof(form.leaveType);
     const status =
       currentRole === "사원"
@@ -599,8 +622,8 @@ function LeaveOverviewTab({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         applicantId: currentUserId,
-        applicantName: currentUserName || applicant?.name || "사용자",
-        applicantDepartment: applicant?.department ?? "마케팅사업부",
+        applicantName: currentUserName || currentEmployee.name || "사용자",
+        applicantDepartment: currentEmployee.department ?? "마케팅사업부",
         leaveType: form.leaveType,
         startDate: form.startDate,
         endDate: form.endDate,
@@ -613,7 +636,7 @@ function LeaveOverviewTab({
     await fetchLeaves();
     setModalOpen(false);
     setSelectedLeaveType(null);
-  }, [currentUser, currentUserId, currentUserName, currentRole, fetchLeaves]);
+  }, [currentEmployee, currentUserId, currentUserName, currentRole, fetchLeaves]);
 
   const handleApprove = useCallback(async (id: string) => {
     const req = leaveRequests.find((r) => r.id === id);
@@ -697,16 +720,16 @@ function LeaveOverviewTab({
   const burnoutRisks = useMemo(
     () =>
       isCLevel
-        ? getBurnoutRiskUsers(DUMMY_USERS, leaveRequests, [])
+        ? getBurnoutRiskUsers(employees.map(employeeToUser), leaveRequests, [])
         : [],
-    [isCLevel, leaveRequests]
+    [isCLevel, leaveRequests, employees]
   );
   const milestoneRisks = useMemo(
     () =>
       isCLevel
-        ? getMilestoneRisks(leaveRequests, [], DUMMY_USERS)
+        ? getMilestoneRisks(leaveRequests, [], employees.map(employeeToUser))
         : [],
-    [isCLevel, leaveRequests]
+    [isCLevel, leaveRequests, employees]
   );
 
   useEffect(() => {

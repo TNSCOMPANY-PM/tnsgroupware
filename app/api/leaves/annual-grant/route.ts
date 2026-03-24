@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
-import { DUMMY_USERS } from "@/constants/users";
+import { createClient } from "@/utils/supabase/server";
 
 /**
  * GET /api/leaves/annual-grant
@@ -9,7 +9,7 @@ import { DUMMY_USERS } from "@/constants/users";
  * Query params:
  *   join_date  string  입사일 (YYYY.MM.DD 또는 YYYY-MM-DD)
  *   year       number  계산 연도 (기본: 현재 연도)
- *   user_id    string  DUMMY_USERS id (join_date 없을 때 조회용)
+ *   user_id    string  employees DB id (join_date 없을 때 조회용)
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -17,12 +17,17 @@ export async function GET(req: Request) {
 
   let joinDate = searchParams.get("join_date");
 
-  // user_id로 joinDate 조회
+  // user_id로 DB에서 hire_date 조회
   if (!joinDate) {
     const userId = searchParams.get("user_id");
     if (userId) {
-      const user = DUMMY_USERS.find((u) => u.id === userId);
-      joinDate = user?.joinDate ?? null;
+      const supabase = await createClient();
+      const { data: empData } = await supabase
+        .from("employees")
+        .select("hire_date")
+        .eq("id", userId)
+        .single();
+      joinDate = empData?.hire_date ? empData.hire_date.replace(/-/g, ".") : null;
     }
   }
 

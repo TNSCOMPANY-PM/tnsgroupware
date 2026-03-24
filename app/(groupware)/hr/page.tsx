@@ -29,7 +29,6 @@ import { usePermission } from "@/contexts/PermissionContext";
 import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { getProfileForEmployee } from "@/constants/profile";
-import { DUMMY_USERS } from "@/constants/users";
 import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck, Receipt, BarChart3 } from "lucide-react";
 import type { Employee } from "@/types/employee";
 import { format } from "date-fns";
@@ -41,22 +40,12 @@ type EmployeeCardData = EmployeeFlipCardData & {
   section: CardSection;
 };
 
-/** 구성원 표시: 직위(총괄/팀장/사원)·부서는 DUMMY_USERS 우선, 권한은 role(팀장=총괄+팀장) */
 function employeeToCardData(emp: Employee): EmployeeCardData {
-  const joinDate =
-    emp.hire_date != null
-      ? format(new Date(emp.hire_date), "yyyy. M. d")
-      : "-";
-  const byName = DUMMY_USERS.find((u) => u.name === emp.name);
-  const positionForDisplay = byName?.positionDisplay ?? byName?.role ?? emp.role;
-  const departmentForDisplay = byName?.displayDepartment ?? byName?.department ?? emp.department;
-  const departmentKey =
-    departmentForDisplay === "경영" || departmentForDisplay === "경영지원"
-      ? "경영"
-      : "마케팅사업부";
-  const roleForSection = byName?.role ?? emp.role;
-  const section: CardSection =
-    roleForSection === "C레벨" ? "c-level" : "member";
+  const joinDate = emp.hire_date != null ? format(new Date(emp.hire_date), "yyyy. M. d") : "-";
+  const positionForDisplay = emp.position_display ?? emp.role;
+  const departmentForDisplay = emp.display_department ?? emp.department;
+  const departmentKey = departmentForDisplay === "경영" || departmentForDisplay === "경영지원" ? "경영" : "마케팅사업부";
+  const section: CardSection = emp.role === "C레벨" ? "c-level" : "member";
   return {
     id: emp.id,
     name: emp.name,
@@ -464,8 +453,7 @@ function AnnualLeaveSummaryTab() {
             <tbody className="divide-y divide-slate-100">
               {rows.map(({ emp, granted, used, remaining }) => {
                 const pct = granted > 0 ? Math.min(100, Math.round((used / granted) * 100)) : 0;
-                const byName = DUMMY_USERS.find((u) => u.name === emp.name);
-                const dept = byName?.displayDepartment ?? byName?.department ?? emp.department ?? "-";
+                const dept = emp.display_department ?? emp.department ?? "-";
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-800">{emp.name}</td>
