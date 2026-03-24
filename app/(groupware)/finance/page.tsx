@@ -612,7 +612,7 @@ export default function FinancePage() {
       }
       // 클라이언트명 매칭이 깨져도 같은 거래면 1줄로 보여야 해서,
       // 우선 date(type 포함) + amount 기준으로 월 단위 dedupe를 수행
-      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}`;
+      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}|${(row.senderName ?? "").trim()}`;
       const prev = keepBySig.get(sig);
       if (!prev) {
         keepBySig.set(sig, row);
