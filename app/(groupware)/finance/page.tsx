@@ -671,6 +671,16 @@ export default function FinancePage() {
           keepBySig.set(sig, row);
           continue;
         }
+        // iden 없는 수동 항목끼리 입금자명이 다르면 → 진짜 다른 거래 → 둘 다 유지
+        {
+          const prevName = (prev.senderName ?? "").trim();
+          const rowName = (row.senderName ?? "").trim();
+          if (prevName && rowName && prevName !== rowName) {
+            out.push(prev);
+            keepBySig.set(sig, row);
+            continue;
+          }
+        }
         // 그 외 → 기존 유지
         continue;
       }
