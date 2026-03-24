@@ -33,7 +33,7 @@ export async function GET() {
   const results = [];
 
   for (const u of CLEVEL_USERS) {
-    // 1. employees 테이블 upsert
+    // 1. employees 테이블 upsert (email 기준 — 사번 변경 시에도 기존 행 업데이트)
     const { error: empError } = await admin
       .from("employees")
       .upsert(
@@ -45,7 +45,7 @@ export async function GET() {
           role: u.role,
           hire_date: u.hireDate,
         },
-        { onConflict: "emp_number" }
+        { onConflict: "email" }
       );
 
     const employeeStatus = empError ? `error: ${empError.message}` : "upserted";
