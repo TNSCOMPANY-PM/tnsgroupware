@@ -48,13 +48,13 @@ export function getApprovalSteps(
   if (applicantRole === "사원") {
     return [
       { key: "팀장_1차_승인_대기", label: "팀장 1차 승인 대기" },
-      { key: "C레벨_최종_승인_대기", label: "C레벨 최종 승인 대기" },
+      { key: "C레벨_최종_승인_대기", label: "김태정 / 한혜경 최종 승인 대기" },
       { key: "승인_완료", label: "승인 완료" },
     ];
   }
   if (applicantRole === "팀장") {
     return [
-      { key: "C레벨_최종_승인_대기", label: "C레벨 최종 승인 대기" },
+      { key: "C레벨_최종_승인_대기", label: "김태정 / 한혜경 최종 승인 대기" },
       { key: "승인_완료", label: "승인 완료" },
     ];
   }
