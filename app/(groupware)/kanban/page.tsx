@@ -170,8 +170,8 @@ export default function KanbanPage() {
   };
 
   const deleteCard = async (id: string) => {
-    setCards((prev) => prev.filter((c) => c.id !== id));
-    await fetch(`/api/kanban/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/kanban/${id}`, { method: "DELETE" });
+    if (res.ok) setCards((prev) => prev.filter((c) => c.id !== id));
   };
 
   const moveCard = async (cardId: string, toCol: string) => {

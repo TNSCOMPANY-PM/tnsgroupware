@@ -602,108 +602,63 @@ export default function FinancePage() {
       return { ...row, ...edit, source: row.source ?? (edit as Partial<LedgerRow>).source };
     });
 
-    // 월 단위로 중복 시그니처 제거 (id가 달라도 같은 거래는 1줄만)
-    const keepBySig = new Map<string, LedgerRow>();
+    // 월 단위 dedup: (날짜|타입|금액|입금자명) 그룹 단위로 처리
+    // - 같은 그룹 내 PAID 있으면 UNMAPPED 전부 버림 (동일 입금 재알림 방지)
+    // - 같은 그룹 내 UNMAPPED만 있으면 iden 있는 것 우선으로 1건만 유지
+    // - 입금자명이 다른 항목은 별도 그룹 → 다른 입금건으로 취급
+    const extractIden = (r: LedgerRow) => {
+      const m = (r.description ?? "").match(/pb:(\S+)/);
+      return m ? m[1] : null;
+    };
+
     const out: LedgerRow[] = [];
+    const monthRows: LedgerRow[] = [];
     for (const row of edited) {
       if (!isRowInMonth(row.date, monthKey)) {
         out.push(row);
-        continue;
+      } else {
+        monthRows.push(row);
       }
-      // 클라이언트명 매칭이 깨져도 같은 거래면 1줄로 보여야 해서,
-      // 우선 date(type 포함) + amount 기준으로 월 단위 dedupe를 수행
-      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}`;
-      const prev = keepBySig.get(sig);
-      if (!prev) {
-        keepBySig.set(sig, row);
-        continue;
-      }
-
-      // 둘 다 finance DB 행이면 iden·시간 기반으로 진짜 중복 여부 판단
-      if (prev.source === "finance" && row.source === "finance") {
-        const extractIden = (r: LedgerRow) => {
-          const m = (r.description ?? "").match(/pb:(\S+)/);
-          return m ? m[1] : null;
-        };
-        const extractTime = (r: LedgerRow) => {
-          const m = (r.description ?? "").match(/t:(\d{2}:\d{2})/);
-          return m ? m[1] : null;
-        };
-
-        // ① PAID vs UNMAPPED → PAID 무조건 우선 (iden 달라도 같은 입금건으로 간주)
-        //    승인된 건이 있으면 미승인 중복 건은 항상 숨김
-        if (prev.status === "PAID" && row.status !== "PAID") {
-          continue; // prev(PAID) 유지, row(UNMAPPED) 버림
-        }
-        if (row.status === "PAID" && prev.status !== "PAID") {
-          keepBySig.set(sig, row); // row(PAID)로 교체
-          continue;
-        }
-
-        // ② 이하는 둘 다 UNMAPPED인 경우만
-        const prevIden = extractIden(prev);
-        const rowIden = extractIden(row);
-        const prevTime = extractTime(prev);
-        const rowTime = extractTime(row);
-
-        // 둘 다 iden이 다르면 → 시간 또는 입금자명으로 진짜 다른 입금 여부 판단
-        if (prevIden && rowIden && prevIden !== rowIden) {
-          const prevName = (prev.senderName ?? "").trim();
-          const rowName = (row.senderName ?? "").trim();
-          const nameDiffers = prevName && rowName && prevName !== rowName;
-          if ((prevTime && rowTime && prevTime !== rowTime) || nameDiffers) {
-            // 시간 다르거나 입금자명 다르면 → 진짜 다른 입금 → 둘 다 유지
-            out.push(prev);
-            keepBySig.set(sig, row);
-          }
-          // iden 다르지만 시간·이름 동일 → 같은 입금의 push+SMS 중복 → 기존 유지
-          continue;
-        }
-        // 한쪽만 iden(자동) + 다른 쪽 no iden(수동 붙여넣기) → 다른 출처 → 둘 다 유지
-        if ((!prevIden && rowIden) || (prevIden && !rowIden)) {
-          out.push(prev);
-          keepBySig.set(sig, row);
-          continue;
-        }
-        // 시간이 다르면 → 진짜 다른 거래 → 둘 다 유지
-        if (prevTime && rowTime && prevTime !== rowTime) {
-          out.push(prev);
-          keepBySig.set(sig, row);
-          continue;
-        }
-        // iden 없는 수동 항목끼리 입금자명이 다르면 → 진짜 다른 거래 → 둘 다 유지
-        {
-          const prevName = (prev.senderName ?? "").trim();
-          const rowName = (row.senderName ?? "").trim();
-          if (prevName && rowName && prevName !== rowName) {
-            out.push(prev);
-            keepBySig.set(sig, row);
-            continue;
-          }
-        }
-        // 그 외 → 기존 유지
-        continue;
-      }
-
-      // 선호 규칙: finance(source) 우선 → PAID 우선 → 기존 유지
-      const prevIsFinance = prev.source === "finance";
-      const rowIsFinance = row.source === "finance";
-      if (!prevIsFinance && rowIsFinance) {
-        keepBySig.set(sig, row);
-        continue;
-      }
-      if (prevIsFinance && !rowIsFinance) continue;
-
-      const prevIsPaid = prev.status === "PAID";
-      const rowIsPaid = row.status === "PAID";
-      if (!prevIsPaid && rowIsPaid) {
-        keepBySig.set(sig, row);
-        continue;
-      }
-      if (prevIsPaid && !rowIsPaid) continue;
     }
 
-    const dedupedMonthRows = Array.from(keepBySig.values());
+    // sig(날짜|타입|금액) + senderName 복합키로 그룹핑
+    const groups = new Map<string, LedgerRow[]>();
+    for (const row of monthRows) {
+      const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}`;
+      const name = (row.senderName ?? "").trim();
+      const key = `${sig}||${name}`;
+      const group = groups.get(key) ?? [];
+      group.push(row);
+      groups.set(key, group);
+    }
+
+    const dedupedMonthRows: LedgerRow[] = [];
+    for (const [, group] of groups) {
+      if (group.length === 1) {
+        dedupedMonthRows.push(group[0]);
+        continue;
+      }
+      // PAID 우선: 같은 (날짜|금액|입금자명) 그룹에 PAID가 있으면 UNMAPPED 버림
+      const paidEntries = group.filter((r) => r.status === "PAID");
+      if (paidEntries.length > 0) {
+        // PAID끼리도 iden 기준으로 한 번 더 dedup
+        const seenIden = new Set<string>();
+        for (const r of paidEntries) {
+          const iden = extractIden(r) ?? `id:${r.id}`;
+          if (!seenIden.has(iden)) {
+            seenIden.add(iden);
+            dedupedMonthRows.push(r);
+          }
+        }
+        continue;
+      }
+      // 모두 UNMAPPED: finance source 우선, 그 중 iden 있는 것 우선, 없으면 첫 번째
+      const financeEntries = group.filter((r) => r.source === "finance");
+      const pool = financeEntries.length > 0 ? financeEntries : group;
+      const withIden = pool.find((r) => !!extractIden(r));
+      dedupedMonthRows.push(withIden ?? pool[0]);
+    }
+
     return [...out, ...dedupedMonthRows].sort((a, b) => {
       if (a.date !== b.date) return b.date! > a.date! ? 1 : -1;
       return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");

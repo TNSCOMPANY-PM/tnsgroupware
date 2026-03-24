@@ -185,9 +185,13 @@ export default function CalendarPage() {
 
   const deleteEvent = async (id: string) => {
     if (!confirm("일정을 삭제할까요?")) return;
-    await fetch(`/api/events/${id}`, { method: "DELETE" });
-    setEvents((p) => p.filter((e) => e.id !== id));
-    setShowModal(false);
+    const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setEvents((p) => p.filter((e) => e.id !== id));
+      setShowModal(false);
+    } else {
+      alert("삭제에 실패했습니다.");
+    }
   };
 
   const calDays = useMemo(() => {
