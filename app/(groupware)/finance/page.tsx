@@ -602,10 +602,11 @@ export default function FinancePage() {
       return { ...row, ...edit, source: row.source ?? (edit as Partial<LedgerRow>).source };
     });
 
-    // 월 단위 dedup: (날짜|타입|금액|입금자명) 그룹 단위로 처리
-    // - 같은 그룹 내 PAID 있으면 UNMAPPED 전부 버림 (동일 입금 재알림 방지)
-    // - 같은 그룹 내 UNMAPPED만 있으면 iden 있는 것 우선으로 1건만 유지
-    // - 입금자명이 다른 항목은 별도 그룹 → 다른 입금건으로 취급
+    // 월 단위 dedup
+    // 규칙 ①: finance 소스끼리 같은 sig에 PAID가 있으면 finance UNMAPPED 전부 제거
+    //         (승인 후 Pushbullet 재알림으로 생기는 중복 방지, senderName 변경 무관)
+    // 규칙 ②: UNMAPPED만 남은 경우 senderName으로 그룹핑 → 다른 입금자는 각각 유지
+    //         같은 입금자(같은 senderName) 내에서는 1건만 유지
     const extractIden = (r: LedgerRow) => {
       const m = (r.description ?? "").match(/pb:(\S+)/);
       return m ? m[1] : null;
@@ -621,42 +622,56 @@ export default function FinancePage() {
       }
     }
 
-    // sig(날짜|타입|금액) + senderName 복합키로 그룹핑
-    const groups = new Map<string, LedgerRow[]>();
+    // 1차: sig(날짜|타입|금액)로 그룹핑
+    const sigGroups = new Map<string, LedgerRow[]>();
     for (const row of monthRows) {
       const sig = `${normalizeDateSig(row.date)}|${row.type}|${Number(row.amount) || 0}`;
-      const name = (row.senderName ?? "").trim();
-      const key = `${sig}||${name}`;
-      const group = groups.get(key) ?? [];
-      group.push(row);
-      groups.set(key, group);
+      const g = sigGroups.get(sig) ?? [];
+      g.push(row);
+      sigGroups.set(sig, g);
     }
 
     const dedupedMonthRows: LedgerRow[] = [];
-    for (const [, group] of groups) {
+    for (const [, group] of sigGroups) {
       if (group.length === 1) {
         dedupedMonthRows.push(group[0]);
         continue;
       }
-      // PAID 우선: 같은 (날짜|금액|입금자명) 그룹에 PAID가 있으면 UNMAPPED 버림
-      const paidEntries = group.filter((r) => r.status === "PAID");
-      if (paidEntries.length > 0) {
-        // PAID끼리도 iden 기준으로 한 번 더 dedup
-        const seenIden = new Set<string>();
-        for (const r of paidEntries) {
-          const iden = extractIden(r) ?? `id:${r.id}`;
-          if (!seenIden.has(iden)) {
-            seenIden.add(iden);
-            dedupedMonthRows.push(r);
-          }
-        }
-        continue;
+
+      // 규칙 ①: finance PAID가 있으면 finance UNMAPPED 제거 (cross-senderName 포함)
+      const financePaid = group.filter((r) => r.source === "finance" && r.status === "PAID");
+      const financeUnmapped = group.filter((r) => r.source === "finance" && r.status !== "PAID");
+      const nonFinance = group.filter((r) => r.source !== "finance");
+
+      // finance PAID가 존재 → finance UNMAPPED 전부 버리고 PAID + non-finance만 남김
+      const candidates = financePaid.length > 0
+        ? [...financePaid, ...nonFinance]
+        : group;
+
+      // 규칙 ②: 남은 항목을 senderName으로 그룹핑 → 다른 입금자는 각각 유지
+      const nameGroups = new Map<string, LedgerRow[]>();
+      for (const r of candidates) {
+        const name = (r.senderName ?? "").trim();
+        const ng = nameGroups.get(name) ?? [];
+        ng.push(r);
+        nameGroups.set(name, ng);
       }
-      // 모두 UNMAPPED: finance source 우선, 그 중 iden 있는 것 우선, 없으면 첫 번째
-      const financeEntries = group.filter((r) => r.source === "finance");
-      const pool = financeEntries.length > 0 ? financeEntries : group;
-      const withIden = pool.find((r) => !!extractIden(r));
-      dedupedMonthRows.push(withIden ?? pool[0]);
+
+      for (const [, ng] of nameGroups) {
+        if (ng.length === 1) {
+          dedupedMonthRows.push(ng[0]);
+          continue;
+        }
+        // 같은 senderName 내 복수 항목: PAID 우선, 그 다음 iden 있는 것, 없으면 첫 번째
+        const paid = ng.find((r) => r.status === "PAID");
+        if (paid) { dedupedMonthRows.push(paid); continue; }
+        const withIden = ng.find((r) => !!extractIden(r));
+        dedupedMonthRows.push(withIden ?? ng[0]);
+      }
+
+      // finance PAID가 있었고 finance UNMAPPED가 있었는데 nonFinance가 없으면
+      // financeUnmapped는 이미 제외됨 — 명시적 확인용 (lint 경고 방지)
+      void financeUnmapped;
     }
 
     return [...out, ...dedupedMonthRows].sort((a, b) => {
