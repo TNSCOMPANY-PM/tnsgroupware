@@ -151,10 +151,11 @@ export async function GET(request: NextRequest) {
         .filter((v): v is string => v !== null)
     );
 
-    // iden이 없는 push(이론상 없음)는 amount+date 폴백
-    const { data: existingFallback } = existingIdens.size === 0
-      ? await supabase.from("finance").select("amount, date, month").eq("type", "매출")
-      : { data: [] };
+    // amount+date 폴백은 항상 로드 (iden 형식 불일치로 인한 이중 INSERT 방지)
+    const { data: existingFallback } = await supabase
+      .from("finance")
+      .select("amount, date, month")
+      .eq("type", "매출");
 
     const fallbackSet = new Set(
       (existingFallback ?? []).map((r: Record<string, unknown>) =>
@@ -163,10 +164,11 @@ export async function GET(request: NextRequest) {
     );
 
     const toInsert = parsedList.filter((p) => {
-      // iden 있으면 iden 기준으로만 판단
-      if (p.iden) return !existingIdens.has(p.iden);
-      // iden 없으면 amount+date 폴백
-      return !fallbackSet.has(`${p.amount}_${p.date}`);
+      // iden이 DB에 있으면 명확한 중복
+      if (p.iden && existingIdens.has(p.iden)) return false;
+      // amount+date 조합이 이미 존재하면 중복 (iden 형식 달라도 차단)
+      if (fallbackSet.has(`${p.amount}_${p.date}`)) return false;
+      return true;
     });
 
     console.log(`📊 [동기화] 파싱=${parsedList.length}건, 중복=${parsedList.length - toInsert.length}건, 신규=${toInsert.length}건`);
