@@ -224,7 +224,7 @@ export default function DashboardPage() {
           })
         );
       }
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

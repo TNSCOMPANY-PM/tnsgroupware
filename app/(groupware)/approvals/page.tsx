@@ -1000,6 +1000,23 @@ export default function ApprovalsPage() {
                   {STATUS_CONFIG[detailItem.status].label}
                 </span>
               </div>
+              {/* 결재선 */}
+              <div className="mt-1 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+                <p className="mb-2 text-xs font-semibold text-slate-500">결재선</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-700 font-medium">{detailItem.requester_name}</span>
+                  <span className="text-slate-400">→</span>
+                  <span className={`rounded-full px-2 py-0.5 font-medium ${detailItem.status !== "pending" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                    박재민 (팀장)
+                  </span>
+                  {detailItem.status !== "pending" && (
+                    <>
+                      <span className="text-slate-400">→</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 font-medium">C레벨 기록됨</span>
+                    </>
+                  )}
+                </div>
+              </div>
               {detailItem.approver_name && <div className="flex justify-between"><span className="text-slate-500">결재자</span><span>{detailItem.approver_name}</span></div>}
               {detailItem.reject_reason && (
                 <div className="mt-1 rounded-lg bg-rose-50 p-2.5 text-xs text-rose-700">
