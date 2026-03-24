@@ -217,13 +217,16 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
   }, [selectedEmployee]);
 
   const filteredCards = useMemo(() => {
-    const cards = employees.map(employeeToCardData);
+    const visible = employees.filter((e) => e.emp_number !== "REDACTED_MASTER_EMP");
+    const cards = visible.map(employeeToCardData);
     if (deptFilter === "all") return cards;
     return cards.filter((c) => c.departmentKey === deptFilter);
   }, [employees, deptFilter]);
 
   const cLevelCards = useMemo(
-    () => filteredCards.filter((c) => c.section === "c-level"),
+    () => filteredCards
+      .filter((c) => c.section === "c-level")
+      .sort((a, b) => (a.name === "김태정" ? -1 : b.name === "김태정" ? 1 : 0)),
     [filteredCards]
   );
   const memberCards = useMemo(
