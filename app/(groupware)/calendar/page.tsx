@@ -24,6 +24,7 @@ type CalEvent = {
   description?: string;
   author_name?: string;
   start_time?: string | null;
+  participants?: string[] | null;
 };
 
 function getLeaveTypeShort(type: string): string {
@@ -69,7 +70,9 @@ export default function CalendarPage() {
   const [showModal, setShowModal] = useState(false);
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null);
   const [personalColors, setPersonalColors] = useState<Record<string, string>>({});
+  const [employeeNames, setEmployeeNames] = useState<string[]>([]);
   const [showLeave, setShowLeave] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
   const [dateAction, setDateAction] = useState<{ date: Date; x: number; y: number } | null>(null);
   const dateActionRef = useRef<HTMLDivElement>(null);
 
@@ -79,7 +82,7 @@ export default function CalendarPage() {
   );
 
   const [form, setForm] = useState({
-    title: "", start_date: "", end_date: "", description: "", all_day: true, start_time: "",
+    title: "", start_date: "", end_date: "", description: "", all_day: true, start_time: "", participants: [] as string[],
   });
 
   const fetchEvents = useCallback(async () => {
@@ -105,6 +108,7 @@ export default function CalendarPage() {
         const map: Record<string, string> = {};
         list.forEach((emp) => { if (emp.name && emp.personal_color) map[emp.name] = emp.personal_color; });
         setPersonalColors(map);
+        setEmployeeNames(list.map((e) => e.name).filter(Boolean));
       })
       .catch(() => {});
   }, []);
@@ -113,7 +117,8 @@ export default function CalendarPage() {
 
   const openAdd = (date: Date) => {
     setEditEvent(null);
-    setForm({ title: "", start_date: format(date, "yyyy-MM-dd"), end_date: "", description: "", all_day: true, start_time: "" });
+    setForm({ title: "", start_date: format(date, "yyyy-MM-dd"), end_date: "", description: "", all_day: true, start_time: "", participants: [] });
+    setShowParticipants(false);
     setShowModal(true);
   };
 
@@ -132,7 +137,10 @@ export default function CalendarPage() {
       description: ev.description ?? "",
       all_day: ev.all_day ?? true,
       start_time: ev.start_time ?? "",
+      participants: ev.participants ?? [],
     });
+    const hasParticipants = (ev.participants ?? []).length > 0;
+    setShowParticipants(hasParticipants);
     setShowModal(true);
   };
 
@@ -146,6 +154,7 @@ export default function CalendarPage() {
       all_day: form.all_day,
       start_time: form.start_time || null,
       author_name: currentUserName,
+      participants: form.participants.length > 0 ? form.participants : null,
     };
     if (editEvent) {
       const res = await fetch(`/api/events/${editEvent.id}`, {
@@ -186,10 +195,21 @@ export default function CalendarPage() {
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
   }, [currentMonth]);
 
-  const eventsOnDay = (d: Date) =>
-    events
-      .filter((e) => isSameDay(parseISO(e.start_date), d))
+  const eventsOnDay = (d: Date) => {
+    const dateStr = format(d, "yyyy-MM-dd");
+    return events
+      .filter((e) => {
+        if (e.end_date && e.end_date > e.start_date) {
+          return dateStr >= e.start_date && dateStr <= e.end_date;
+        }
+        return isSameDay(parseISO(e.start_date), d);
+      })
       .sort((a, b) => (a.start_time ?? "99:99").localeCompare(b.start_time ?? "99:99"));
+  };
+
+  const isMultiDayEvent = (ev: CalEvent) => !!(ev.end_date && ev.end_date > ev.start_date);
+  const isMultiDayStart = (ev: CalEvent, d: Date) => isMultiDayEvent(ev) && format(d, "yyyy-MM-dd") === ev.start_date;
+  const isMultiDayEnd = (ev: CalEvent, d: Date) => isMultiDayEvent(ev) && format(d, "yyyy-MM-dd") === ev.end_date;
 
   return (
     <div className="flex flex-col gap-5" onClick={() => setDateAction(null)}>
@@ -293,17 +313,29 @@ export default function CalendarPage() {
                           const pc = ev.author_name ? personalColors[ev.author_name] : undefined;
                           const timeParts = ev.start_time ? ev.start_time.slice(0, 5).split(":") : null;
                           const timeLabel = timeParts ? (timeParts[1] === "00" ? `${timeParts[0]}시` : `${timeParts[0]}시${timeParts[1]}분`) : null;
+                          const multiDay = isMultiDayEvent(ev);
+                          const isStart = isMultiDayStart(ev, day);
+                          const isEnd = isMultiDayEnd(ev, day);
+                          const isMid = multiDay && !isStart && !isEnd;
                           return (
                             <div
                               key={ev.id}
                               className={cn(
-                                "truncate rounded px-1.5 py-0.5 text-[11px] font-medium cursor-pointer hover:opacity-80",
+                                "truncate py-0.5 text-[11px] font-medium cursor-pointer hover:opacity-80",
+                                multiDay ? (
+                                  isStart ? "rounded-l px-1.5 -mx-1.5 mr-0" :
+                                  isEnd ? "rounded-r px-1.5 mx-0 -mr-1.5" :
+                                  isMid ? "px-0.5 -mx-1.5" : "rounded px-1.5"
+                                ) : "rounded px-1.5",
                                 !pc && "bg-blue-100 text-blue-700"
                               )}
                               style={getPersonalColorStyle(pc)}
                               onClick={(e) => { e.stopPropagation(); openEdit(ev); }}
                             >
-                              {timeLabel && <span className="mr-0.5 opacity-70">{timeLabel}</span>}{ev.title}
+                              {(isStart || !multiDay) && (
+                                <>{timeLabel && <span className="mr-0.5 opacity-70">{timeLabel}</span>}{ev.title}</>
+                              )}
+                              {isMid && <span className="opacity-0 select-none">·</span>}
                             </div>
                           );
                         })}
@@ -413,6 +445,46 @@ export default function CalendarPage() {
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                    onClick={() => setShowParticipants((v) => !v)}
+                  >
+                    <span className={`transition-transform ${showParticipants ? "rotate-90" : ""}`}>▶</span>
+                    참여자 {form.participants.length > 0 ? `(${form.participants.length}명)` : "추가"}
+                  </button>
+                  {showParticipants && (
+                    <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                      {employeeNames.map((name) => {
+                        const checked = form.participants.includes(name);
+                        const pc = personalColors[name];
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                participants: checked
+                                  ? f.participants.filter((n) => n !== name)
+                                  : [...f.participants, name],
+                              }))
+                            }
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-all border ${
+                              checked
+                                ? "border-transparent text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                            }`}
+                            style={checked && pc ? { backgroundColor: pc, borderColor: pc } : checked ? { backgroundColor: "#3b82f6" } : undefined}
+                          >
+                            {checked && <span className="mr-1">✓</span>}{name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="mt-5 flex justify-between">

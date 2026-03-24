@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
   Phone, ChevronDown, Pencil, Copy, Check, Clock,
-  TrendingUp, ArrowRight, AlertCircle, UserPlus,
+  TrendingUp, ArrowRight, AlertCircle, UserPlus, ArrowUpDown,
 } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
 
@@ -95,6 +95,7 @@ function CrmPageInner() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const [catFilter, setCatFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "lastDeposit" | "lastDepositAsc">("name");
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Client | null>(null);
   const [form, setForm] = useState<Record<string, string | string[]>>(emptyForm());
@@ -149,7 +150,7 @@ function CrmPageInner() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     const qNoHyphen = q.replace(/-/g, "");
-    return clients.filter((c) => {
+    const list = clients.filter((c) => {
       const catOk = !catFilter || c.category === catFilter;
       const bizNum = c.business_number ?? "";
       const searchOk = !q ||
@@ -163,7 +164,16 @@ function CrmPageInner() {
         c.aliases.some((a) => a.toLowerCase().includes(q));
       return catOk && searchOk;
     });
-  }, [clients, search, catFilter]);
+    return list.sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name, "ko");
+      if (sortBy === "lastDeposit" || sortBy === "lastDepositAsc") {
+        const da = lastDeposits[a.name] ?? a.aliases.map((x) => lastDeposits[x]).filter(Boolean).sort().reverse()[0] ?? "";
+        const db2 = lastDeposits[b.name] ?? b.aliases.map((x) => lastDeposits[x]).filter(Boolean).sort().reverse()[0] ?? "";
+        return sortBy === "lastDeposit" ? db2.localeCompare(da) : da.localeCompare(db2);
+      }
+      return 0;
+    });
+  }, [clients, search, catFilter, sortBy, lastDeposits]);
 
   async function openPanel(c: Client) {
     setPanelClient(c);
@@ -449,6 +459,20 @@ function CrmPageInner() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
+        </div>
+        {/* 정렬 */}
+        <div className="relative">
+          <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="appearance-none rounded-lg border border-slate-200 bg-white py-1.5 pl-7 pr-7 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          >
+            <option value="name">상호명순</option>
+            <option value="lastDeposit">최근 입금일순</option>
+            <option value="lastDepositAsc">오래된 입금순</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
         </div>
       </div>
       )}

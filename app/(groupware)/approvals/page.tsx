@@ -312,6 +312,31 @@ export default function ApprovalsPage() {
     setShowForm(true);
   };
 
+  const openReapplyForm = async (a: Approval) => {
+    await fetchTemplates();
+    await fetchPurchaseTemplates();
+    setForm({
+      type: a.type,
+      title: a.title,
+      content: a.content ?? "",
+      amount: a.amount != null ? String(a.amount) : "",
+      payment_reason: a.payment_reason ?? "",
+      sheet_classification: a.sheet_classification ?? "",
+      bank: a.bank ?? "",
+      account_number: a.account_number ?? "",
+      account_holder_name: a.account_holder_name ?? "",
+      attachment_note: a.attachment_note ?? "",
+      purchase_url: a.purchase_url ?? "",
+      purchase_id: a.purchase_id ?? "",
+      purchase_password: a.purchase_password ?? "",
+      item_name: a.item_name ?? "",
+      purpose: a.purpose ?? "",
+    });
+    setAttachmentFiles([]);
+    setDetailItem(null);
+    setShowForm(true);
+  };
+
   const loadTemplateIntoForm = (t: SimpleSettlementTemplate) => {
     setForm((prev) => ({
       ...prev,
@@ -1001,6 +1026,19 @@ export default function ApprovalsPage() {
                   {" · "}{Number(detailItem.amount).toLocaleString()}원
                 </span>
                 <a href="/finance" className="ml-auto text-blue-600 hover:underline">원장 보기 →</a>
+              </div>
+            )}
+
+            {/* 재신청 버튼 (반려된 본인 결재) */}
+            {detailItem.status === "rejected" && detailItem.requester_id === currentUserId && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => openReapplyForm(detailItem)}
+                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  재신청
+                </button>
               </div>
             )}
 

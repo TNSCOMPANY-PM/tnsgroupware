@@ -73,6 +73,29 @@ async function createAssetFromPurchase(
   }
 }
 
+/** 결재 결과 알림 (Pushbullet) — 비동기, 실패해도 결재 처리는 유지 */
+async function notifyApprovalResult(approval: Record<string, unknown>, status: "approved" | "rejected") {
+  const apiKey = process.env.PUSHBULLET_API_KEY?.trim();
+  if (!apiKey) return;
+  const isApproved = status === "approved";
+  const title = isApproved ? "✅ 결재 승인 완료" : "❌ 결재 반려";
+  const body = [
+    `제목: ${approval.title}`,
+    `신청자: ${approval.requester_name}`,
+    approval.amount != null ? `금액: ${Number(approval.amount).toLocaleString()}원` : null,
+    !isApproved && approval.reject_reason ? `반려 사유: ${approval.reject_reason}` : null,
+  ].filter(Boolean).join("\n");
+  try {
+    await fetch("https://api.pushbullet.com/v2/pushes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Access-Token": apiKey },
+      body: JSON.stringify({ type: "note", title, body }),
+    });
+  } catch {
+    // 알림 실패해도 결재 처리 유지
+  }
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
   const { id } = await params;
@@ -129,6 +152,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   // 최종 승인 시 후처리
   if (isApproving && data) {
+    notifyApprovalResult(data as Record<string, unknown>, "approved").catch(() => {});
     if (data.type === "expense" || data.type === "purchase") {
       approveFinanceFromApproval(supabase, data as Record<string, unknown>).catch(() => {});
     }
@@ -144,6 +168,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   if (isRejecting && data) {
+    notifyApprovalResult(data as Record<string, unknown>, "rejected").catch(() => {});
     // 반려 시 연결된 finance 미승인 행 삭제
     void supabase.from("finance").delete().eq("approval_id", id);
     logAudit("approval.rejected", {

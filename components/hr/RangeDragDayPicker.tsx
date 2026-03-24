@@ -70,6 +70,7 @@ export function RangeDragDayPicker({
           onSelect?.({ from, to: toNorm });
         } else {
           setPendingFrom(clickedDay);
+          onSelect?.({ from: clickedDay, to: clickedDay });
         }
       } else {
         const { from, to: toNorm } = normalizeRange(current.from, to);

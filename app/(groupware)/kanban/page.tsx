@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, X, GripVertical, Loader2 } from "lucide-react";
+import { Plus, X, GripVertical, Loader2, MessageSquare, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 
@@ -33,6 +33,18 @@ const PRIORITY_STYLE = {
 };
 const PRIORITY_LABEL = { high: "높음", medium: "보통", low: "낮음" };
 
+// ─── 마감일 상태 계산 ─────────────────────────────────────────────────────────
+function getDueDateStatus(due_date?: string): "overdue" | "today" | "normal" | null {
+  if (!due_date) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(due_date);
+  due.setHours(0, 0, 0, 0);
+  if (due < today) return "overdue";
+  if (due.getTime() === today.getTime()) return "today";
+  return "normal";
+}
+
 // ─── 카드 컴포넌트 ─────────────────────────────────────────────────────────────
 function KanbanCardItem({
   card,
@@ -45,11 +57,18 @@ function KanbanCardItem({
   onEdit: (card: KanbanCard) => void;
   onDragStart: (card: KanbanCard) => void;
 }) {
+  const dueDateStatus = getDueDateStatus(card.due_date);
+  const isOverdue = dueDateStatus === "overdue" && card.column !== "done";
+  const isDueToday = dueDateStatus === "today" && card.column !== "done";
+
   return (
     <div
       draggable
       onDragStart={() => onDragStart(card)}
-      className="group relative cursor-grab rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing"
+      className={cn(
+        "group relative cursor-grab rounded-xl border p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing",
+        isOverdue ? "border-red-200 bg-red-50/60" : isDueToday ? "border-amber-200 bg-amber-50/60" : "border-slate-100 bg-white"
+      )}
       onClick={() => onEdit(card)}
     >
       <div className="flex items-start justify-between gap-2">
@@ -79,7 +98,12 @@ function KanbanCardItem({
           </span>
         )}
         {card.due_date && (
-          <span className="ml-auto text-[10px] text-slate-400">{card.due_date}</span>
+          <span className={cn(
+            "ml-auto text-[10px] font-medium",
+            isOverdue ? "text-red-500" : isDueToday ? "text-amber-500" : "text-slate-400"
+          )}>
+            {isOverdue && "⚠ "}{card.due_date}
+          </span>
         )}
       </div>
     </div>
@@ -97,6 +121,7 @@ export default function KanbanPage() {
   const [addingCol, setAddingCol] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [tableMissingMessage, setTableMissingMessage] = useState<string | null>(null);
+  const [newMemo, setNewMemo] = useState("");
   const addInputRef = useRef<HTMLInputElement>(null);
 
   const fetchCards = useCallback(async () => {
@@ -177,6 +202,23 @@ export default function KanbanPage() {
       }),
     });
     setEditCard(null);
+  };
+
+  const addMemo = async () => {
+    if (!editCard || !newMemo.trim()) return;
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const memoLine = `[${ts} ${currentUserName}] ${newMemo.trim()}`;
+    const newDesc = editCard.description ? `${editCard.description}\n${memoLine}` : memoLine;
+    const updated = { ...editCard, description: newDesc };
+    setEditCard(updated);
+    setNewMemo("");
+    setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    await fetch(`/api/kanban/${updated.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: newDesc }),
+    });
   };
 
   return (
@@ -289,11 +331,11 @@ export default function KanbanPage() {
 
       {/* 카드 편집 모달 */}
       {editCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setEditCard(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setEditCard(null); setNewMemo(""); }}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">카드 수정</h2>
-              <button type="button" onClick={() => setEditCard(null)} className="text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => { setEditCard(null); setNewMemo(""); }} className="text-slate-400 hover:text-slate-700">
                 <X className="size-5" />
               </button>
             </div>
@@ -314,6 +356,44 @@ export default function KanbanPage() {
                   value={editCard.description ?? ""}
                   onChange={(e) => setEditCard({ ...editCard, description: e.target.value })}
                 />
+              </div>
+
+              {/* 메모 영역 */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <MessageSquare className="size-3.5 text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600">메모</span>
+                </div>
+                {editCard.description && editCard.description.split("\n").some((l) => l.startsWith("[")) && (
+                  <div className="mb-2 space-y-1.5 rounded-lg bg-slate-50 p-2.5">
+                    {editCard.description.split("\n").filter((l) => l.startsWith("[")).map((line, i) => {
+                      const match = line.match(/^\[([^\]]+)\]\s(.+)/);
+                      return match ? (
+                        <div key={i} className="text-xs">
+                          <span className="text-slate-400">{match[1]}</span>
+                          <span className="ml-1 text-slate-700">{match[2]}</span>
+                        </div>
+                      ) : <div key={i} className="text-xs text-slate-600">{line}</div>;
+                    })}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    placeholder="메모 입력 후 Enter..."
+                    value={newMemo}
+                    onChange={(e) => setNewMemo(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMemo(); } }}
+                  />
+                  <button
+                    type="button"
+                    onClick={addMemo}
+                    disabled={!newMemo.trim()}
+                    className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-40"
+                  >
+                    <Send className="size-3.5" />
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -359,7 +439,7 @@ export default function KanbanPage() {
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setEditCard(null)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">취소</button>
+              <button type="button" onClick={() => { setEditCard(null); setNewMemo(""); }} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">취소</button>
               <button type="button" onClick={saveEdit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">저장</button>
             </div>
           </div>

@@ -22,6 +22,7 @@ const LabourLawVerificationDashboard = dynamic(() => import("@/components/hr/Lab
 const ContractSendTab = dynamic(() => import("@/components/hr/ContractSendTab").then((m) => ({ default: m.ContractSendTab })), { ssr: false });
 const ContractManageTab = dynamic(() => import("@/components/hr/ContractManageTab").then((m) => ({ default: m.ContractManageTab })), { ssr: false });
 const PayslipTab = dynamic(() => import("@/components/hr/PayslipTab").then((m) => ({ default: m.PayslipTab })), { ssr: false });
+import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
 import { createEmployee } from "./actions";
 import { useSearchParams } from "next/navigation";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -29,7 +30,7 @@ import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { getProfileForEmployee } from "@/constants/profile";
 import { DUMMY_USERS } from "@/constants/users";
-import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck, Receipt } from "lucide-react";
+import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck, Receipt, BarChart3 } from "lucide-react";
 import type { Employee } from "@/types/employee";
 import { format } from "date-fns";
 
@@ -131,6 +132,15 @@ function HRPageContent() {
               전자계약 발송
             </TabsTrigger>
           )}
+          {isCLevel && (
+            <TabsTrigger
+              value="leave-summary"
+              className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <BarChart3 className="size-4" />
+              연차 현황
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="payslip"
             className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
@@ -164,16 +174,19 @@ function HRPageContent() {
           </TabsContent>
         )}
 
+        {isCLevel && (
+          <TabsContent value="leave-summary">
+            <AnnualLeaveSummaryTab />
+            <section className="pt-6">
+              <LabourLawVerificationDashboard />
+            </section>
+          </TabsContent>
+        )}
+
         <TabsContent value="payslip">
           <PayslipTab />
         </TabsContent>
       </Tabs>
-
-      {isCLevel && (
-        <section className="pt-4">
-          <LabourLawVerificationDashboard />
-        </section>
-      )}
     </div>
   );
 }
@@ -372,6 +385,109 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
           className="view-fade-in fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl border border-white/40 bg-white/95 px-5 py-3 text-sm font-medium text-slate-800 shadow-2xl backdrop-blur-xl"
         >
           {toastMessage}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const ANNUAL_LEAVE_TYPES_SUMMARY = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
+
+function AnnualLeaveSummaryTab() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<{ applicant_id: string; leave_type: string; days: number; status: string; start_date: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetch("/api/employees").then((r) => r.json()).then((d) => Array.isArray(d) ? d : []).catch(() => []),
+      fetch("/api/leaves").then((r) => r.json()).then((d) => Array.isArray(d) ? d : []).catch(() => []),
+    ]).then(([emps, leaves]) => {
+      setEmployees(emps);
+      setLeaveRequests(leaves);
+      setLoading(false);
+    });
+  }, []);
+
+  const rows = employees.map((emp) => {
+    const joinDateStr = emp.hire_date ? (emp.hire_date as string).replace(/\./g, "-") : null;
+    const granted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
+    const used = leaveRequests
+      .filter((r) =>
+        r.applicant_id === emp.id &&
+        (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") &&
+        ANNUAL_LEAVE_TYPES_SUMMARY.includes(r.leave_type) &&
+        (r.start_date ?? "").startsWith(String(year))
+      )
+      .reduce((s, r) => s + (Number(r.days) || 0), 0);
+    const remaining = granted - used;
+    return { emp, granted, used, remaining };
+  }).sort((a, b) => a.remaining - b.remaining);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <h2 className="text-base font-semibold text-slate-800">연차 잔여 현황</h2>
+        <select
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
+          value={year}
+          onChange={(e) => setYear(Number(e.target.value))}
+        >
+          {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map((y) => (
+            <option key={y} value={y}>{y}년</option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="size-6 animate-spin text-slate-400" />
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
+                <th className="px-4 py-3">이름</th>
+                <th className="px-4 py-3">부서</th>
+                <th className="px-4 py-3 text-right">발생</th>
+                <th className="px-4 py-3 text-right">사용</th>
+                <th className="px-4 py-3 text-right">잔여</th>
+                <th className="px-4 py-3 min-w-[120px]">사용률</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map(({ emp, granted, used, remaining }) => {
+                const pct = granted > 0 ? Math.min(100, Math.round((used / granted) * 100)) : 0;
+                const byName = DUMMY_USERS.find((u) => u.name === emp.name);
+                const dept = byName?.displayDepartment ?? byName?.department ?? emp.department ?? "-";
+                return (
+                  <tr key={emp.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-3 font-medium text-slate-800">{emp.name}</td>
+                    <td className="px-4 py-3 text-slate-500">{dept}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{granted}일</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{used}일</td>
+                    <td className={`px-4 py-3 text-right tabular-nums font-semibold ${remaining <= 0 ? "text-red-500" : remaining <= 3 ? "text-amber-500" : "text-emerald-600"}`}>
+                      {remaining}일
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`h-2 rounded-full transition-all ${pct >= 100 ? "bg-red-400" : pct >= 70 ? "bg-amber-400" : "bg-emerald-400"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right text-xs text-slate-500">{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
