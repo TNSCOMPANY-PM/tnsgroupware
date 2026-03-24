@@ -495,16 +495,19 @@ export default function FinancePage() {
     } catch { /* ignore */ }
   }, [receivablesExpected, payablesExpected]);
 
+  const [ledgerLoading, setLedgerLoading] = useState(true);
   const isFetchingLedger = useRef(false);
   const fetchLedger = useCallback(async () => {
     if (isFetchingLedger.current) return;
     isFetchingLedger.current = true;
+    setLedgerLoading(true);
     try {
       const res = await fetch("/api/transactions/ledger");
       const data = await res.json();
       setLedger(data.ledger || []);
     } finally {
       isFetchingLedger.current = false;
+      setLedgerLoading(false);
     }
   }, []);
 
@@ -1312,7 +1315,16 @@ export default function FinancePage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLedger.length === 0 ? (
+                {ledgerLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-2 py-10 text-center text-xs text-slate-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <svg className="size-4 animate-spin text-slate-400" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                        원장 불러오는 중...
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredLedger.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-2 py-8 text-center text-xs text-slate-500">
                       {ledgerFilter === "pending" ? "승인 대기 건이 없습니다." : ledgerFilter === "approved" ? "정산 완료 건이 없습니다." : "내역이 없습니다."}
