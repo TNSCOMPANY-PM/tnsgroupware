@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -237,6 +237,12 @@ interface LedgerRow {
 type ViewMode = "ledger" | "analytics";
 
 export default function FinancePage() {
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  const getSupabase = useCallback(() => {
+    if (!supabaseRef.current) supabaseRef.current = createClient();
+    return supabaseRef.current;
+  }, []);
+
   const [selectedMonth, setSelectedMonth] = useState("26년 3월");
   const [viewMode, setViewMode] = useState<ViewMode>("ledger");
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
@@ -489,10 +495,17 @@ export default function FinancePage() {
     } catch { /* ignore */ }
   }, [receivablesExpected, payablesExpected]);
 
+  const isFetchingLedger = useRef(false);
   const fetchLedger = useCallback(async () => {
-    const res = await fetch("/api/transactions/ledger");
-    const data = await res.json();
-    setLedger(data.ledger || []);
+    if (isFetchingLedger.current) return;
+    isFetchingLedger.current = true;
+    try {
+      const res = await fetch("/api/transactions/ledger");
+      const data = await res.json();
+      setLedger(data.ledger || []);
+    } finally {
+      isFetchingLedger.current = false;
+    }
   }, []);
 
   useEffect(() => {
@@ -626,6 +639,12 @@ export default function FinancePage() {
           keepBySig.set(sig, row);
           continue;
         }
+        // 한쪽만 iden 있으면 → 다른 출처(자동 vs 수동) → 둘 다 유지
+        if ((!prevIden && rowIden) || (prevIden && !rowIden)) {
+          out.push(prev);
+          keepBySig.set(sig, row);
+          continue;
+        }
         // iden 없어도 시간이 다르면 → 진짜 다른 거래 → 둘 다 유지
         const prevTime = extractTime(prev);
         const rowTime = extractTime(row);
@@ -634,15 +653,8 @@ export default function FinancePage() {
           keepBySig.set(sig, row);
           continue;
         }
-        // 고객사가 다르면 → 다른 거래 → 둘 다 유지
-        const prevClient = (prev.clientName ?? prev.senderName ?? "").trim();
-        const rowClient = (row.clientName ?? row.senderName ?? "").trim();
-        if (prevClient !== rowClient) {
-          out.push(prev);
-          keepBySig.set(sig, row);
-          continue;
-        }
-        // 이상 모두 같으면 진짜 중복 → PAID 우선, 아니면 기존 유지
+        // 클라이언트명은 승인 시 변경될 수 있으므로 중복 판단 기준에서 제외
+        // → PAID 우선, 아니면 기존 유지
         if (row.status === "PAID" && prev.status !== "PAID") {
           keepBySig.set(sig, row);
         }
@@ -841,7 +853,7 @@ export default function FinancePage() {
     });
   }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds, isRowInDateRange]);
 
-  const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInDateRange(r.date) && r.status === "UNMAPPED").length;
+  const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInDateRange(r.date) && r.status === "UNMAPPED" && !hiddenIds.has(r.id)).length;
 
   const saveCustomEntries = useCallback((entries: LedgerRow[]) => {
     setCustomEntries(entries);
@@ -1322,7 +1334,7 @@ export default function FinancePage() {
                       onApprove={async (classification, clientName) => {
                         if (row.source === "finance") {
                           setApprovingId(row.id);
-                          const supabase = createClient();
+                          const supabase = getSupabase();
                           if (supabase.from) {
                             const { error } = await supabase
                               .from("finance")
@@ -2267,7 +2279,7 @@ function DataGridRow({ row }: { row: ClassificationRow }) {
   );
 }
 
-function LedgerRowComponent({
+const LedgerRowComponent = React.memo(function LedgerRowComponent({
   row,
   approvingId,
   justApprovedId,
@@ -2543,7 +2555,7 @@ function LedgerRowComponent({
       </td>
     </tr>
   );
-}
+});
 
 function EditLedgerModal({
   row,
