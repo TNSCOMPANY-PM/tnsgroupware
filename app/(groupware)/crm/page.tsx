@@ -231,10 +231,15 @@ function CrmPageInner() {
     if (!(form.name as string).trim()) return;
     setSaving(true);
     try {
+      // 입금자명 입력 중 Enter 없이 저장 시 현재 입력값도 포함
+      const pendingAlias = aliasInput.trim();
+      const aliases = pendingAlias && !(form.aliases as string[]).includes(pendingAlias)
+        ? [...(form.aliases as string[]), pendingAlias]
+        : form.aliases;
       const payload = {
         name: (form.name as string).trim(),
         category: (form.category as string) || null,
-        aliases: form.aliases,
+        aliases,
         contact: (form.contact as string).trim() || null,
         notes: (form.notes as string).trim() || null,
         business_number: (form.business_number as string).trim() || null,
