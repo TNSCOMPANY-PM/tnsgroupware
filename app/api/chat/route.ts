@@ -89,10 +89,12 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<str
   const today = new Date().toISOString().slice(0, 10);
 
   if (name === "query_transactions") {
-    let query = supabase.from("transactions").select("date,amount,depositor,matched_client,status").order("date", { ascending: false });
+    // 입금 내역은 finance 테이블의 매출(type=매출) 데이터
+    let query = supabase.from("finance").select("date,amount,type,client_name,description,category,status").order("date", { ascending: false });
     const date = args.date === "today" ? today : (args.date as string | undefined);
     if (date) query = query.eq("date", date);
-    if (args.client_name) query = query.ilike("matched_client", `%${args.client_name}%`);
+    else query = query.eq("type", "매출"); // 날짜 없으면 매출만
+    if (args.client_name) query = query.ilike("client_name", `%${args.client_name}%`);
     query = query.limit((args.limit as number) ?? 20);
     const { data, error } = await query;
     if (error) return `오류: ${error.message}`;
@@ -101,12 +103,12 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<str
   }
 
   if (name === "query_leaves") {
-    let query = supabase.from("leaves").select("employee_name,leave_type,start_date,end_date,status,reason");
+    let query = supabase.from("leaves").select("applicant_name,applicant_department,leave_type,start_date,end_date,status,reason");
     if (args.date) {
       query = query.lte("start_date", args.date as string).gte("end_date", args.date as string);
     }
     if (args.status) query = query.eq("status", args.status as string);
-    if (args.employee_name) query = query.ilike("employee_name", `%${args.employee_name}%`);
+    if (args.employee_name) query = query.ilike("applicant_name", `%${args.employee_name}%`);
     query = query.order("start_date", { ascending: false }).limit(20);
     const { data, error } = await query;
     if (error) return `오류: ${error.message}`;
