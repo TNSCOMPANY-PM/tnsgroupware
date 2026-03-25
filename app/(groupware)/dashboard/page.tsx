@@ -301,14 +301,16 @@ export default function DashboardPage() {
   const submitAnnounceWrite = async () => {
     const title = announceTitle.trim();
     if (!title) return;
+    let ok = false;
     if (announceEditId) {
-      await updateAnnouncement(announceEditId, {
+      const result = await updateAnnouncement(announceEditId, {
         title,
         body: announceBody.trim() || undefined,
         isImportant: announceImportant,
       });
+      ok = !!result;
     } else {
-      await addAnnouncement({
+      const result = await addAnnouncement({
         title,
         body: announceBody.trim() || undefined,
         date: format(new Date(), "yyyy-MM-dd"),
@@ -316,6 +318,18 @@ export default function DashboardPage() {
         authorId: currentUserId,
         authorName: currentUserName,
       });
+      ok = !!result;
+    }
+    if (!ok) {
+      // 실패 시 직접 API 에러 확인
+      const errRes = await fetch("/api/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, date: format(new Date(), "yyyy-MM-dd") }),
+      }).catch(() => null);
+      const errBody = errRes ? await errRes.json().catch(() => null) : null;
+      alert(`공지사항 저장 실패: ${errBody?.error ?? "알 수 없는 오류"}`);
+      return;
     }
     setAnnouncements(await getAnnouncements());
     setAnnounceWriteOpen(false);
