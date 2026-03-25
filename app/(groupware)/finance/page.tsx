@@ -1302,7 +1302,7 @@ export default function FinancePage() {
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border-t border-slate-100">
-            <table className="w-full text-xs tracking-tight table-fixed">
+            <table className="min-w-[640px] w-full text-xs tracking-tight table-fixed">
               <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-sm">
                 <tr className="border-b border-slate-200">
                   <th className="w-20 px-2 py-2 text-left font-medium text-slate-600">날짜</th>

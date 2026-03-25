@@ -547,7 +547,7 @@ function HeaderSection({
       <header className="relative z-10 shrink-0" style={{ background: pc ? `linear-gradient(135deg, ${pc}18 0%, ${pc}08 100%)` : undefined }}>
         {/* 퍼스널컬러 상단 줄 */}
         <div className="h-1.5 w-full" style={{ background: pc }} />
-        <div className="absolute right-6 top-8 flex items-center gap-2">
+        <div className="absolute right-6 top-8 z-20 flex items-center gap-2">
           {onOpenSettings && (
             <Button
               variant="ghost"

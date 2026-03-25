@@ -334,15 +334,17 @@ function CrmPageInner() {
   return (
     <div className="flex h-full flex-col bg-slate-50 relative">
       {/* ── 헤더 ── */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Building2 className="size-5 text-slate-500" />
-          <h1 className="text-lg font-bold text-slate-800">거래처 관리</h1>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-            {clients.length}개
-          </span>
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-1 min-w-0 flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Building2 className="size-5 shrink-0 text-slate-500" />
+            <h1 className="text-lg font-bold text-slate-800 whitespace-nowrap">거래처 관리</h1>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+              {clients.length}개
+            </span>
+          </div>
           {/* 탭 */}
-          <div className="ml-4 flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             <button
               onClick={() => setActiveTab("clients")}
               className={`rounded-md px-3 py-1 text-sm font-medium transition ${
@@ -371,24 +373,24 @@ function CrmPageInner() {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {remapMsg && (
             <span className="text-sm text-emerald-600">{remapMsg}</span>
           )}
           <button
             onClick={handleRemap}
             disabled={remapping}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
           >
             <RefreshCw className={`size-3.5 ${remapping ? "animate-spin" : ""}`} />
-            미매핑 재적용
+            <span className="hidden sm:inline">미매핑 재적용</span>
           </button>
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+            className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 whitespace-nowrap"
           >
             <Plus className="size-4" />
-            거래처 등록
+            <span className="hidden sm:inline">거래처 등록</span>
           </button>
         </div>
       </div>
