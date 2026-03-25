@@ -11,7 +11,8 @@ import {
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import { logout } from "@/app/login/actions";
 import { usePermission } from "@/contexts/PermissionContext";
-import { LogOut, KeyRound } from "lucide-react";
+import { LogOut, KeyRound, Menu } from "lucide-react";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 function getInitial(name: string): string {
   if (!name) return "?";
@@ -25,6 +26,7 @@ export function Header() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const { currentUserName } = usePermission();
+  const { toggle } = useSidebar();
 
   async function handleSignOut() {
     if (loggingOut) return;
@@ -38,7 +40,15 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/40 bg-white/80 px-8 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/40 bg-white/80 px-4 md:px-8 backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={toggle}
+          className="flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
+          aria-label="메뉴 열기"
+        >
+          <Menu className="size-5" />
+        </button>
         <div className="flex-1" />
         <div className="flex items-center gap-4">
           <PermissionToggle />
