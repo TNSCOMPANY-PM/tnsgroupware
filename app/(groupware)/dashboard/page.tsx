@@ -301,37 +301,49 @@ export default function DashboardPage() {
   const submitAnnounceWrite = async () => {
     const title = announceTitle.trim();
     if (!title) return;
-    let ok = false;
-    if (announceEditId) {
-      const result = await updateAnnouncement(announceEditId, {
-        title,
-        body: announceBody.trim() || undefined,
-        isImportant: announceImportant,
-      });
-      ok = !!result;
-    } else {
-      const result = await addAnnouncement({
-        title,
-        body: announceBody.trim() || undefined,
-        date: format(new Date(), "yyyy-MM-dd"),
-        isImportant: announceImportant,
-        authorId: currentUserId,
-        authorName: currentUserName,
-      });
-      ok = !!result;
-    }
-    if (!ok) {
-      // 실패 시 직접 API 에러 확인
-      const errRes = await fetch("/api/announcements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, date: format(new Date(), "yyyy-MM-dd") }),
-      }).catch(() => null);
-      const errBody = errRes ? await errRes.json().catch(() => null) : null;
-      alert(`공지사항 저장 실패: ${errBody?.error ?? "알 수 없는 오류"}`);
+    try {
+      let res: Response;
+      if (announceEditId) {
+        res = await fetch(`/api/announcements/${announceEditId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, body: announceBody.trim() || null, isImportant: announceImportant }),
+        });
+      } else {
+        res = await fetch("/api/announcements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            body: announceBody.trim() || null,
+            date: format(new Date(), "yyyy-MM-dd"),
+            isImportant: announceImportant,
+            authorId: currentUserId,
+            authorName: currentUserName,
+          }),
+        });
+      }
+      if (!res.ok) {
+        const errText = await res.text().catch(() => `HTTP ${res.status}`);
+        alert(`저장 실패: ${errText}`);
+        return;
+      }
+    } catch (e) {
+      alert(`저장 실패: ${String(e)}`);
       return;
     }
-    setAnnouncements(await getAnnouncements());
+    const fresh = await fetch("/api/announcements").then((r) => r.ok ? r.json() : []).catch(() => []);
+    setAnnouncements(
+      (fresh as Record<string, unknown>[]).map((row) => ({
+        id: row.id as string,
+        title: row.title as string,
+        body: (row.body as string) ?? undefined,
+        date: row.date as string,
+        isImportant: !!(row.is_important),
+        authorId: (row.author_id as string) ?? undefined,
+        authorName: (row.author_name as string) ?? undefined,
+      }))
+    );
     setAnnounceWriteOpen(false);
     setAnnounceEditId(null);
   };
