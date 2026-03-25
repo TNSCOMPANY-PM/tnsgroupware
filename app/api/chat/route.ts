@@ -385,11 +385,12 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     if (month && !date) q = q.eq("month", month);
     if (args.type) q = q.eq("type", args.type as string);
     if (args.client_name) q = q.ilike("client_name", `%${args.client_name}%`);
-    q = q.limit((args.limit as number) ?? 20);
+    q = q.limit((args.limit as number) ?? 50);
     const { data, error } = await q;
     if (error) return `오류: ${error.message}`;
     if (!data?.length) return "해당 조건의 내역이 없습니다.";
-    return JSON.stringify(data);
+    const total = (data as { amount: number }[]).reduce((s, r) => s + (r.amount ?? 0), 0);
+    return JSON.stringify({ total_amount: total, count: data.length, items: data });
   }
 
   if (name === "query_leaves") {
@@ -765,7 +766,8 @@ export async function POST(req: Request) {
 2. 쓰기 작업(신청·등록·승인 등)은 먼저 "~하시겠어요?"로 확인 후, "응/네/해줘" 등 동의하면 실행합니다.
 3. 본인 명의 외 다른 사람 휴가/결재 신청은 거부합니다.
 4. 숫자는 xxx,xxx원 형식, 날짜는 M월 d일로 표시합니다.
-5. 답변은 한국어로 간결하고 친근하게 합니다.`;
+5. 답변은 한국어로 간결하고 친근하게 합니다.
+6. 입금/원장 내역을 보여줄 때는 툴이 반환한 items를 하나도 빠짐없이 모두 나열합니다. 임의로 묶거나 생략하지 않습니다. 합계는 반드시 total_amount 값을 그대로 사용합니다.`;
 
   const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
