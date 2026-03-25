@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Bot, ImagePlus, RotateCcw } from "lucide-react";
+import { Send, Loader2, Bot, ImagePlus, RotateCcw, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 interface Message {
   role: "user" | "assistant";
@@ -40,6 +41,7 @@ function saveMessages(userId: string, msgs: Message[]) {
 
 export default function ChatPage() {
   const { currentUserId, currentUserName, currentEmpNumber, currentEmployee, isCLevel, isTeamLead } = usePermission();
+  const { toggle } = useSidebar();
   const role = isCLevel ? "C레벨" : isTeamLead ? "팀장" : "사원";
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -141,17 +143,26 @@ export default function ChatPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-[#b2c7d9]">
+    // 모바일: inset-0 전체화면 / 데스크톱: 사이드바·헤더 아래 영역만 채움
+    <div className="fixed inset-0 z-[35] flex flex-col bg-[#b2c7d9] md:left-64 md:top-16">
       {/* 헤더 */}
-      <div className="flex items-center justify-between bg-[#4a6fa5] px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-full bg-white/20">
-            <Bot className="size-4 text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">업무 도우미</p>
-            <p className="text-[11px] text-blue-200">{currentUserName} · {role}</p>
-          </div>
+      <div className="flex items-center gap-2 bg-[#4a6fa5] px-3 py-3">
+        {/* 햄버거 (모바일만) */}
+        <button
+          type="button"
+          onClick={toggle}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white transition-colors md:hidden"
+          aria-label="메뉴 열기"
+        >
+          <Menu className="size-5" />
+        </button>
+
+        <div className="flex size-8 items-center justify-center rounded-full bg-white/20">
+          <Bot className="size-4 text-white" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-white">업무 도우미</p>
+          <p className="text-[11px] text-blue-200">{currentUserName} · {role}</p>
         </div>
         <button
           type="button"
