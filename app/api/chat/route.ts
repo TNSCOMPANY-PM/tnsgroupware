@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -77,6 +78,15 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
     },
   },
 
+  {
+    type: "function",
+    function: {
+      name: "get_horoscope",
+      description: "오늘의 운세를 알려줍니다. '운세', '오늘 운세', '행운의 번호' 등 요청 시 사용합니다.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+
   // ── 실행 ──────────────────────────────────────────────────────────────
   {
     type: "function",
@@ -137,6 +147,17 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 async function runTool(name: string, args: Record<string, unknown>, user: UserContext): Promise<string> {
   const supabase = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
+
+  if (name === "get_horoscope") {
+    const fortune = generateDailyHoroscope({ name: user.name }, today);
+    return JSON.stringify({
+      총운: fortune.totalFortune,
+      재물운: `${fortune.wealthLuck}/5`,
+      업무운: `${fortune.workLuck}/5`,
+      행운의색: fortune.luckyColor,
+      행운의번호: fortune.lottoNumbers.join(", "),
+    });
+  }
 
   // ── 조회 ──────────────────────────────────────────────────────────────
   if (name === "query_finance") {
