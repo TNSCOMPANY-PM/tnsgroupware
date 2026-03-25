@@ -14,7 +14,6 @@ export async function PATCH(
       ...(body.title !== undefined && { title: body.title }),
       ...(body.body !== undefined && { body: body.body }),
       ...(body.isImportant !== undefined && { is_important: body.isImportant }),
-      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()
