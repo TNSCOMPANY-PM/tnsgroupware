@@ -7,6 +7,7 @@ import { RealtimeToastProvider } from "@/contexts/RealtimeToastContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { getMasterCookieName, verifyMasterToken } from "@/utils/masterAuth";
+import { AIChatWidget } from "@/components/chat/AIChatWidget";
 
 export default async function GroupwareLayout({
   children,
@@ -44,6 +45,7 @@ export default async function GroupwareLayout({
       </GrantedLeavesProvider>
       </PlannedLeavesProvider>
       </ProfileOverridesProvider>
+      <AIChatWidget />
       </RealtimeToastProvider>
     </PermissionProvider>
   );
