@@ -25,6 +25,8 @@ interface PermissionContextType {
   currentUserName: string;
   currentEmpNumber: string | null;
   currentEmployee: EmployeeProfile | null;
+  isMaster: boolean;
+  setRoleOverride: (role: UserRole | null) => void;
 }
 
 const PermissionContext = createContext<PermissionContextType | undefined>(undefined);
@@ -36,23 +38,35 @@ interface PermissionProviderProps {
 
 export function PermissionProvider({ children }: PermissionProviderProps) {
   const [employee, setEmployee] = useState<EmployeeProfile | null>(null);
+  const [isMaster, setIsMaster] = useState(false);
+  const [roleOverride, setRoleOverrideState] = useState<UserRole | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/me/employee")
       .then((r) => r.json())
       .then((emp: EmployeeProfile | null) => {
-        if (cancelled || !emp?.id) return;
-        setEmployee(emp);
+        if (cancelled) return;
+        if (emp?.id) setEmployee(emp);
       })
+      .catch(() => {});
+    fetch("/api/me/is-master")
+      .then((r) => r.json())
+      .then((d: { master: boolean }) => { if (!cancelled) setIsMaster(d?.master ?? false); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  const currentRole: UserRole =
+  const dbRole: UserRole =
     employee?.role === "C레벨" ? "C레벨"
     : employee?.role === "팀장" ? "팀장"
     : "사원";
+
+  const currentRole: UserRole = (isMaster && roleOverride) ? roleOverride : dbRole;
+
+  const setRoleOverride = (role: UserRole | null) => {
+    if (isMaster) setRoleOverrideState(role);
+  };
 
   const value: PermissionContextType = useMemo(() => ({
     currentRole,
@@ -62,7 +76,10 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     currentUserName: employee?.name ?? "",
     currentEmpNumber: employee?.emp_number ?? null,
     currentEmployee: employee,
-  }), [currentRole, employee]);
+    isMaster,
+    setRoleOverride,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [currentRole, employee, isMaster]);
 
   return (
     <PermissionContext.Provider value={value}>
