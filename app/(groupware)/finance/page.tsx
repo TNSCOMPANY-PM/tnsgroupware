@@ -1204,37 +1204,58 @@ export default function FinancePage() {
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 font-semibold text-slate-800">
                   <Receipt className="size-4 text-[var(--primary)]" />
                   통합 입출금 원장
                 </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  은행 알림·매출/매입 내역 · 승인 대기 행에서 분류·고객사 선택 후 [✅ 승인]
-                </p>
+                {/* 필터 토글 */}
+                <div className="flex rounded-xl bg-slate-100/80 p-1">
+                {[
+                  { key: "all" as const, label: "전체" },
+                  { key: "pending" as const, label: "🚨 대기", count: pendingCount },
+                  { key: "approved" as const, label: "완료" },
+                ].map(({ key, label, count }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLedgerFilter(key)}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium tracking-tight transition-colors ${
+                      ledgerFilter === key ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-600 hover:text-slate-800"
+                    }`}
+                  >
+                    {label}
+                    {count != null && count > 0 && (
+                      <span className="ml-1 rounded-full bg-amber-200/80 px-1.5 py-0.5 text-xs">{count}</span>
+                    )}
+                  </button>
+                ))}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              {/* 액션 버튼 행 */}
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => fetchSyncPushbullet()}
                   disabled={syncLoading}
-                  className="shrink-0"
+                  className="shrink-0 gap-1"
                   title="원장 갱신 + Pushbullet 입금 메시지 동기화"
                 >
-                  <RefreshCw className={`size-4 mr-1 ${syncLoading ? "animate-spin" : ""}`} />
-                  입금 동기화
+                  <RefreshCw className={`size-3.5 ${syncLoading ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">입금 동기화</span>
+                  <span className="sm:hidden">동기화</span>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => { setSmsOpen(true); setSmsText(""); setSmsParsed(null); }}
-                  className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  className="shrink-0 gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
                 >
-                  <FileText className="size-4 mr-1" />
+                  <FileText className="size-3.5" />
                   SMS 등록
                 </Button>
                 <Button
@@ -1242,9 +1263,9 @@ export default function FinancePage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setAddLedgerOpen(true)}
-                  className="shrink-0"
+                  className="shrink-0 gap-1"
                 >
-                  <Plus className="size-4 mr-1" />
+                  <Plus className="size-3.5" />
                   수동 추가
                 </Button>
                 <Button
@@ -1258,7 +1279,7 @@ export default function FinancePage() {
                     try {
                       const res = await fetch("/api/clients/remap", { method: "POST" });
                       const json = await res.json();
-                      setAutoMapMsg(`✓ ${json.updated}건 자동 매핑`);
+                      setAutoMapMsg(`✓ ${json.updated}건 매핑`);
                       if ((json.updated ?? 0) > 0) {
                         await fetchLedger();
                         const freshClients = await fetch("/api/clients").then((r) => r.ok ? r.json() : []);
@@ -1271,33 +1292,13 @@ export default function FinancePage() {
                       setTimeout(() => setAutoMapMsg(null), 3000);
                     }
                   }}
-                  className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                  className="shrink-0 gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
                   title="입금자명을 CRM 거래처 별칭과 대조해 고객사를 자동으로 채웁니다"
                 >
-                  <RefreshCw className={`size-4 mr-1 ${autoMapping ? "animate-spin" : ""}`} />
-                  {autoMapMsg ?? "거래처 자동 매칭"}
+                  <RefreshCw className={`size-3.5 ${autoMapping ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">{autoMapMsg ?? "거래처 자동 매칭"}</span>
+                  <span className="sm:hidden">{autoMapMsg ?? "자동 매칭"}</span>
                 </Button>
-                <div className="flex rounded-xl bg-slate-100/80 p-1">
-                {[
-                  { key: "all" as const, label: "전체" },
-                  { key: "pending" as const, label: "🚨 승인 대기", count: pendingCount },
-                  { key: "approved" as const, label: "정산 완료" },
-                ].map(({ key, label, count }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setLedgerFilter(key)}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium tracking-tight transition-colors ${
-                      ledgerFilter === key ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-600 hover:text-slate-800"
-                    }`}
-                  >
-                    {label}
-                    {count != null && count > 0 && (
-                      <span className="ml-1 rounded-full bg-amber-200/80 px-1.5 py-0.5 text-xs">{count}</span>
-                    )}
-                  </button>
-                ))}
-                </div>
               </div>
             </div>
           </div>
