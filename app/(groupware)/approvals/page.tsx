@@ -493,25 +493,25 @@ export default function ApprovalsPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">전자결재</h1>
-          <p className="mt-0.5 text-sm text-slate-500">결재 문서를 작성하고 처리하세요. 신청·승인 내역은 아래 리스트에 저장됩니다.</p>
+          <p className="mt-0.5 text-sm text-slate-500 hidden sm:block">결재 문서를 작성하고 처리하세요. 신청·승인 내역은 아래 리스트에 저장됩니다.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={openTemplateManage}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
-            📋 간단 정산 템플릿 관리
+            📋 <span className="hidden sm:inline">간단 정산</span> 템플릿
           </button>
           <button
             type="button"
             onClick={async () => { await fetchPurchaseTemplates(); setShowPurchaseTemplateManage(true); }}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
-            🛒 비품구입 템플릿 관리
+            🛒 <span className="hidden sm:inline">비품구입</span> 템플릿
           </button>
           <button
             type="button"
@@ -524,7 +524,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 [-ms-overflow-style:none] [scrollbar-width:none]">
         {TABS.map((t) => (
           <button
             key={t.id}

@@ -78,7 +78,7 @@ function HRPageContent() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="inline-flex h-12 w-full max-w-3xl flex-wrap rounded-xl bg-[var(--muted)] p-1">
+        <TabsList className="inline-flex h-auto w-full max-w-3xl flex-wrap gap-1 rounded-xl bg-[var(--muted)] p-1">
           <TabsTrigger
             value="members"
             className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
