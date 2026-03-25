@@ -1,6 +1,7 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
+  "regions": ["sin1"],
   "crons": [
     {
       "path": "/api/cron/auto-approve",
