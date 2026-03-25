@@ -47,7 +47,8 @@ async function createPendingFinanceFromApproval(
     if (type !== "expense" && type !== "purchase") return;
 
     const today = new Date().toISOString().slice(0, 10);
-    const month = today.slice(0, 7);
+    const dateToUse = (approval.finance_date as string) || today;
+    const month = dateToUse.slice(0, 7);
     const description = [
       approval.payment_reason ? `사유: ${approval.payment_reason}` : null,
       approval.sheet_classification ? `분류: ${approval.sheet_classification}` : null,
@@ -57,7 +58,7 @@ async function createPendingFinanceFromApproval(
 
     await supabase.from("finance").insert({
       month,
-      date: today,
+      date: dateToUse,
       type: "매입",
       amount,
       status: "UNMAPPED",

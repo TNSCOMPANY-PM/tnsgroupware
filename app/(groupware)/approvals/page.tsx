@@ -128,11 +128,13 @@ export default function ApprovalsPage() {
   const [showRejectInput, setShowRejectInput] = useState(false);
 
   // 폼 (정산요청 / 비품구입 / 기타)
+  const todayStr = format(new Date(), "yyyy-MM-dd");
   const [form, setForm] = useState({
     type: "expense",
     title: "",
     content: "",
     amount: "",
+    date: todayStr,
     payment_reason: "",
     sheet_classification: "",
     bank: "",
@@ -203,6 +205,7 @@ export default function ApprovalsPage() {
       requester_name: currentUserName,
       requester_id: currentUserId,
       amount: form.amount ? Number(form.amount.replace(/[^0-9]/g, "")) || null : null,
+      finance_date: form.date || todayStr,
     };
     if (form.type === "expense") {
       payload.payment_reason = form.payment_reason.trim() || null;
@@ -236,6 +239,7 @@ export default function ApprovalsPage() {
         title: "",
         content: "",
         amount: "",
+        date: format(new Date(), "yyyy-MM-dd"),
         payment_reason: "",
         sheet_classification: "",
         bank: "",
@@ -309,6 +313,7 @@ export default function ApprovalsPage() {
       title: "",
       content: "",
       amount: "",
+      date: format(new Date(), "yyyy-MM-dd"),
       payment_reason: "",
       sheet_classification: "",
       bank: "",
@@ -344,6 +349,7 @@ export default function ApprovalsPage() {
       purchase_password: a.purchase_password ?? "",
       item_name: a.item_name ?? "",
       purpose: a.purpose ?? "",
+      date: format(new Date(), "yyyy-MM-dd"),
     });
     setAttachmentFiles([]);
     setDetailItem(null);
@@ -667,6 +673,12 @@ export default function ApprovalsPage() {
                   </select>
                 </div>
               )}
+
+              <div>
+                <label className="text-xs font-medium text-slate-600">원장 기록 날짜</label>
+                <input type="date" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                  value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              </div>
 
               <div>
                 <label className="text-xs font-medium text-slate-600">제목 *</label>
