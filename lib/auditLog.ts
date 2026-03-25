@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 export type AuditAction =
   | "approval.approved"
@@ -25,7 +25,7 @@ export async function logAudit(
   }
 ) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     await supabase.from("audit_logs").insert({
       action,
       actor_id: opts.actorId ?? null,
@@ -36,5 +36,23 @@ export async function logAudit(
     });
   } catch {
     // 감사 로그 실패는 메인 흐름을 방해하지 않음
+  }
+}
+
+/** API 에러/이벤트 서버 로그 (server_logs 테이블에 영구 저장) */
+export async function logServer(
+  level: "info" | "warn" | "error",
+  message: string,
+  detail?: Record<string, unknown>
+) {
+  try {
+    const supabase = createAdminClient();
+    await supabase.from("server_logs").insert({
+      level,
+      message,
+      detail: detail ?? null,
+    });
+  } catch {
+    // 로그 실패는 메인 흐름을 방해하지 않음
   }
 }
