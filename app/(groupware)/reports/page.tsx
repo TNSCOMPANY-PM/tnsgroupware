@@ -623,7 +623,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">팀별 매출총이익</div>
               <table className="w-full text-sm">
                 <thead>
@@ -643,7 +643,7 @@ export default function ReportsPage() {
               </table>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">목표 매출총이익 (팀별)</div>
               <table className="w-full text-sm">
                 <thead>
@@ -670,7 +670,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
+          <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
               <span className="text-sm font-semibold text-slate-700">성과급 산정표</span>
               <button
@@ -808,7 +808,7 @@ export default function ReportsPage() {
               {employeesRows.length === 0 ? (
                 <p className="text-sm text-slate-500">해당 월 입사자가 없습니다.</p>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50">
@@ -842,7 +842,7 @@ export default function ReportsPage() {
           <p className="mb-4 text-sm text-slate-500">
             목표 페이지 간트 차트에서 수정한 진행률이 반영됩니다.
           </p>
-          <div className="overflow-hidden rounded-xl border border-slate-200">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -893,7 +893,7 @@ export default function ReportsPage() {
             </button>
           </div>
           {auditOpen && (
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
               {auditLogs.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-400">감사 로그가 없습니다.</p>
               ) : (

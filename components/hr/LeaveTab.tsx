@@ -465,7 +465,7 @@ export function LeaveTab({ initialDate }: { initialDate?: string }) {
       </div>
 
       <Tabs value={subTab} onValueChange={setSubTab}>
-        <TabsList className="inline-flex h-10 w-auto gap-0 rounded-lg bg-[var(--muted)] p-1">
+        <TabsList className="inline-flex h-10 w-full max-w-sm gap-0 rounded-lg bg-[var(--muted)] p-1 sm:w-auto">
           {LEAVE_SUB_TABS.map(({ value, label }) => (
             <TabsTrigger
               key={value}

@@ -149,16 +149,16 @@ export function CompanyLeaveCalendar() {
           <CalendarDays className="size-5" />
           전사 연차 캘린더
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Button variant="outline" size="sm" onClick={goPrev}>
             <ChevronLeft className="size-4" />
-            이전 달
+            <span className="hidden sm:inline">이전 달</span>
           </Button>
-          <span className="min-w-[140px] text-center text-sm font-semibold">
+          <span className="min-w-[100px] text-center text-sm font-semibold sm:min-w-[140px]">
             {format(currentDate, "yyyy년 M월", { locale: ko })}
           </span>
           <Button variant="outline" size="sm" onClick={goNext}>
-            다음 달
+            <span className="hidden sm:inline">다음 달</span>
             <ChevronRight className="size-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={goToday}>

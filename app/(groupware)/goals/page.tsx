@@ -56,7 +56,7 @@ export default function GoalsPage() {
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
