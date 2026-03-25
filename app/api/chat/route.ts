@@ -422,6 +422,13 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   if (name === "query_leaves") {
     let q = supabase.from("leave_requests").select("id,applicant_name,applicant_department,leave_type,start_date,end_date,days,status,reason");
     if (args.date) q = q.lte("start_date", args.date as string).gte("end_date", args.date as string);
+    // 권한별 범위 제한
+    if (user.role === "사원") {
+      q = q.eq("applicant_id", user.userId); // 사원: 본인만
+    } else if (user.role === "팀장") {
+      q = q.eq("applicant_department", user.department); // 팀장: 본인 부서만
+    }
+    // C레벨은 전체 조회 가능
     if (args.mine) q = q.eq("applicant_id", user.userId);
     if (args.employee_name) q = q.ilike("applicant_name", `%${args.employee_name}%`);
     if (args.status) q = q.eq("status", args.status as string);
@@ -528,11 +535,21 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_annual_leaves") {
+    if (user.role === "사원" && !args.employee_name) {
+      // 사원: 본인 정보만
+      args = { ...args, employee_name: user.name };
+    }
     const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
     const { data: used } = await supabase.from("leave_requests").select("applicant_id,applicant_name,days,status").eq("status", "승인_완료");
     if (!granted) return "연차 데이터가 없습니다.";
     const year = new Date().getFullYear();
-    const grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
+    let grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
+    // 팀장: 본인 부서 직원의 user_id 목록으로 필터
+    if (user.role === "팀장") {
+      const { data: deptEmps } = await supabase.from("employees").select("id").eq("department", user.department).eq("employment_status", "재직");
+      const deptIds = new Set((deptEmps ?? []).map((e: Record<string, unknown>) => e.id));
+      grantedThisYear = grantedThisYear.filter((g) => deptIds.has(g.user_id));
+    }
     const summary = grantedThisYear.map((g) => {
       const usedDays = (used as Record<string, unknown>[] ?? []).filter((u) => u.applicant_id === g.user_id).reduce((s, u) => s + (Number(u.days) || 0), 0);
       return { 이름: g.user_name, 발생: g.days, 사용: usedDays, 잔여: Number(g.days) - usedDays };
@@ -545,8 +562,11 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_burnout_risk") {
+    if (user.role === "사원") return "번아웃 위험 조회는 팀장/C레벨만 가능합니다.";
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const { data: employees } = await supabase.from("employees").select("id,name,department").eq("employment_status", "재직");
+    let empQ = supabase.from("employees").select("id,name,department").eq("employment_status", "재직");
+    if (user.role === "팀장") empQ = empQ.eq("department", user.department); // 팀장: 본인 부서만
+    const { data: employees } = await empQ;
     const { data: recentLeaves } = await supabase.from("leave_requests").select("applicant_id").eq("status", "승인_완료").gte("end_date", ninetyDaysAgo);
     if (!employees) return "직원 데이터가 없습니다.";
     const usedIds = new Set((recentLeaves ?? []).map((l: Record<string, unknown>) => l.applicant_id));
@@ -783,9 +803,9 @@ export async function POST(req: Request) {
 현재 사용자: ${user.name} (${user.department}, ${user.role}, emp: ${user.empNumber})
 
 권한:
-- C레벨: 모든 기능 + 결재 승인/반려 + 공지사항 등록
-- 팀장: 결재 승인/반려 + 휴가 승인
-- 사원: 본인 휴가 신청/취소 + 결재 신청
+- C레벨: 모든 기능 + 전사 직원 조회 + 결재 승인/반려 + 공지사항 등록
+- 팀장: 본인 부서 직원 정보/휴가/연차만 조회 가능 + 결재 승인/반려 + 휴가 승인
+- 사원: 본인 정보만 조회 가능 + 본인 휴가 신청/취소 + 결재 신청
 
 규칙:
 1. 조회는 바로 실행합니다.
