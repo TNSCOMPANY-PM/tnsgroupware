@@ -629,7 +629,7 @@ export default function ApprovalsPage() {
                   >
                     <option value="">--템플릿 선택--</option>
                     {templateList.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name} · {t.title || "(제목 없음)"}</option>
+                      <option key={t.id} value={t.id}>{t.title || t.name || "(제목 없음)"}</option>
                     ))}
                   </select>
                 </div>
@@ -651,7 +651,7 @@ export default function ApprovalsPage() {
                   >
                     <option value="">--템플릿 선택--</option>
                     {purchaseTemplateList.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name} · {t.title || t.item_name || "(제목 없음)"}</option>
+                      <option key={t.id} value={t.id}>{t.title || t.item_name || t.name || "(제목 없음)"}</option>
                     ))}
                   </select>
                 </div>
