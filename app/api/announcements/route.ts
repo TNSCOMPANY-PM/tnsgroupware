@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -12,7 +13,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const body = await req.json();
   const id = body.id ?? `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const { data, error } = await supabase

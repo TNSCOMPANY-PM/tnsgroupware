@@ -372,7 +372,7 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
     .filter(
       (r) =>
         r.applicantId === currentUserId &&
-        (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") &&
+        r.status === "승인_완료" &&
         ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
         r.startDate.startsWith(String(filterYear))
     )
@@ -559,7 +559,7 @@ function LeaveOverviewTab({
     .filter(
       (r) =>
         r.applicantId === currentUserId &&
-        (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") &&
+        r.status === "승인_완료" &&
         ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
         r.startDate.startsWith(String(filterYear))
     )
@@ -586,13 +586,14 @@ function LeaveOverviewTab({
     );
   }, [myRequests, filterYear, includeRejected]);
 
+  // 김정섭(TNS-20250201)은 마케팅사업부 1차 결재자
+  const isIntermediateApprover = currentEmployee?.emp_number === "TNS-20250201";
   const pendingForApproval = leaveRequests.filter((r) => {
     if (isCLevel) return r.status === "C레벨_최종_승인_대기";
-    if (isTeamLead) return r.status === "팀장_1차_승인_대기";
+    if (isIntermediateApprover) return r.status === "팀장_1차_승인_대기";
     return false;
   });
 
-  const pendingCancelApproval = leaveRequests.filter((r) => r.status === "CANCEL_REQUESTED");
 
   const handleCardClick = (key: LeaveTypeKey) => {
     setSelectedLeaveType(key);
@@ -611,12 +612,11 @@ function LeaveOverviewTab({
     const card = LEAVE_TYPE_CARDS.find((c) => c.key === form.leaveType);
     if (card?.fixedDays != null && form.days > card.fixedDays) return;
     const requiresProof = getRequiresProof(form.leaveType);
-    const status =
-      currentRole === "사원"
-        ? "팀장_1차_승인_대기"
-        : currentRole === "팀장"
-          ? "C레벨_최종_승인_대기"
-          : "승인_완료";
+    // 김용준(TNS-20220117), 심규성(TNS-20220801)은 김정섭 1차 → C레벨 순으로
+    const NEEDS_INTERMEDIATE = ["TNS-20220117", "TNS-20220801"];
+    const status = NEEDS_INTERMEDIATE.includes(currentEmployee.emp_number ?? "")
+      ? "팀장_1차_승인_대기"
+      : "C레벨_최종_승인_대기";
     await fetch("/api/leaves", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -672,50 +672,28 @@ function LeaveOverviewTab({
   const handleCancel = useCallback(async (id: string) => {
     const req = leaveRequests.find((r) => r.id === id);
     if (!req || req.applicantId !== currentUserId) return;
-    if (isPending(req.status)) {
-      setRemovingIds((prev) => new Set(prev).add(id));
-      await fetch(`/api/leaves/${id}`, { method: "DELETE" });
-      setTimeout(() => {
-        setRemovingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
-        fetchLeaves();
-      }, 300);
-    }
-  }, [leaveRequests, currentUserId, fetchLeaves]);
-
-  const handleCancelConfirm = () => {
-    if (!cancelConfirm) return;
-    if (cancelConfirm.type === "immediate") {
-      handleCancel(cancelConfirm.id);
-    } else {
-      handleCancelRequest(cancelConfirm.id);
-    }
-    setCancelConfirm(null);
-  };
-
-  const handleCancelRequest = useCallback(async (id: string) => {
-    const req = leaveRequests.find((r) => r.id === id);
-    if (!req || req.applicantId !== currentUserId) return;
-    if (req.status !== "승인_완료") return;
-    await fetch(`/api/leaves/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCEL_REQUESTED" }),
-    });
-    fetchLeaves();
-  }, [leaveRequests, currentUserId, fetchLeaves]);
-
-  const handleApproveCancel = useCallback(async (id: string) => {
     setRemovingIds((prev) => new Set(prev).add(id));
-    await fetch(`/api/leaves/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCELED" }),
-    });
+    if (isPending(req.status)) {
+      await fetch(`/api/leaves/${id}`, { method: "DELETE" });
+    } else if (req.status === "승인_완료") {
+      await fetch(`/api/leaves/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELED" }),
+      });
+    }
     setTimeout(() => {
       setRemovingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
       fetchLeaves();
     }, 300);
-  }, [fetchLeaves]);
+  }, [leaveRequests, currentUserId, fetchLeaves]);
+
+  const handleCancelConfirm = () => {
+    if (!cancelConfirm) return;
+    handleCancel(cancelConfirm.id);
+    setCancelConfirm(null);
+  };
+
 
   const burnoutRisks = useMemo(
     () =>
@@ -976,50 +954,8 @@ function LeaveOverviewTab({
         </div>
       )}
 
-      {/* 취소 요청 승인 (팀장/C레벨) */}
-      {(isTeamLead || isCLevel) && pendingCancelApproval.length > 0 && (
-        <Card className="border border-rose-200/50 bg-rose-50/30 backdrop-blur-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-rose-700">
-              <XCircle className="size-5" />
-              휴가 취소 요청 대기
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {pendingCancelApproval.map((req) => (
-                <div
-                  key={req.id}
-                  className="flex flex-col gap-4 rounded-lg glass-card p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="font-medium">{req.applicantName}</p>
-                    <p className="text-sm text-[var(--muted-foreground)]">
-                      {getLeaveTypeDisplayName(req.leaveType)} · {req.startDate}
-                      {req.startDate !== req.endDate && ` ~ ${req.endDate}`} (
-                      {req.days}일)
-                    </p>
-                    <p className="mt-1 text-sm text-rose-600">취소 요청됨</p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-rose-200 text-rose-600 hover:bg-rose-50"
-                      onClick={() => handleApproveCancel(req.id)}
-                    >
-                      취소 승인
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 결재 대기 (팀장/C레벨) */}
-      {(isTeamLead || isCLevel) && pendingForApproval.length > 0 && (
+      {/* 결재 대기 (김정섭/C레벨) */}
+      {(isIntermediateApprover || isCLevel) && pendingForApproval.length > 0 && (
         <Card className="border border-amber-200/50 bg-amber-50/50 backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1220,15 +1156,10 @@ function LeaveRecordRow({
               size="sm"
               variant="outline"
               className="border-rose-200/80 text-rose-500 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-600"
-              onClick={() =>
-                onCancelClick(
-                  request.id,
-                  isPending ? "immediate" : "request"
-                )
-              }
+              onClick={() => onCancelClick(request.id, "immediate")}
             >
               <XCircle className="size-3.5" />
-              {isPending ? "휴가 취소" : "휴가 취소 요청"}
+              휴가 취소
             </Button>
           )}
           {isOwnRequest && needsProof && (
@@ -1450,7 +1381,7 @@ function LeaveApplicationModal({
   }, [startDate, endDate, isRangeMode, isAnnualFlow]);
 
   const handleSubmit = () => {
-    if (!startDate || !reason || !leaveType) return;
+    if (!startDate || !leaveType) return;
     // hourly·반차는 endDate가 없으므로 startDate 사용, 나머지는 endDate 우선
     const isSingleDay = isAnnualFlow && (flexSubType === "hourly" || flexSubType === "half_am" || flexSubType === "half_pm");
     const end = isSingleDay ? startDate : (endDate ?? startDate);
@@ -1472,7 +1403,6 @@ function LeaveApplicationModal({
   const card = leaveType ? LEAVE_TYPE_CARDS.find((c) => c.key === leaveType) : null;
   const canSubmit =
     !!startDate &&
-    !!reason &&
     (flexSubType === "hourly"
       ? days > 0
       : flexSubType !== "annual"
