@@ -1,11 +1,11 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const body = await req.json();
   const { id } = await params;
   const { data, error } = await supabase
@@ -27,7 +27,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { id } = await params;
   const { error } = await supabase.from("announcements").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
