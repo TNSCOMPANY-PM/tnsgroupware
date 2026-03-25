@@ -151,10 +151,12 @@ export default function ApprovalsPage() {
   const [showTemplateManage, setShowTemplateManage] = useState(false);
   const [templateList, setTemplateList] = useState<SimpleSettlementTemplate[]>([]);
   const [editingTemplateName, setEditingTemplateName] = useState<{ id: string; name: string } | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   const [showPurchaseTemplateManage, setShowPurchaseTemplateManage] = useState(false);
   const [purchaseTemplateList, setPurchaseTemplateList] = useState<PurchaseTemplate[]>([]);
   const [editingPurchaseTemplateName, setEditingPurchaseTemplateName] = useState<{ id: string; name: string } | null>(null);
+  const [selectedPurchaseTemplateId, setSelectedPurchaseTemplateId] = useState("");
 
   const fetchApprovals = useCallback(async () => {
     setLoading(true);
@@ -616,13 +618,13 @@ export default function ApprovalsPage() {
                   <label className="text-xs font-medium text-slate-600">간단 정산 템플릿 불러오기</label>
                   <select
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                    value=""
+                    value={selectedTemplateId}
                     onChange={(e) => {
                       const id = e.target.value;
+                      setSelectedTemplateId("");
                       if (!id) return;
                       const t = templateList.find((x) => x.id === id) ?? null;
                       if (t) loadTemplateIntoForm(t);
-                      e.target.value = "";
                     }}
                   >
                     <option value="">--템플릿 선택--</option>
@@ -638,13 +640,13 @@ export default function ApprovalsPage() {
                   <label className="text-xs font-medium text-slate-600">비품구입 템플릿 불러오기</label>
                   <select
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                    value=""
+                    value={selectedPurchaseTemplateId}
                     onChange={(e) => {
                       const id = e.target.value;
+                      setSelectedPurchaseTemplateId("");
                       if (!id) return;
                       const t = purchaseTemplateList.find((x) => x.id === id) ?? null;
                       if (t) loadPurchaseTemplateIntoForm(t);
-                      e.target.value = "";
                     }}
                   >
                     <option value="">--템플릿 선택--</option>
