@@ -442,7 +442,7 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_employees") {
-    let q = supabase.from("employees").select("name,department,role,emp_number,email").eq("status", "재직");
+    let q = supabase.from("employees").select("name,department,role,emp_number,email").eq("employment_status", "재직");
     if (args.name) q = q.ilike("name", `%${args.name}%`);
     if (args.department) q = q.ilike("department", `%${args.department}%`);
     if (args.role) q = q.eq("role", args.role as string);
@@ -546,7 +546,7 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
 
   if (name === "query_burnout_risk") {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const { data: employees } = await supabase.from("employees").select("id,name,department").eq("status", "재직");
+    const { data: employees } = await supabase.from("employees").select("id,name,department").eq("employment_status", "재직");
     const { data: recentLeaves } = await supabase.from("leave_requests").select("applicant_id").eq("status", "승인_완료").gte("end_date", ninetyDaysAgo);
     if (!employees) return "직원 데이터가 없습니다.";
     const usedIds = new Set((recentLeaves ?? []).map((l: Record<string, unknown>) => l.applicant_id));
