@@ -21,19 +21,7 @@ import type { User, UserRole, EmploymentStatus } from "@/constants/users";
 import { getBurnoutRiskUsers } from "@/utils/leaveMonitoring";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import type { Employee } from "@/types/employee";
-import {
-  DASHBOARD_ANNOUNCEMENTS,
-  LUNCH_MENUS,
-} from "@/constants/dashboard";
-import { parseDashboardFinance, type FinanceCurrentJson } from "@/lib/financeCurrent";
-import {
-  computeDashboardLedgerSummary,
-  loadLedgerCustom,
-  loadLedgerEdits,
-  loadLedgerHidden,
-  type FinanceRowForLedger,
-  type LedgerRowForSummary,
-} from "@/lib/dashboardLedgerSummary";
+import { LUNCH_MENUS } from "@/constants/dashboard";
 import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
 import {
   Calendar,
@@ -76,7 +64,6 @@ import {
   addAnnouncement,
   updateAnnouncement,
   deleteAnnouncement,
-  seedDefaultsIfEmpty,
   type DashboardAnnouncement,
 } from "@/lib/dashboardAnnouncementStorage";
 
@@ -94,26 +81,13 @@ function toUserAdapter(emp: Employee): User {
   };
 }
 
-// leave_requests는 useEffect에서 API로 로드 (하드코딩 제거)
-
-const defaultAnnouncements: DashboardAnnouncement[] = DASHBOARD_ANNOUNCEMENTS.map(
-  (a) => ({
-    id: a.id,
-    title: a.title,
-    date: a.date,
-    isImportant: a.isImportant,
-    body: undefined,
-    authorId: undefined,
-    authorName: undefined,
-  })
-);
 
 export default function DashboardPage() {
   const [bonusRevealed, setBonusRevealed] = useState(false);
   const [lunchResult, setLunchResult] = useState<string | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>(defaultAnnouncements);
+  const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>([]);
   const [announceAllOpen, setAnnounceAllOpen] = useState(false);
   const [announceWriteOpen, setAnnounceWriteOpen] = useState(false);
   const [announceEditId, setAnnounceEditId] = useState<string | null>(null);
@@ -121,10 +95,7 @@ export default function DashboardPage() {
   const [announceBody, setAnnounceBody] = useState("");
   const [announceImportant, setAnnounceImportant] = useState(false);
   const [horoscopeCheckedPeriod, setHoroscopeCheckedPeriod] = useState<string | null>(null);
-  const [financeData, setFinanceData] = useState<FinanceCurrentJson | null>(null);
-  const [financeRows, setFinanceRows] = useState<FinanceRowForLedger[]>([]);
-  const [ledgerFromApi, setLedgerFromApi] = useState<LedgerRowForSummary[]>([]);
-  const [ledgerCustom, setLedgerCustom] = useState<LedgerRowForSummary[]>(() => loadLedgerCustom());
+  const [dashboardSummary, setDashboardSummary] = useState<{ monthlyRevenue: number; monthlyGrossProfit: number; survivalBalance: number } | null>(null);
   const { currentUserId, currentUserName, isCLevel, isTeamLead, currentEmployee, currentEmpNumber } = usePermission();
   const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
@@ -141,86 +112,29 @@ export default function DashboardPage() {
   const [teamBonusRevealed, setTeamBonusRevealed] = useState(false);
   const { plannedLeaveRequests, addPlannedLeave } = usePlannedLeaves();
 
-  // 통합 원장과 동일: DB + 엑셀(ledgerEntries) + 수동 원장 + ledger API → 당월 PAID만 집계
-  const dashboardFinance = useMemo(() => {
-    const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-    const fromExcel = financeData?.ledgerEntries;
-    const ledgerSource: LedgerRowForSummary[] =
-      fromExcel && fromExcel.length > 0
-        ? fromExcel.map((e) => ({
-            id: e.id,
-            date: e.date,
-            amount: e.amount,
-            type: e.type,
-            status: e.status,
-          }))
-        : ledgerFromApi;
-    const edits = loadLedgerEdits();
-    const hidden = loadLedgerHidden();
-    // DB finance 테이블이 주 소스 — JSON/SMS ledger는 중복 집계되므로 제외
-    const summary = computeDashboardLedgerSummary(
-      financeRows,
-      [],
-      ledgerCustom,
-      edits,
-      hidden,
-      monthKey
-    );
+  const dashboardFinance = dashboardSummary ?? { monthlyRevenue: 0, monthlyGrossProfit: 0, survivalBalance: 0 };
 
-    // 생존통장 예상 잔고: JSON 현재 잔고 - 운영비 - 매출총이익 부가세
-    const sa = financeData?.survivalAccount;
-    const survivalBalance = sa?.currentBalance
-      ? sa.currentBalance - (sa.operatingDeduction ?? 0) - Math.round(summary.monthlyGrossProfit * 0.1)
-      : summary.monthlyGrossProfit;
-
-    if (
-      summary.monthlyRevenue > 0 ||
-      summary.monthlyGrossProfit !== 0 ||
-      survivalBalance !== 0
-    ) {
-      return { ...summary, survivalBalance };
-    }
-    return parseDashboardFinance(financeData);
-  }, [financeData, financeRows, ledgerFromApi, ledgerCustom]);
-
-  useEffect(() => {
-    seedDefaultsIfEmpty(DASHBOARD_ANNOUNCEMENTS)
-      .then(() => getAnnouncements())
-      .then((list) => setAnnouncements(list))
-      .catch(() => {});
-  }, []);
-
-  // 통합 원장과 동일 소스: finance-current.json + DB finance + ledger API + leaves 병렬 로드
   useEffect(() => {
     setHoroscopeCheckedPeriod(getStoredHoroscopePeriod());
     Promise.all([
-      fetch("/finance-current.json").then((r) => r.ok ? r.json() : null).catch(() => null),
-      fetch("/api/finance").then((r) => r.ok ? r.json() : []).catch(() => []),
-      fetch("/api/transactions/ledger").then((r) => r.ok ? r.json() : { ledger: [] }).catch(() => ({ ledger: [] })),
+      fetch("/api/finance/dashboard-summary").then((r) => r.ok ? r.json() : null).catch(() => null),
       fetch("/api/leaves").then((r) => r.ok ? r.json() : []).catch(() => []),
-      fetch("/api/finance/custom").then((r) => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([currentJson, rows, ledgerRes, leavesRows, customRows]) => {
-      if (customRows && Array.isArray(customRows) && customRows.length > 0) {
-        setLedgerCustom(customRows.map((r: Record<string, unknown>) => ({
-          id: String(r.id ?? ""),
-          date: String(r.date ?? ""),
-          amount: Number(r.amount) || 0,
-          type: (r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT") as "DEPOSIT" | "WITHDRAWAL",
-          status: (r.status === "PAID" ? "PAID" : "UNMAPPED") as "UNMAPPED" | "PAID",
-        })));
+      fetch("/api/announcements").then((r) => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([summary, leavesRows, annRows]) => {
+      if (summary) setDashboardSummary(summary as { monthlyRevenue: number; monthlyGrossProfit: number; survivalBalance: number });
+      if (Array.isArray(annRows)) {
+        setAnnouncements(
+          (annRows as Record<string, unknown>[]).map((row) => ({
+            id: row.id as string,
+            title: row.title as string,
+            body: (row.body as string) ?? undefined,
+            date: row.date as string,
+            isImportant: !!(row.is_important),
+            authorId: (row.author_id as string) ?? undefined,
+            authorName: (row.author_name as string) ?? undefined,
+          }))
+        );
       }
-      setFinanceData(currentJson as FinanceCurrentJson | null);
-      setFinanceRows(Array.isArray(rows) ? rows : []);
-      const list = Array.isArray(ledgerRes?.ledger) ? ledgerRes.ledger : [];
-      setLedgerFromApi(
-        list.map((r: { id: string; date?: string; amount: number; type: string; status: string }) => ({
-          id: r.id,
-          date: r.date ?? "",
-          amount: Number(r.amount) || 0,
-          type: r.type === "WITHDRAWAL" ? "WITHDRAWAL" : "DEPOSIT",
-          status: r.status === "PAID" ? "PAID" : "UNMAPPED",
-        }))
-      );
       if (Array.isArray(leavesRows)) {
         setLeaveRequests(
           leavesRows.map((row: unknown) => {
