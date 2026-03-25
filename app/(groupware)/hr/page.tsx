@@ -75,9 +75,6 @@ function HRPageContent() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-[var(--foreground)]">HR</h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          구성원 관리 · 휴가 관리 · 전자계약 발송 · 플렉스(FLEX) 스타일
-        </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
