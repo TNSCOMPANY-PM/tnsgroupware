@@ -6,6 +6,7 @@ import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
   Phone, ChevronDown, Pencil, Copy, Check, Clock,
   TrendingUp, ArrowRight, AlertCircle, UserPlus, ArrowUpDown,
+  ScanLine, Loader2,
 } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
 
@@ -102,6 +103,8 @@ function CrmPageInner() {
   const [aliasInput, setAliasInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const ocrFileRef = useRef<HTMLInputElement>(null);
   const [remapping, setRemapping] = useState(false);
   const [remapMsg, setRemapMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -209,6 +212,29 @@ function CrmPageInner() {
   }
 
   function closeModal() { setModalOpen(false); setEditTarget(null); }
+
+  async function handleOcrUpload(file: File) {
+    setOcrLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/ocr-bizcard", { method: "POST", body: fd });
+      const data = await res.json() as Record<string, string>;
+      if (data.error) throw new Error(data.error);
+      setForm((p) => ({
+        ...p,
+        ...(data.name && { name: data.name }),
+        ...(data.business_number && { business_number: formatBizNum(data.business_number) }),
+        ...(data.representative && { representative: data.representative }),
+        ...(data.address && { address: data.address }),
+        ...(data.business_type && { business_type: data.business_type }),
+        ...(data.business_item && { business_item: data.business_item }),
+      }));
+    } catch {
+      alert("이미지 인식에 실패했습니다. 선명한 이미지로 다시 시도해보세요.");
+    }
+    setOcrLoading(false);
+  }
 
   const aliases = form.aliases as string[];
 
@@ -807,6 +833,20 @@ function CrmPageInner() {
               <h2 className="font-semibold text-slate-800">
                 {editTarget ? "거래처 수정" : "거래처 등록"}
               </h2>
+              <div className="flex items-center gap-2">
+                <input ref={ocrFileRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleOcrUpload(f); e.target.value = ""; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => ocrFileRef.current?.click()}
+                  disabled={ocrLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                >
+                  {ocrLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ScanLine className="size-3.5" />}
+                  {ocrLoading ? "인식 중..." : "사업자등록증 스캔"}
+                </button>
+              </div>
               <button onClick={closeModal} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                 <X className="size-5" />
               </button>
