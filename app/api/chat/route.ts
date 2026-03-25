@@ -217,6 +217,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
         title: { type: "string", description: "결재 제목 (고객사명 등)" },
         content: { type: "string", description: "내용" },
         amount: { type: "number", description: "금액(원)" },
+        date: { type: "string", description: "원장 기록 날짜 (YYYY-MM-DD). 오늘=today. 미지정 시 오늘" },
         payment_reason: { type: "string" },
         sheet_classification: { type: "string", description: "결제/정산/환불/슬롯구입정산/CPC리워드" },
         bank: { type: "string" },
@@ -630,9 +631,11 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "create_approval") {
+    const financeDate = args.date === "today" || !args.date ? today : (args.date as string);
     const insert: Record<string, unknown> = {
       type: args.type, title: args.title, content: args.content ?? "",
       amount: args.amount, requester_name: user.name, requester_id: user.userId, status: "pending",
+      finance_date: financeDate,
     };
     if (args.payment_reason) insert.payment_reason = args.payment_reason;
     if (args.sheet_classification) insert.sheet_classification = args.sheet_classification;
