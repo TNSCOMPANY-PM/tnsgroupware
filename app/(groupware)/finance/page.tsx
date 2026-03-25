@@ -1169,7 +1169,7 @@ export default function FinancePage() {
       </div>
 
       {viewMode === "ledger" && (
-      <div className="grid grid-cols-12 gap-6 min-h-0" style={{ height: "calc(100vh - 220px)", minHeight: "420px" }}>
+      <div className="grid grid-cols-12 gap-6 min-h-0" style={{ height: "calc(100vh - 220px)", minHeight: "600px" }}>
         {/* [좌측 col-span-8] 통합 입출금 원장 */}
         <div className="col-span-12 lg:col-span-8 flex min-h-0 flex-col rounded-2xl border border-white/40 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-2xl overflow-hidden">
           <div className="flex-shrink-0 border-b border-slate-200/80 bg-slate-50/50 px-5 py-3">
@@ -1302,7 +1302,7 @@ export default function FinancePage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border-t border-slate-100">
+          <div className="flex-1 min-h-[280px] overflow-y-auto overflow-x-auto border-t border-slate-100">
             <table className="min-w-[640px] w-full text-xs tracking-tight table-fixed">
               <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm shadow-sm">
                 <tr className="border-b border-slate-200">
