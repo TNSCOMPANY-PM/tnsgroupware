@@ -115,7 +115,7 @@ export type PurchaseTemplate = {
 };
 
 export default function ApprovalsPage() {
-  const { currentUserId, currentUserName, isCLevel, isTeamLead } = usePermission();
+  const { currentUserId, currentUserName, isCLevel, isTeamLead, isMaster } = usePermission();
   const canApprove = isTeamLead; // 전자결재는 팀장(박재민)만 결재
 
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -278,6 +278,17 @@ export default function ApprovalsPage() {
       setRejectReason("");
     } else {
       alert(result?.error || "처리에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteApproval = async (id: string) => {
+    if (!confirm("이 결재 내역을 삭제할까요? 연결된 원장 항목도 함께 삭제됩니다.")) return;
+    const res = await fetch(`/api/approvals/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setApprovals((p) => p.filter((a) => a.id !== id));
+      setDetailItem(null);
+    } else {
+      alert("삭제에 실패했습니다.");
     }
   };
 
@@ -1095,6 +1106,19 @@ export default function ApprovalsPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 삭제 버튼 (본인 / C레벨 / 마스터) */}
+            {(detailItem.requester_id === currentUserId || isCLevel || isMaster) && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteApproval(detailItem.id)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 className="size-4" /> 결재 내역 삭제
+                </button>
               </div>
             )}
 
