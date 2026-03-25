@@ -22,6 +22,16 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   // ── 조회 ─────────────────────────────────────────────────────────────
   {
     type: "function", function: {
+      name: "query_finance_summary",
+      description: "매출액·매입액·매출총이익을 정확히 계산합니다. '매출총이익', '매출액', '매입액', '손익' 등을 물어볼 때 반드시 이 툴을 사용합니다.",
+      parameters: { type: "object", properties: {
+        month: { type: "string", description: "월 (YYYY-MM). 이번달=current" },
+        date: { type: "string", description: "날짜 (YYYY-MM-DD). 오늘=today" },
+      }},
+    },
+  },
+  {
+    type: "function", function: {
       name: "query_finance",
       description: "매출·매입 원장을 조회합니다. 입금 내역, 특정 고객사 거래, 월별 매출 등을 확인합니다.",
       parameters: { type: "object", properties: {
@@ -377,6 +387,22 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   // ── 조회 ─────────────────────────────────────────────────────────────
+  if (name === "query_finance_summary") {
+    const date = args.date === "today" ? today : (args.date as string | undefined);
+    const month = args.month === "current" ? today.slice(0, 7) : (args.month as string | undefined);
+    let q = supabase.from("finance").select("type,amount");
+    if (date) q = q.eq("date", date);
+    else if (month) q = q.eq("month", month);
+    const { data, error } = await q;
+    if (error) return `오류: ${error.message}`;
+    if (!data?.length) return "해당 기간 데이터가 없습니다.";
+    const rows = data as { type: string; amount: number }[];
+    const revenue = rows.filter(r => r.type === "매출").reduce((s, r) => s + r.amount, 0);
+    const expense = rows.filter(r => r.type === "매입").reduce((s, r) => s + r.amount, 0);
+    const grossProfit = revenue - expense;
+    return JSON.stringify({ 매출액: revenue, 매입액: expense, 매출총이익: grossProfit, 기간: date ?? month ?? "전체" });
+  }
+
   if (name === "query_finance") {
     let q = supabase.from("finance").select("date,month,type,amount,client_name,description,category,status").order("date", { ascending: false });
     const date = args.date === "today" ? today : (args.date as string | undefined);
@@ -767,7 +793,13 @@ export async function POST(req: Request) {
 3. 본인 명의 외 다른 사람 휴가/결재 신청은 거부합니다.
 4. 숫자는 xxx,xxx원 형식, 날짜는 M월 d일로 표시합니다.
 5. 답변은 한국어로 간결하고 친근하게 합니다.
-6. 입금/원장 내역을 보여줄 때는 툴이 반환한 items를 하나도 빠짐없이 모두 나열합니다. 임의로 묶거나 생략하지 않습니다. 합계는 반드시 total_amount 값을 그대로 사용합니다.`;
+6. 입금/원장 내역을 보여줄 때는 툴이 반환한 items를 하나도 빠짐없이 모두 나열합니다. 임의로 묶거나 생략하지 않습니다. 합계는 반드시 total_amount 값을 그대로 사용합니다.
+7. 재무 용어를 정확히 구분합니다:
+   - 매출액 = type이 '매출'인 항목의 합계
+   - 매입액 = type이 '매입'인 항목의 합계
+   - 매출총이익 = 매출액 - 매입액
+   - 이 세 가지는 서로 다른 값입니다. 절대 혼용하지 않습니다. 매출총이익을 매출액이라고 하거나 그 반대로 하지 않습니다.
+   - query_finance_summary 툴을 사용하면 이 값들이 자동으로 계산되어 반환됩니다.`;
 
   const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
