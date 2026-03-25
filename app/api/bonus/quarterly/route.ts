@@ -10,13 +10,13 @@ const BONUS_DN_YONGJUN_RATE = 0.275;
 
 type BonusKey = "jeongseop" | "yongjun" | "gyuseong" | "donggyun" | "jaemin";
 
-/** userId → 성과급 배분 키 */
-const USER_BONUS_KEY: Record<string, BonusKey | null> = {
-  "3": "donggyun",   // 김동균 (티제이웹)
-  "4": "yongjun",    // 김용준 (더널리)
-  "5": "jeongseop",  // 김정섭 (더널리)
-  "6": "jaemin",     // 박재민 (경영지원)
-  "7": "gyuseong",   // 심규성 (더널리)
+/** emp_number → 성과급 배분 키 */
+const EMP_BONUS_KEY: Record<string, BonusKey | null> = {
+  "TNS-20190709": "donggyun",   // 김동균 (티제이웹)
+  "TNS-20220117": "yongjun",    // 김용준 (더널리)
+  "TNS-20250201": "jeongseop",  // 김정섭 (더널리)
+  "TNS-20210125": "jaemin",     // 박재민 (경영지원)
+  "TNS-20220801": "gyuseong",   // 심규성 (더널리)
 };
 
 type FinRow = { type: string; amount: number; category: string | null };
@@ -66,14 +66,14 @@ function calcBonus(rows: FinRow[]): Record<BonusKey, number> {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+  const empNumber = searchParams.get("empNumber");
+  if (!empNumber) return NextResponse.json({ total: 0, months: [], quarter: 0, year: 0, bonusKey: null });
 
   // C레벨 등 성과급 대상 아닌 경우
-  if (!(userId in USER_BONUS_KEY)) {
+  if (!(empNumber in EMP_BONUS_KEY)) {
     return NextResponse.json({ total: 0, months: [], quarter: 0, year: 0, bonusKey: null });
   }
-  const bonusKey = USER_BONUS_KEY[userId];
+  const bonusKey = EMP_BONUS_KEY[empNumber];
 
   const today = new Date();
   const year  = today.getFullYear();
@@ -120,7 +120,7 @@ export async function GET(req: Request) {
   const paidInMonth  = `${year}-${String(qEndMonth).padStart(2, "0")}`;
 
   return NextResponse.json({
-    userId,
+    empNumber,
     bonusKey,
     quarter,
     year,
