@@ -125,7 +125,7 @@ export default function DashboardPage() {
   const [financeRows, setFinanceRows] = useState<FinanceRowForLedger[]>([]);
   const [ledgerFromApi, setLedgerFromApi] = useState<LedgerRowForSummary[]>([]);
   const [ledgerCustom, setLedgerCustom] = useState<LedgerRowForSummary[]>(() => loadLedgerCustom());
-  const { currentUserId, currentUserName, isCLevel, isTeamLead, currentEmployee } = usePermission();
+  const { currentUserId, currentUserName, isCLevel, isTeamLead, currentEmployee, currentEmpNumber } = usePermission();
   const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -256,15 +256,15 @@ export default function DashboardPage() {
   }, [isTeamLead, isCLevel]);
 
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentEmpNumber) return;
     Promise.all([
-      fetch(`/api/bonus/quarterly?userId=${currentUserId}`).then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/bonus/quarterly?empNumber=${currentEmpNumber}`).then((r) => r.ok ? r.json() : null).catch(() => null),
       isCLevel ? fetch("/api/bonus/quarterly/team").then((r) => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
     ]).then(([quarterly, team]) => {
       if (quarterly?.bonusKey) setQuarterlyBonus(quarterly);
       if (team) setTeamBonus(team);
     });
-  }, [currentUserId, isCLevel]);
+  }, [currentEmpNumber, isCLevel]);
 
   const now = new Date();
   const horoscopePeriodStart = getHoroscopePeriodStart(now);
@@ -657,7 +657,7 @@ export default function DashboardPage() {
         )}
 
         {/* [1.6] 2026 분기별 로드맵 달성 현황 (간트 에픽 연동) */}
-        <div className={cn(quarterlyBonus && quarterlyBonus.bonusKey ? "col-span-12 md:col-span-6 lg:col-span-8" : "col-span-12", "flex flex-col")}>
+        <div className={cn(quarterlyBonus && quarterlyBonus.bonusKey ? "col-span-12 md:col-span-6 lg:col-span-8" : "col-span-12", "relative z-10 flex flex-col transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] rounded-2xl")}>
           <QuarterlyRoadmapWidget />
         </div>
 
