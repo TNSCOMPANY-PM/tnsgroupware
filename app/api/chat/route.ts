@@ -2,6 +2,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
+import { LUNCH_MENUS } from "@/constants/dashboard";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -14,8 +15,9 @@ type UserContext = {
 };
 
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
-  // ── 운세 ─────────────────────────────────────────────────────────────
+  // ── 유틸리티 ─────────────────────────────────────────────────────────
   { type: "function", function: { name: "get_horoscope", description: "오늘의 운세, 행운의 번호, 재물운, 업무운을 알려줍니다.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "get_lunch", description: "점심 메뉴를 추천합니다.", parameters: { type: "object", properties: {} } } },
 
   // ── 조회 ─────────────────────────────────────────────────────────────
   {
@@ -123,6 +125,45 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function", function: {
+      name: "query_team_bonus",
+      description: "팀 전체 분기 성과급 지급 예상액을 조회합니다. C레벨 권한 필요.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function", function: {
+      name: "query_annual_leaves",
+      description: "직원별 연차 현황(발생/사용/잔여)을 조회합니다.",
+      parameters: { type: "object", properties: {
+        employee_name: { type: "string", description: "특정 직원 이름 (없으면 전체)" },
+      }},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "query_burnout_risk",
+      description: "최근 90일간 연차를 사용하지 않은 번아웃 위험 직원을 조회합니다.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function", function: {
+      name: "query_projects",
+      description: "간트 차트의 프로젝트 목록과 진행률을 조회합니다.",
+      parameters: { type: "object", properties: {
+        status: { type: "string", description: "진행 상태 필터" },
+      }},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "query_unmatched_finance",
+      description: "원장에서 고객사와 매핑되지 않은 입금 내역을 조회합니다.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
 
   // ── 실행 ─────────────────────────────────────────────────────────────
   {
@@ -223,6 +264,99 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
       }, required: ["title"]},
     },
   },
+  {
+    type: "function", function: {
+      name: "update_kanban_card",
+      description: "칸반 카드를 수정하거나 다른 컬럼으로 이동합니다. 먼저 query_kanban으로 ID를 확인하세요.",
+      parameters: { type: "object", properties: {
+        card_id: { type: "string" },
+        title: { type: "string" },
+        column: { type: "string", description: "todo / in_progress / done" },
+        assignee: { type: "string" },
+        due_date: { type: "string" },
+        priority: { type: "string" },
+        description: { type: "string" },
+      }, required: ["card_id"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "delete_kanban_card",
+      description: "칸반 카드를 삭제합니다.",
+      parameters: { type: "object", properties: {
+        card_id: { type: "string" },
+      }, required: ["card_id"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "update_event",
+      description: "캘린더 일정을 수정합니다. 먼저 query_events로 ID를 확인하세요.",
+      parameters: { type: "object", properties: {
+        event_id: { type: "string" },
+        title: { type: "string" },
+        start_date: { type: "string" },
+        end_date: { type: "string" },
+        description: { type: "string" },
+        color: { type: "string" },
+      }, required: ["event_id"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "delete_event",
+      description: "캘린더 일정을 삭제합니다.",
+      parameters: { type: "object", properties: {
+        event_id: { type: "string" },
+      }, required: ["event_id"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "update_announcement",
+      description: "공지사항을 수정합니다. C레벨/마스터 권한 필요. 먼저 query_announcements로 ID를 확인하세요.",
+      parameters: { type: "object", properties: {
+        announcement_id: { type: "string" },
+        title: { type: "string" },
+        body: { type: "string" },
+        is_important: { type: "boolean" },
+      }, required: ["announcement_id"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "delete_announcement",
+      description: "공지사항을 삭제합니다. C레벨/마스터 권한 필요.",
+      parameters: { type: "object", properties: {
+        announcement_id: { type: "string" },
+      }, required: ["announcement_id"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "create_client",
+      description: "새 고객사(거래처)를 CRM에 등록합니다.",
+      parameters: { type: "object", properties: {
+        name: { type: "string", description: "상호명 (필수)" },
+        category: { type: "string", description: "더널리 / 티제이웹 / 기타" },
+        business_number: { type: "string" },
+        representative: { type: "string" },
+        address: { type: "string" },
+        business_type: { type: "string" },
+        business_item: { type: "string" },
+        contact: { type: "string" },
+      }, required: ["name"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "delete_client",
+      description: "고객사를 삭제합니다. C레벨/마스터 권한 필요. 먼저 query_clients로 ID를 확인하세요.",
+      parameters: { type: "object", properties: {
+        client_id: { type: "string" },
+      }, required: ["client_id"]},
+    },
+  },
 ];
 
 // ── 툴 실행 ───────────────────────────────────────────────────────────────────
@@ -230,6 +364,11 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   const supabase = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date();
+
+  if (name === "get_lunch") {
+    const menu = LUNCH_MENUS[Math.floor(Math.random() * LUNCH_MENUS.length)];
+    return JSON.stringify({ 추천메뉴: menu });
+  }
 
   // 운세
   if (name === "get_horoscope") {
@@ -349,10 +488,60 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     };
     const bonusKey = EMP_BONUS_KEY[user.empNumber];
     if (!bonusKey) return "성과급 대상이 아닙니다.";
-    const month = today.slice(0, 7);
-    const { data } = await supabase.from("finance").select("type,amount,category").eq("month", month).eq("status", "completed");
-    if (!data?.length) return "이번 달 원장 데이터가 없습니다.";
-    return `성과급 조회: empNumber=${user.empNumber}, bonusKey=${bonusKey}, 데이터 ${data.length}건 존재. /api/bonus/quarterly?empNumber=${user.empNumber} 에서 상세 확인 가능`;
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://tnsgroupware.vercel.app"}/api/bonus/quarterly?empNumber=${user.empNumber}`);
+    if (!res.ok) return "성과급 조회에 실패했습니다.";
+    return JSON.stringify(await res.json());
+  }
+
+  if (name === "query_team_bonus") {
+    if (user.role !== "C레벨") return "C레벨 권한이 필요합니다.";
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://tnsgroupware.vercel.app"}/api/bonus/quarterly/team`);
+    if (!res.ok) return "팀 성과급 조회에 실패했습니다.";
+    return JSON.stringify(await res.json());
+  }
+
+  if (name === "query_annual_leaves") {
+    const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
+    const { data: used } = await supabase.from("leave_requests").select("applicant_id,applicant_name,days,status").eq("status", "승인_완료");
+    if (!granted) return "연차 데이터가 없습니다.";
+    const year = new Date().getFullYear();
+    const grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
+    const summary = grantedThisYear.map((g) => {
+      const usedDays = (used as Record<string, unknown>[] ?? []).filter((u) => u.applicant_id === g.user_id).reduce((s, u) => s + (Number(u.days) || 0), 0);
+      return { 이름: g.user_name, 발생: g.days, 사용: usedDays, 잔여: Number(g.days) - usedDays };
+    });
+    if (args.employee_name) {
+      const filtered = summary.filter((s) => String(s.이름).includes(args.employee_name as string));
+      return filtered.length ? JSON.stringify(filtered) : "해당 직원의 연차 정보가 없습니다.";
+    }
+    return JSON.stringify(summary);
+  }
+
+  if (name === "query_burnout_risk") {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data: employees } = await supabase.from("employees").select("id,name,department").eq("status", "재직");
+    const { data: recentLeaves } = await supabase.from("leave_requests").select("applicant_id").eq("status", "승인_완료").gte("end_date", ninetyDaysAgo);
+    if (!employees) return "직원 데이터가 없습니다.";
+    const usedIds = new Set((recentLeaves ?? []).map((l: Record<string, unknown>) => l.applicant_id));
+    const risks = (employees as Record<string, unknown>[]).filter((e) => !usedIds.has(e.id));
+    if (!risks.length) return "최근 90일 내 모든 직원이 연차를 사용했습니다.";
+    return JSON.stringify(risks.map((e) => ({ 이름: e.name, 부서: e.department })));
+  }
+
+  if (name === "query_projects") {
+    let q = supabase.from("projects").select("id,title,start_date,end_date,progress,status").order("start_date");
+    if (args.status) q = q.eq("status", args.status as string);
+    const { data, error } = await q;
+    if (error) return `오류: ${error.message}`;
+    if (!data?.length) return "프로젝트가 없습니다.";
+    return JSON.stringify(data);
+  }
+
+  if (name === "query_unmatched_finance") {
+    const { data, error } = await supabase.from("finance").select("date,amount,description,client_name").eq("status", "UNMAPPED").order("date", { ascending: false }).limit(30);
+    if (error) return `오류: ${error.message}`;
+    if (!data?.length) return "미매핑 항목이 없습니다.";
+    return JSON.stringify(data);
   }
 
   // ── 실행 ─────────────────────────────────────────────────────────────
@@ -473,6 +662,82 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     });
     if (error) return `카드 추가 실패: ${error.message}`;
     return `✅ 칸반 카드가 추가되었습니다. (${args.title})`;
+  }
+
+  if (name === "update_kanban_card") {
+    const patch: Record<string, unknown> = {};
+    if (args.title !== undefined) patch.title = args.title;
+    if (args.column !== undefined) patch.column = args.column;
+    if (args.assignee !== undefined) patch.assignee = args.assignee;
+    if (args.due_date !== undefined) patch.due_date = args.due_date;
+    if (args.priority !== undefined) patch.priority = args.priority;
+    if (args.description !== undefined) patch.description = args.description;
+    const { error } = await supabase.from("kanban_cards").update(patch).eq("id", args.card_id as string);
+    if (error) return `수정 실패: ${error.message}`;
+    return `✅ 칸반 카드가 수정되었습니다.`;
+  }
+
+  if (name === "delete_kanban_card") {
+    const { error } = await supabase.from("kanban_cards").delete().eq("id", args.card_id as string);
+    if (error) return `삭제 실패: ${error.message}`;
+    return `✅ 칸반 카드가 삭제되었습니다.`;
+  }
+
+  if (name === "update_event") {
+    const patch: Record<string, unknown> = {};
+    if (args.title) patch.title = args.title;
+    if (args.start_date) patch.start_date = args.start_date;
+    if (args.end_date) patch.end_date = args.end_date;
+    if (args.description) patch.description = args.description;
+    if (args.color) patch.color = args.color;
+    const { error } = await supabase.from("calendar_events").update(patch).eq("id", args.event_id as string);
+    if (error) return `수정 실패: ${error.message}`;
+    return `✅ 일정이 수정되었습니다.`;
+  }
+
+  if (name === "delete_event") {
+    const { error } = await supabase.from("calendar_events").delete().eq("id", args.event_id as string);
+    if (error) return `삭제 실패: ${error.message}`;
+    return `✅ 일정이 삭제되었습니다.`;
+  }
+
+  if (name === "update_announcement") {
+    const isAuthorized = user.role === "C레벨" || user.empNumber === "";
+    if (!isAuthorized) return "C레벨 권한이 필요합니다.";
+    const patch: Record<string, unknown> = {};
+    if (args.title) patch.title = args.title;
+    if (args.body !== undefined) patch.body = args.body;
+    if (args.is_important !== undefined) patch.is_important = args.is_important;
+    const { error } = await supabase.from("announcements").update(patch).eq("id", args.announcement_id as string);
+    if (error) return `수정 실패: ${error.message}`;
+    return `✅ 공지사항이 수정되었습니다.`;
+  }
+
+  if (name === "delete_announcement") {
+    const isAuthorized = user.role === "C레벨" || user.empNumber === "";
+    if (!isAuthorized) return "C레벨 권한이 필요합니다.";
+    const { error } = await supabase.from("announcements").delete().eq("id", args.announcement_id as string);
+    if (error) return `삭제 실패: ${error.message}`;
+    return `✅ 공지사항이 삭제되었습니다.`;
+  }
+
+  if (name === "create_client") {
+    const { error } = await supabase.from("clients").insert({
+      name: args.name, category: args.category ?? null,
+      business_number: args.business_number ?? null, representative: args.representative ?? null,
+      address: args.address ?? null, business_type: args.business_type ?? null,
+      business_item: args.business_item ?? null, contact: args.contact ?? null,
+    });
+    if (error) return `고객사 등록 실패: ${error.message}`;
+    return `✅ 고객사 "${args.name}"가 CRM에 등록되었습니다.`;
+  }
+
+  if (name === "delete_client") {
+    const isAuthorized = user.role === "C레벨" || user.empNumber === "";
+    if (!isAuthorized) return "C레벨 권한이 필요합니다.";
+    const { error } = await supabase.from("clients").delete().eq("id", args.client_id as string);
+    if (error) return `삭제 실패: ${error.message}`;
+    return `✅ 고객사가 삭제되었습니다.`;
   }
 
   return "알 수 없는 툴입니다.";
