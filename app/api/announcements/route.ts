@@ -23,8 +23,8 @@ export async function POST(req: Request) {
       body: body.body ?? null,
       date: body.date,
       is_important: body.isImportant ?? false,
-      author_id: body.authorId ?? null,
-      author_name: body.authorName ?? null,
+      author_id: body.authorId || null,
+      author_name: body.authorName || null,
     })
     .select()
     .single();
