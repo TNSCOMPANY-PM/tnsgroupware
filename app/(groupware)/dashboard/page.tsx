@@ -88,7 +88,8 @@ export default function DashboardPage() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>([]);
-  const [announceAllOpen, setAnnounceAllOpen] = useState(false);
+  const [announceDetailOpen, setAnnounceDetailOpen] = useState(false);
+  const [announceDetailItem, setAnnounceDetailItem] = useState<DashboardAnnouncement | null>(null);
   const [announceWriteOpen, setAnnounceWriteOpen] = useState(false);
   const [announceEditId, setAnnounceEditId] = useState<string | null>(null);
   const [announceTitle, setAnnounceTitle] = useState("");
@@ -203,6 +204,15 @@ export default function DashboardPage() {
 
   const today = new Date();
   const todayStr = format(today, "yyyy-MM-dd");
+
+  const sortedAnnouncements = useMemo(
+    () => [...announcements].sort((a, b) => {
+      if (a.isImportant && !b.isImportant) return -1;
+      if (!a.isImportant && b.isImportant) return 1;
+      return (b.date ?? "").localeCompare(a.date ?? "");
+    }),
+    [announcements]
+  );
 
   // 오늘 휴가자: 승인 완료된 실제 데이터에서 파생
   const todayLeavers = useMemo(() => {
@@ -623,17 +633,16 @@ export default function DashboardPage() {
         <Card className="relative z-10 rounded-2xl bg-white/80 backdrop-blur-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-[0_20px_40px_rgb(0,0,0,0.12)] col-span-12 lg:col-span-4">
           <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
             <CardTitle className="flex items-center gap-2 text-slate-900">
-              📢 공지사항
+              <Link href="/announcements" className="hover:underline">📢 공지사항</Link>
             </CardTitle>
             <div className="flex shrink-0 items-center gap-2">
-              {announcements.length > 4 && (
-                <button
-                  type="button"
-                  onClick={() => setAnnounceAllOpen(true)}
+              {announcements.length > 0 && (
+                <Link
+                  href="/announcements"
                   className="rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                 >
                   전체 보기 ({announcements.length})
-                </button>
+                </Link>
               )}
               {isCLevel && (
                 <button
@@ -648,63 +657,55 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
-              {announcements.slice(0, 4).map((ann) => (
-                <li
-                  key={ann.id}
-                  className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgb(0,0,0,0.04)]",
-                    ann.isImportant
-                      ? "bg-gradient-to-r from-indigo-50/80 to-violet-50/50"
-                      : "hover:bg-slate-50/60"
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p
+            <ul className="max-h-[320px] overflow-y-auto space-y-2 pr-0.5">
+              {sortedAnnouncements.map((ann) => (
+                <li key={ann.id} className={cn(
+                  "rounded-xl",
+                  ann.isImportant ? "bg-gradient-to-r from-indigo-50/80 to-violet-50/50" : ""
+                )}>
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setAnnounceDetailItem(ann); setAnnounceDetailOpen(true); }}
                       className={cn(
-                        "text-sm text-slate-800",
-                        ann.isImportant && "font-bold"
+                        "min-w-0 flex-1 rounded-xl px-3 py-2.5 text-left transition-all duration-200 hover:bg-black/5 active:bg-black/10"
                       )}
                     >
-                      {ann.title}
-                    </p>
-                    {ann.body && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
-                        {ann.body}
+                      <p className={cn("text-sm text-slate-800", ann.isImportant && "font-bold")}>
+                        {ann.title}
                       </p>
-                    )}
-                    {ann.isImportant && (
-                      <span className="mt-1 inline-block rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                        📌 필독
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-slate-400">
-                      {format(parseISO(ann.date), "M/d")}
-                    </span>
-                    {isCLevel && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openAnnounceEdit(ann)}
-                          className="rounded-md border border-slate-200 bg-white/70 p-1 text-slate-600 hover:bg-white"
-                          aria-label="공지 수정"
-                          title="수정"
-                        >
-                          <Pencil className="size-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAnnounceDelete(ann.id)}
-                          className="rounded-md border border-rose-200 bg-white/70 p-1 text-rose-600 hover:bg-white"
-                          aria-label="공지 삭제"
-                          title="삭제"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    )}
+                      {ann.body && (
+                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{ann.body}</p>
+                      )}
+                      {ann.isImportant && (
+                        <span className="mt-1 inline-block rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                          📌 필독
+                        </span>
+                      )}
+                    </button>
+                    <div className="flex shrink-0 items-center gap-1 pr-2">
+                      <span className="text-xs text-slate-400">{format(parseISO(ann.date), "M/d")}</span>
+                      {isCLevel && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openAnnounceEdit(ann)}
+                            className="rounded-md border border-slate-200 bg-white/70 p-1 text-slate-600 hover:bg-white"
+                            title="수정"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAnnounceDelete(ann.id)}
+                            className="rounded-md border border-rose-200 bg-white/70 p-1 text-rose-600 hover:bg-white"
+                            title="삭제"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}
@@ -935,38 +936,31 @@ export default function DashboardPage() {
         onSubmit={handlePlanSubmit}
       />
 
-      {/* 공지사항 전체 보기 모달 */}
-      <Dialog open={announceAllOpen} onOpenChange={setAnnounceAllOpen}>
-        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
+      {/* 공지사항 상세 보기 모달 */}
+      <Dialog open={announceDetailOpen} onOpenChange={setAnnounceDetailOpen}>
+        <DialogContent className="max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>공지사항 전체</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 pr-8">
+              {announceDetailItem?.isImportant && (
+                <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">📌 필독</span>
+              )}
+              <span>{announceDetailItem?.title}</span>
+            </DialogTitle>
           </DialogHeader>
-          <ul className="space-y-3 py-2">
-            {announcements.map((ann) => (
-              <li key={ann.id} className={cn("rounded-xl px-4 py-3", ann.isImportant ? "bg-indigo-50/80" : "bg-slate-50/60")}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className={cn("text-sm font-medium text-slate-800", ann.isImportant && "font-bold")}>{ann.title}</p>
-                    {ann.body && <p className="mt-1 text-xs text-slate-600 whitespace-pre-wrap">{ann.body}</p>}
-                    {ann.isImportant && (
-                      <span className="mt-1.5 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">📌 필독</span>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="text-xs text-slate-400">{format(parseISO(ann.date), "M/d")}</span>
-                    {isCLevel && (
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => { setAnnounceAllOpen(false); openAnnounceEdit(ann); }} className="rounded border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"><Pencil className="size-3" /></button>
-                        <button type="button" onClick={async () => { await handleAnnounceDelete(ann.id); }} className="rounded border border-rose-200 bg-white p-1 text-rose-500 hover:bg-rose-50"><Trash2 className="size-3" /></button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="py-1">
+            <p className="mb-3 text-xs text-slate-400">
+              {announceDetailItem?.date && format(parseISO(announceDetailItem.date), "yyyy년 M월 d일", { locale: ko })}
+              {announceDetailItem?.authorName && ` · ${announceDetailItem.authorName}`}
+            </p>
+            {announceDetailItem?.body ? (
+              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{announceDetailItem.body}</p>
+            ) : (
+              <p className="text-sm text-slate-400">내용 없음</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
+
 
       <Dialog
         open={announceWriteOpen}

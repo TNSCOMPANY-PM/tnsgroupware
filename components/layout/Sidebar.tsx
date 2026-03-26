@@ -21,8 +21,8 @@ import { useSidebar } from "@/contexts/SidebarContext";
 
 const navItems = [
   { href: "/dashboard",  label: "대시보드", icon: LayoutDashboard },
-  { href: "/chat",       label: "AI 채팅",  icon: MessageCircle },
-  { href: "/finance",    label: "매출/매입", icon: Wallet },
+  { href: "/chat",    label: "AI 채팅",   icon: MessageCircle },
+  { href: "/finance", label: "매출/매입", icon: Wallet },
   { href: "/crm",        label: "고객사 CRM", icon: Building2 },
   { href: "/goals",      label: "목표",      icon: Target },
   { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
@@ -42,7 +42,7 @@ export function Sidebar() {
   const { isCLevel, isTeamLead } = usePermission();
   const { open, close } = useSidebar();
 
-  const showAssets = (isCLevel || isTeamLead) && !hideIncompleteMenus;
+  const showAssets = isCLevel || isTeamLead;
   const items = [
     ...navItems,
     ...(showAssets ? [assetsNavItem] : []),
