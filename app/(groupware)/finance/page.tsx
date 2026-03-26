@@ -123,7 +123,7 @@ function isRowOnCalendarDay(rowDate: string, dayYmd: string): boolean {
 function normalizeLedgerTeamLabel(classification: string | undefined): string {
   const raw = classification?.trim();
   if (!raw) return "기타";
-  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체") return "더널리";
+  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체" || raw === "매체비정산" || raw === "CPC정산") return "더널리";
   if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지") return "티제이웹";
   return "기타";
 }
@@ -172,7 +172,7 @@ type FinanceRow = {
 };
 
 const CLASSIFICATION_OPTIONS = [
-  "더널리", "더널리 충전", "티제이웹", "기타",
+  "더널리", "더널리 충전", "매체비정산", "CPC정산", "티제이웹", "기타",
 ];
 
 const LEDGER_CUSTOM_STORAGE_KEY = "finance-ledger-custom-entries";
