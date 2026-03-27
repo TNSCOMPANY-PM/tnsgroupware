@@ -336,6 +336,7 @@ export default function ApprovalsPage() {
       purchase_password: "",
       item_name: "",
       purpose: "",
+      ledger_category: "",
     });
     setAttachmentFiles([]);
     setShowForm(true);
