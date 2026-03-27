@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, Bot, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
+import { usePathname } from "next/navigation";
 
 interface Message {
   role: "user" | "assistant";
@@ -59,6 +60,7 @@ function saveMessages(userId: string, msgs: Message[]) {
 
 export function AIChatWidget() {
   const { currentUserId, currentUserName, currentEmpNumber, currentEmployee, isCLevel, isTeamLead } = usePermission();
+  const pathname = usePathname();
   const role = isCLevel ? "C레벨" : isTeamLead ? "팀장" : "사원";
 
   const [open, setOpen] = useState(false);
@@ -173,6 +175,7 @@ export function AIChatWidget() {
   };
 
   if (!mounted) return null;
+  if (pathname === "/chat") return null;
 
   return (
     <>
