@@ -41,12 +41,20 @@ type Approval = {
   approval_stage?: string | null;
   first_approver_name?: string | null;
   first_approved_at?: string | null;
+  // 원장 카테고리
+  ledger_category?: string | null;
 };
 
 const APPROVAL_TYPES = [
   { value: "expense",  label: "정산요청",   icon: "💳" },
   { value: "purchase", label: "비품구입",   icon: "🛒" },
   { value: "etc",      label: "기타",       icon: "📄" },
+];
+
+/** 원장 카테고리 (finance 페이지 CLASSIFICATION_OPTIONS와 동일) */
+const LEDGER_CATEGORY_OPTIONS = [
+  "더널리", "더널리 충전", "티제이웹", "기타",
+  "매체비정산", "CPC정산", "환불(더널리)", "환불(티제이웹)",
 ];
 
 /** 정산요청 시트 분류 (하위 구분) */
@@ -146,6 +154,7 @@ export default function ApprovalsPage() {
     purchase_password: "",
     item_name: "",
     purpose: "",
+    ledger_category: "",
   });
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -206,6 +215,7 @@ export default function ApprovalsPage() {
       requester_id: currentUserId,
       amount: form.amount ? Number(form.amount.replace(/[^0-9]/g, "")) || null : null,
       finance_date: form.date || todayStr,
+      ledger_category: form.ledger_category || null,
     };
     if (form.type === "expense") {
       payload.payment_reason = form.payment_reason.trim() || null;
@@ -349,6 +359,7 @@ export default function ApprovalsPage() {
       purchase_password: a.purchase_password ?? "",
       item_name: a.item_name ?? "",
       purpose: a.purpose ?? "",
+      ledger_category: a.ledger_category ?? "",
       date: format(new Date(), "yyyy-MM-dd"),
     });
     setAttachmentFiles([]);
@@ -695,6 +706,15 @@ export default function ApprovalsPage() {
               </div>
 
               <div>
+                <label className="text-xs font-medium text-slate-600">원장 카테고리</label>
+                <select className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                  value={form.ledger_category} onChange={(e) => setForm({ ...form, ledger_category: e.target.value })}>
+                  <option value="">선택 (미선택 시 원장에서 수동 지정)</option>
+                  {LEDGER_CATEGORY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs font-medium text-slate-600">제목 *</label>
                 <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
                   value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.type === "purchase" ? "비품구입 제목" : "결재 제목"} />
@@ -987,6 +1007,7 @@ export default function ApprovalsPage() {
             <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm">
               <div className="flex justify-between"><span className="text-slate-500">요청자</span><span className="font-medium">{detailItem.requester_name}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">신청일</span><span>{format(parseISO(detailItem.created_at), "yyyy.MM.dd HH:mm", { locale: ko })}</span></div>
+              {detailItem.ledger_category && <div className="flex justify-between"><span className="text-slate-500">원장 카테고리</span><span className="font-medium text-blue-700">{detailItem.ledger_category}</span></div>}
               {detailItem.type === "expense" && (
                 <>
                   {detailItem.payment_reason && <div className="flex justify-between"><span className="text-slate-500">결제 사유</span><span>{detailItem.payment_reason}</span></div>}
