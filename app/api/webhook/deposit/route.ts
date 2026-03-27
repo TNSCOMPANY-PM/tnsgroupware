@@ -48,6 +48,31 @@ export async function POST(request: Request) {
       }
     }
 
+    // 시간+이름 기반 중복 체크: iden 있으면 기존 항목에 iden 업데이트, 없으면 차단
+    if (parsed.time) {
+      const rawName = parsed.client_name || "";
+      let sameTimeQuery = supabase
+        .from("finance")
+        .select("id, description, amount, date")
+        .eq("amount", parsed.amount)
+        .eq("date", parsed.date)
+        .eq("type", "매출")
+        .like("description", `%t:${parsed.time}%`);
+      if (rawName) sameTimeQuery = sameTimeQuery.ilike("description", `%${rawName}%`);
+      const { data: sameTime } = await sameTimeQuery.maybeSingle();
+      if (sameTime) {
+        if (iden) {
+          const existDesc = String((sameTime as Record<string, unknown>).description ?? "");
+          if (!existDesc.includes(`pb:${iden}`)) {
+            await supabase.from("finance")
+              .update({ description: `${existDesc} pb:${iden}`.trim() })
+              .eq("id", (sameTime as Record<string, unknown>).id as string);
+          }
+        }
+        return NextResponse.json({ ok: true, duplicate: true, id: (sameTime as Record<string, unknown>).id, date: (sameTime as Record<string, unknown>).date, amount: (sameTime as Record<string, unknown>).amount });
+      }
+    }
+
     // clients 매핑: 정확 alias → 퍼지 매칭 순서로 시도
     let mappedClientName = parsed.client_name || null;
     let mappedCategory: string | null = null;
@@ -85,6 +110,7 @@ export async function POST(request: Request) {
         category: mappedCategory,
         date: parsed.date,
         description,
+        deposit_time: parsed.time ?? null,
       } as Record<string, unknown>)
       .select("id")
       .single();

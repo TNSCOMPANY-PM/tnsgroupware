@@ -50,8 +50,40 @@ const MAX_RECONNECT_DELAY_MS = 60000;
 let reconnectDelay = RECONNECT_DELAY_MS;
 let ws = null;
 
-// 중복 방지: 최근 처리된 알림 ID 캐시 (메모리)
-const recentIdens = new Set();
+// 중복 방지: 처리된 알림 ID 캐시 (파일 영속 + 메모리)
+const IDEN_CACHE_FILE = path.join(__dirname, ".pb_processed_idens.json");
+const IDEN_MAX_AGE_MS = 24 * 3600_000; // 24시간 이상 된 항목은 정리
+
+function loadIdenCache() {
+  try {
+    if (!fs.existsSync(IDEN_CACHE_FILE)) return new Map();
+    const raw = JSON.parse(fs.readFileSync(IDEN_CACHE_FILE, "utf-8"));
+    const now = Date.now();
+    const m = new Map();
+    for (const [k, v] of Object.entries(raw)) {
+      if (now - v < IDEN_MAX_AGE_MS) m.set(k, v);
+    }
+    return m;
+  } catch { return new Map(); }
+}
+
+function saveIdenCache(map) {
+  try {
+    fs.writeFileSync(IDEN_CACHE_FILE, JSON.stringify(Object.fromEntries(map)));
+  } catch {}
+}
+
+// Map<iden, timestamp>
+const recentIdenMap = loadIdenCache();
+
+function hasIden(iden) { return recentIdenMap.has(iden); }
+function addIden(iden) {
+  recentIdenMap.set(iden, Date.now());
+  saveIdenCache(recentIdenMap);
+}
+
+// 하위 호환: Set처럼 쓰던 코드용
+const recentIdens = { has: hasIden, add: addIden };
 
 // ── 색상 로그 헬퍼 ────────────────────────────────────────────────────────────
 const log = {
@@ -220,10 +252,8 @@ function connect() {
           continue;
         }
         recentIdens.add(dedupeKey);
-        setTimeout(() => recentIdens.delete(dedupeKey), 3600_000);
-
         log.recv(`🏦 신한 입금 SMS 감지!\n${body}`);
-        await callWebhook(body);
+        await callWebhook(body, dedupeKey);
       }
       return;
     }
@@ -245,7 +275,6 @@ function connect() {
       }
       if (iden) {
         recentIdens.add(iden);
-        setTimeout(() => recentIdens.delete(iden), 3600_000);
       }
 
       log.recv(`🏦 신한 입금 SMS 감지!\n${combined}`);
