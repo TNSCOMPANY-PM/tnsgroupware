@@ -188,7 +188,7 @@ export function AIChatWidget() {
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 flex h-[540px] w-[370px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="fixed bottom-24 right-6 z-50 flex h-[540px] w-[400px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center gap-2.5 bg-blue-600 px-4 py-3">
             <Bot className="size-5 text-white" />
             <div className="flex-1">
