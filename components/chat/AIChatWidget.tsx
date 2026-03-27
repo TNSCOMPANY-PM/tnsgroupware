@@ -12,26 +12,7 @@ interface Message {
 }
 
 const STORAGE_KEY = "groupware-chat-history";
-const FAVORITES_KEY = "groupware-chat-favorites";
 const MAX_STORED = 60;
-
-function loadFavorites(userId: string): string[] {
-  try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
-    if (!raw) return [];
-    const data = JSON.parse(raw) as Record<string, string[]>;
-    return data[userId] ?? [];
-  } catch { return []; }
-}
-
-function saveFavorites(userId: string, favs: string[]) {
-  try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
-    const data: Record<string, string[]> = raw ? JSON.parse(raw) : {};
-    data[userId] = favs;
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(data));
-  } catch {}
-}
 
 const SUGGESTIONS = [
   "오늘 입금 내역 알려줘",
@@ -88,18 +69,25 @@ export function AIChatWidget() {
       } else {
         setMessages([{ role: "assistant", content: `안녕하세요, ${currentUserName}님! 무엇이든 물어보거나 업무를 요청하세요 😊` }]);
       }
-      setFavorites(loadFavorites(currentUserId || currentUserName || "default"));
+      fetch(`/api/chat/favorites?userId=${currentUserId}`)
+        .then((r) => r.json())
+        .then((d: { items?: string[] }) => setFavorites(d.items ?? []))
+        .catch(() => {});
     }
   }, [mounted, currentUserId, currentUserName]);
 
   const toggleFavorite = useCallback((text: string) => {
-    const uid = currentUserId || currentUserName || "default";
+    if (!currentUserId) return;
     setFavorites((prev) => {
       const next = prev.includes(text) ? prev.filter((f) => f !== text) : [...prev, text];
-      saveFavorites(uid, next);
+      fetch("/api/chat/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUserId, items: next }),
+      }).catch(() => {});
       return next;
     });
-  }, [currentUserId, currentUserName]);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
