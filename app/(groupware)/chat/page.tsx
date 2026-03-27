@@ -207,17 +207,6 @@ export default function ChatPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowFavorites((v) => !v)}
-          className={cn(
-            "flex size-8 items-center justify-center rounded-full text-base transition-colors",
-            showFavorites ? "bg-yellow-400/30 text-yellow-300" : "text-white/70 hover:bg-white/10 hover:text-white"
-          )}
-          title="즐겨찾기"
-        >
-          {showFavorites ? "★" : "☆"}
-        </button>
-        <button
-          type="button"
           onClick={reset}
           className="flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-colors"
           title="대화 초기화"
@@ -225,30 +214,6 @@ export default function ChatPage() {
           <RotateCcw className="size-4" />
         </button>
       </div>
-
-      {showFavorites && (
-        <div className="bg-white/90 border-b border-[#9eafc0]/40 px-4 py-2.5">
-          <p className="text-[10px] text-slate-400 mb-1.5">즐겨찾기 — 클릭하면 바로 전송</p>
-          {favorites.length === 0 ? (
-            <p className="text-xs text-slate-400">저장된 항목이 없습니다. 메시지에 ☆를 눌러 저장하세요.</p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {favorites.map((fav) => (
-                <div key={fav} className="flex items-center gap-1">
-                  <button type="button" onClick={() => { send(fav); setShowFavorites(false); }}
-                    className="flex-1 text-left rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-blue-50 hover:border-blue-200 transition-colors truncate">
-                    {fav}
-                  </button>
-                  <button type="button" onClick={() => toggleFavorite(fav)}
-                    className="shrink-0 p-1 text-slate-300 hover:text-red-400 transition-colors">
-                    <X className="size-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 메시지 영역 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -311,6 +276,31 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 즐겨찾기 패널 */}
+      {showFavorites && (
+        <div className="bg-white border-t border-[#9eafc0]/40 px-4 py-2.5">
+          <p className="text-[10px] text-slate-400 mb-1.5">즐겨찾기 — 클릭하면 바로 전송</p>
+          {favorites.length === 0 ? (
+            <p className="text-xs text-slate-400">저장된 항목이 없습니다. 메시지에 ☆를 눌러 저장하세요.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {favorites.map((fav) => (
+                <div key={fav} className="flex items-center gap-1">
+                  <button type="button" onClick={() => { send(fav); setShowFavorites(false); }}
+                    className="flex-1 text-left rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-blue-50 hover:border-blue-200 transition-colors truncate">
+                    {fav}
+                  </button>
+                  <button type="button" onClick={() => toggleFavorite(fav)}
+                    className="shrink-0 p-1 text-slate-300 hover:text-red-400 transition-colors">
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 입력창 */}
       <div className="bg-[#9eafc0] px-3 py-2 flex items-center gap-2">
         <input ref={fileRef} type="file" accept="image/*" className="hidden"
@@ -321,6 +311,17 @@ export default function ChatPage() {
           title="사업자등록증 이미지 업로드"
         >
           <ImagePlus className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowFavorites((v) => !v)}
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-full text-base transition-colors",
+            showFavorites ? "bg-yellow-400/40 text-yellow-300" : "bg-white/30 text-white hover:bg-white/50"
+          )}
+          title="즐겨찾기"
+        >
+          {showFavorites ? "★" : "☆"}
         </button>
         <input
           ref={inputRef}
