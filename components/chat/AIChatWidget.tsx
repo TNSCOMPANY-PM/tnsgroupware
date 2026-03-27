@@ -69,7 +69,6 @@ export function AIChatWidget() {
   const [mounted, setMounted] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
-  const [hoveredMsgIdx, setHoveredMsgIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -87,18 +86,18 @@ export function AIChatWidget() {
       } else {
         setMessages([{ role: "assistant", content: `안녕하세요, ${currentUserName}님! 무엇이든 물어보거나 업무를 요청하세요 😊` }]);
       }
-      setFavorites(loadFavorites(currentUserId));
+      setFavorites(loadFavorites(currentUserId || currentUserName || "default"));
     }
   }, [mounted, currentUserId, currentUserName]);
 
   const toggleFavorite = useCallback((text: string) => {
-    if (!currentUserId) return;
+    const uid = currentUserId || currentUserName || "default";
     setFavorites((prev) => {
       const next = prev.includes(text) ? prev.filter((f) => f !== text) : [...prev, text];
-      saveFavorites(currentUserId, next);
+      saveFavorites(uid, next);
       return next;
     });
-  }, [currentUserId]);
+  }, [currentUserId, currentUserName]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
@@ -240,17 +239,13 @@ export function AIChatWidget() {
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {messages.map((m, i) => (
-              <div key={i}
-                className={cn("flex items-end gap-1", m.role === "user" ? "justify-end" : "justify-start")}
-                onMouseEnter={() => m.role === "user" ? setHoveredMsgIdx(i) : undefined}
-                onMouseLeave={() => setHoveredMsgIdx(null)}
-              >
-                {m.role === "user" && hoveredMsgIdx === i && (
+              <div key={i} className={cn("flex items-end gap-1", m.role === "user" ? "justify-end" : "justify-start")}>
+                {m.role === "user" && (
                   <button type="button" onClick={() => toggleFavorite(m.content)}
-                    className="mb-1 shrink-0 transition-colors"
+                    className="mb-1 shrink-0 text-base leading-none"
                     title={favorites.includes(m.content) ? "즐겨찾기 해제" : "즐겨찾기 저장"}
                   >
-                    <Star className={cn("size-3.5", favorites.includes(m.content) ? "text-yellow-400 fill-yellow-400" : "text-slate-300 hover:text-yellow-400")} />
+                    {favorites.includes(m.content) ? "★" : "☆"}
                   </button>
                 )}
                 <div className={cn(
