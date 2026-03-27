@@ -115,8 +115,8 @@ function amountToSupplyVat(amount: number): { supply: number; vat: number } {
 
 function normalizeLedgerTeamLabel(classification: string | undefined): "더널리" | "티제이웹" | "기타" {
   const raw = (classification ?? "").trim();
-  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체") return "더널리";
-  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지") return "티제이웹";
+  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체" || raw === "매체비정산" || raw === "CPC정산" || raw === "환불(더널리)") return "더널리";
+  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지" || raw === "환불(티제이웹)") return "티제이웹";
   return "기타";
 }
 
@@ -153,6 +153,34 @@ function roadmapToGanttRows(blocks: RoadmapBlock[], overrides: Record<string, { 
 function formatMoney(n: number): string {
   return `${formatWonIntl(n)}원`;
 }
+
+const PRINT_STYLES = `
+@media print {
+  @page { size: A4 portrait; margin: 2.5cm 2cm; }
+  html, body {
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important;
+    background: #fff !important; font-size: 10pt !important; color: #111 !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    box-shadow: none !important; text-shadow: none !important; border-radius: 0 !important;
+  }
+  #report-outer { background: #fff !important; padding: 0 !important; min-height: unset !important; }
+  #report-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  #print-doc-header { text-align: center; border-bottom: 2pt solid #111; padding-bottom: 10pt; margin-bottom: 18pt; }
+  section { padding-top: 12pt !important; padding-bottom: 12pt !important; border-color: #ddd !important; background: transparent !important; }
+  section h2 { font-size: 11.5pt !important; font-weight: 700 !important; color: #000 !important; border-bottom: 1.5pt solid #222 !important; padding-bottom: 3pt !important; margin-bottom: 10pt !important; background: transparent !important; }
+  .overflow-x-auto, .overflow-hidden { overflow: visible !important; }
+  table { border-collapse: collapse !important; width: 100% !important; font-size: 9pt !important; }
+  th { background: #eee !important; border: 0.75pt solid #888 !important; padding: 3.5pt 6pt !important; font-weight: 600 !important; font-size: 8.5pt !important; color: #000 !important; }
+  td { border: 0.75pt solid #bbb !important; padding: 3pt 6pt !important; color: #000 !important; background: #fff !important; }
+  .grid > div { background: #fff !important; border-color: #bbb !important; }
+  .text-slate-500, .text-slate-400 { color: #555 !important; }
+  .text-slate-600, .text-slate-700, .text-slate-800, .text-slate-900 { color: #111 !important; }
+  .text-emerald-700, .text-emerald-800 { color: #1a6b3a !important; }
+  .text-rose-700 { color: #b91c1c !important; }
+}
+`;
 
 export default function ReportsPage() {
   const { isCLevel } = usePermission();
@@ -425,9 +453,9 @@ export default function ReportsPage() {
     for (const r of rowsInMonthPaid) {
       const t = normalizeLedgerTeamLabel(r.classification);
       const rec = byTeam.get(t)!;
-      const amt = Number(r.amount) || 0;
-      if (r.type === "DEPOSIT") rec.revenue += amt;
-      else rec.cost += amt;
+      const { supply } = amountToSupplyVat(Number(r.amount) || 0);
+      if (r.type === "DEPOSIT") rec.revenue += supply;
+      else rec.cost += supply;
     }
     const teamRows = Array.from(byTeam.entries())
       .map(([team, v]) => {
@@ -446,12 +474,13 @@ export default function ReportsPage() {
     const bonusPool = Math.round(excessOverTarget * (bonusSettings.pool_rate ?? 0.2));
     const jaemin = Math.round(bonusPool * (bonusSettings.jaemin_rate ?? 0.15));
     const teamPool = bonusPool - jaemin;
-    const dnGross = Math.max(0, teamRows.find((x) => x.team === "더널리")?.grossProfit ?? 0);
-    const tjGross = Math.max(0, teamRows.find((x) => x.team === "티제이웹")?.grossProfit ?? 0);
-    const sumGross = dnGross + tjGross;
-    const dnContributionPct = sumGross > 0 ? (dnGross / sumGross) * 100 : 0;
-    const tjContributionPct = sumGross > 0 ? (tjGross / sumGross) * 100 : 0;
-    const tjContributionBonus = sumGross > 0 ? Math.round((teamPool * tjGross) / sumGross) : 0;
+    // 팀 기여% = 팀별 초과달성액 / 전체 초과달성액 (엑셀 방식)
+    const dnExcess = Math.max(0, (teamRows.find((x) => x.team === "더널리")?.grossProfit ?? 0) - (bonusTargetByTeam["더널리"] ?? 0));
+    const tjExcess = Math.max(0, (teamRows.find((x) => x.team === "티제이웹")?.grossProfit ?? 0) - (bonusTargetByTeam["티제이웹"] ?? 0));
+    const sumExcess = dnExcess + tjExcess;
+    const dnContributionPct = sumExcess > 0 ? (dnExcess / sumExcess) * 100 : 0;
+    const tjContributionPct = sumExcess > 0 ? (tjExcess / sumExcess) * 100 : 0;
+    const tjContributionBonus = sumExcess > 0 ? Math.round((teamPool * tjExcess) / sumExcess) : 0;
     const dnContributionBonus = teamPool - tjContributionBonus;
     const jeongseop = Math.round(dnContributionBonus * (bonusSettings.dn_jeongseop_rate ?? 0.45));
     const yongjun   = Math.round(dnContributionBonus * (bonusSettings.dn_yongjun_rate ?? 0.275));
@@ -538,10 +567,18 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 print:bg-white print:py-0">
-      <div ref={printRef} className="mx-auto max-w-5xl bg-white shadow-xl rounded-2xl p-8 print:shadow-none print:rounded-none">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
+      <div id="report-outer" className="min-h-screen bg-slate-50 py-8 print:bg-white print:py-0">
+        <div id="report-container" ref={printRef} className="mx-auto max-w-5xl bg-white shadow-xl rounded-2xl p-8 print:shadow-none print:rounded-none print:p-0 print:max-w-none">
+          {/* 인쇄 전용 문서 헤더 */}
+          <div id="print-doc-header" className="hidden print:block">
+            <p className="text-xs tracking-[0.25em] text-slate-400 uppercase mb-1">TNS Company</p>
+            <p className="text-2xl font-bold text-slate-900 my-1">{title}</p>
+            <p className="text-xs text-slate-500 mt-1">작성일: {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })}</p>
+          </div>
         {/* 헤더 */}
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-6 print:pb-4">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-6 print:hidden">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex items-center gap-1 print:hidden">
               <Button
@@ -929,7 +966,8 @@ export default function ReportsPage() {
             </div>
           )}
         </section>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

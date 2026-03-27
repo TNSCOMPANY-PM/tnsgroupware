@@ -1,0 +1,7293 @@
+{
+  "2026-01": [
+    {
+      "date": "2026-01-01",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-01",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "플라워라",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-01",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "보드니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-01",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 946000,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "에스에스네트워크",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 3000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "올리브를 담다",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "주식회사 에스크리션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 쉴트",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 173550,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 1375000,
+      "description": "(주)월드와이드메모리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 792000,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)신세계코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "미몽팩토리",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-02",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "따옴농장",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-03",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-03",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-03",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-03",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "위노시스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-04",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "WITHDRAWAL",
+      "amount": 94600,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "WITHDRAWAL",
+      "amount": 404800,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 385000,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 500000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 709500,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 77000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "크레디셀",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "주식회사 갤럭시글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "원라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 58080,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 26400,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "리치프로모션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 508200,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 609840,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 215600,
+      "description": "(주)커피디오리진",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "(주)굿키노",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 1676873,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 7920,
+      "description": "코이랩스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-05",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "WITHDRAWAL",
+      "amount": 154000,
+      "description": "티에스애드 - 슬롯 구입 정산(탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "WITHDRAWAL",
+      "amount": 545600,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 164560,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 2280850,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 110880,
+      "description": "코이랩스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "태성무역",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "WITHDRAWAL",
+      "amount": 44000,
+      "description": "포인트리 - 플레이스 순위체크 프로그램 (애드로그)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "WITHDRAWAL",
+      "amount": 154880,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "에이디라인",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)커피디오리진",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "에이치업",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 187000,
+      "description": "뮤즈의원",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "율인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-07",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "WITHDRAWAL",
+      "amount": 704880,
+      "description": "코이랩스 - 쿠팡 슬롯 구입 정산 (프라다,가드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "WITHDRAWAL",
+      "amount": 44000,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트,울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "WITHDRAWAL",
+      "amount": 35200,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 60984,
+      "description": "나눔커뮤니티마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "아쿠아1번지",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "(주)삼성알앤아이",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 60500,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 664400,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 415800,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "주식회사 한국의결권대행",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 430650,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 269500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 500000,
+      "description": "소크 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 쉴트",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-08",
+      "type": "DEPOSIT",
+      "amount": 308000,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "WITHDRAWAL",
+      "amount": 270160,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "WITHDRAWAL",
+      "amount": 44000,
+      "description": "티에스애드 - 슬롯 구입 정산(애드헬프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "주디 트레이딩",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 253000,
+      "description": "더좋은인터넷",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "더좋은인터넷",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "리치프로모션",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 643500,
+      "description": "선녀와나무꾼",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 654500,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 738100,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 24750,
+      "description": "아쿠아스킨",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 379500,
+      "description": "마케팅 설계자들",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 500000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "닥터투데이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-09",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-10",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-10",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-10",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-10",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "태성무역",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-10",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-10",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "크레디셀",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-11",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-11",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-11",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-11",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "WITHDRAWAL",
+      "amount": 82500,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트,울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "WITHDRAWAL",
+      "amount": 1375000,
+      "description": "성우에이치에스 주식회사 - 홈페이지 제작 계약의 해지",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "WITHDRAWAL",
+      "amount": 1747020,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,하트,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 385000,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "오바디체",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)신세계코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 77000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "에이디라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 341000,
+      "description": "빛과설탕",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 52800,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "주식회사 에스크리션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "에스에스네트워크",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "플라워라",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 89100,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 121000,
+      "description": "에이케이 마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 3575000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 792000,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)하나테크",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 919600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 677600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 1479213,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 25000,
+      "description": "리온",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-12",
+      "type": "DEPOSIT",
+      "amount": 346500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "WITHDRAWAL",
+      "amount": 48500,
+      "description": "케이티알파 - 판촉 기프티콘 구매",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "WITHDRAWAL",
+      "amount": 663300,
+      "description": "코이랩스 - 쿠팡 슬롯 구입 정산 (프라다,가드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "WITHDRAWAL",
+      "amount": 640640,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "WITHDRAWAL",
+      "amount": 2290933,
+      "description": "티에스애드 - 슬롯 구입 정산(탄산,탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "따옴농장",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "유니온푸드",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "오잇",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 116600,
+      "description": "마스테리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 2750000,
+      "description": "(주)월드와이드메모리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 115000,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 58080,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 4400000,
+      "description": "M&C아울렛",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 148500,
+      "description": "올리브를 담다",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "허니공감",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "(주)굿키노",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-13",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "WITHDRAWAL",
+      "amount": 627880,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(F1,뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "WITHDRAWAL",
+      "amount": 990000,
+      "description": "주식회사 제이솔컴퍼니 - 쿠팡 슬롯 구입 정산 (탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "WITHDRAWAL",
+      "amount": 158400,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "더바른컴퍼니",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 660000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "제이앤스토어",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "모두샵",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 11000,
+      "description": "제이앤스토어",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)오케이트레이드",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "일육공도토리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "주식회사 제이앤제이글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 그래솔루션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "주식회사 제이바이오앤코스메틱",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 59400,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "에이스산업",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "코벤인터내셔널",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "보드니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-14",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "WITHDRAWAL",
+      "amount": 61600,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트,울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "WITHDRAWAL",
+      "amount": 859100,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "리엔제이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 52000,
+      "description": "다온테크놀로지",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "씨엠푸드",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 690175,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "원라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 633600,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 서촌본점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 익선점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "(주)성원이엔지",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 253000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 277200,
+      "description": "홍화 O&F",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 1663200,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "해피딜리버",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 1039500,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-15",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "WITHDRAWAL",
+      "amount": 607200,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 654500,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 174166,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 1232000,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 466400,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "아쿠아1번지",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "한국제약 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 701800,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "에이치업",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "크레디셀",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 38280,
+      "description": "코이랩스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-16",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-17",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-17",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "미리미리",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-18",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-18",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-18",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "매일건재사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-18",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "WITHDRAWAL",
+      "amount": 670968,
+      "description": "어바웃워크 - 티앤에스컴퍼니 사내 시스템 유지보수",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "WITHDRAWAL",
+      "amount": 821150,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 346500,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 17942,
+      "description": "리치프로모션",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "주디 트레이딩",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 32428,
+      "description": "나눔커뮤니티마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 187000,
+      "description": "(주)거창",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "카모마일",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 385000,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 1502886,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "영밀유통",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "희망나눔주간보호센터",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "뮤즈의원",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 396880,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 39600,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "리온",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "미리미리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-19",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "티앤씨",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "WITHDRAWAL",
+      "amount": 500000,
+      "description": "카페24 주식회사 - 카페24 예치금 충전",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "WITHDRAWAL",
+      "amount": 400950,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "WITHDRAWAL",
+      "amount": 89100,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "WITHDRAWAL",
+      "amount": 841133,
+      "description": "티에스애드 - 슬롯 구입 정산(탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "WITHDRAWAL",
+      "amount": 1010240,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 677600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 742500,
+      "description": "선녀와나무꾼",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "(주)신원피브이씨",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "따옴농장",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "에스제이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "터인스 건축사사무소",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 566500,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "하이쉬",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 95333,
+      "description": "마스테리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-20",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비케이컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "WITHDRAWAL",
+      "amount": 99000,
+      "description": "주식회사 제이솔컴퍼니 - 쿠팡 슬롯 구입 정산 (탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "WITHDRAWAL",
+      "amount": 154000,
+      "description": "주식회사 제이솔컴퍼니 - 플레이스 리워드 구입 정산 (블루)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "WITHDRAWAL",
+      "amount": 168960,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 429000,
+      "description": "이지컨텍",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 265833,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 39600,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "오바디체",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 118800,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "코코타임",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 2156000,
+      "description": "주식회사 바디넥스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "해피딜리버",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 343640,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "하루애담",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 29040,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 825000,
+      "description": "주식회사 컴엔더",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-21",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "WITHDRAWAL",
+      "amount": 2728000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "WITHDRAWAL",
+      "amount": 30000,
+      "description": "(주)카카오 - 친구톡 발송",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 성신여대직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 5618041,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 201644,
+      "description": "나이스정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 9680,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 379500,
+      "description": "마케팅 설계자들",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 627000,
+      "description": "(주)현대쏠라텍",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "(주)커피디오리진",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 148500,
+      "description": "올리브를 담다",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 9680,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "크레디셀",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 19800,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 418000,
+      "description": "대한장애인당구협회",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 12100,
+      "description": "태성무역",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 108900,
+      "description": "태성무역",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 67100,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트,울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 153378,
+      "description": "주식회사 르샤밍 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 220233,
+      "description": "샤밍주얼리 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 483759,
+      "description": "위케 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 439269,
+      "description": "(주)컨비젼 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 139032,
+      "description": "(주)얼리버드프렌즈 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 189804,
+      "description": "위캔설트 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 2101,
+      "description": "센츠코리아 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 472448,
+      "description": "한양리테일 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 16176,
+      "description": "제로텐코퍼레이션 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 110881,
+      "description": "세일즈 플러스 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 393800,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "WITHDRAWAL",
+      "amount": 27437,
+      "description": "킥커머스 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "원라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 654500,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 363000,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 412500,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 1683000,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 466400,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "오잇",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 익선점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "주식회사 제이앤제이글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 495000,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 12210072,
+      "description": "에이엠피엠글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 121000,
+      "description": "주식회사 제이디아이컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 330000,
+      "description": "라로엘",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 서촌본점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 617100,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "닥터투데이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-23",
+      "type": "DEPOSIT",
+      "amount": 40000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-24",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-24",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-25",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-25",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-25",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-25",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-25",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 50000,
+      "description": "(주)다우기술 - 비즈뿌리오 예치금 충전",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 26400,
+      "description": "가비아 - 한길퍼니처 도메인 연장",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 6511,
+      "description": "주식회사 디지케이 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 486489,
+      "description": "주식회사 그래솔루션 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 149990,
+      "description": "인피니티밸류 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 174988,
+      "description": "주식회사 피크마케팅 - 10k 포인트 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 1078000,
+      "description": "주식회사 바디넥스 - 리워드 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 6992598,
+      "description": "주식회사 더밸류 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 33000,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 270270,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 1650000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "WITHDRAWAL",
+      "amount": 1049400,
+      "description": "코이랩스 - 쿠팡 슬롯 구입 정산 (프라다,가드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 500000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 385000,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "비케이컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "엠에이치컴즈",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "주식회사 에스크리션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "플라워라",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "위노시스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "에스에스네트워크",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 138600,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 4312000,
+      "description": "주식회사 바디넥스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 731518,
+      "description": "주식회사 르컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "한국제약 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "해피딜리버",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 677600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 813120,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 118800,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 2563495,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 175872,
+      "description": "주식회사 피크마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-26",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "WITHDRAWAL",
+      "amount": 103950,
+      "description": "올리브를 담다 - 관리형 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "WITHDRAWAL",
+      "amount": 11880,
+      "description": "카페24 주식회사 - 호스팅 연장(기존 계정과 다른 계정)",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "WITHDRAWAL",
+      "amount": 206311,
+      "description": "주식회사 와이디컴퍼니그룹 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "WITHDRAWAL",
+      "amount": 491333,
+      "description": "티에스애드 - 슬롯 구입 정산(탑,탄산)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "WITHDRAWAL",
+      "amount": 2555520,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 1930500,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "에이디라인",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "마스테리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 19800,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "아쿠아1번지",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 792000,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 356400,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)진원산업",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 990000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-27",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "WITHDRAWAL",
+      "amount": 52800,
+      "description": "티에스애드 - 슬롯 구입 정산(스노우)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "WITHDRAWAL",
+      "amount": 600160,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 15000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "에이치업",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 346500,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 마케팅율",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-28",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "WITHDRAWAL",
+      "amount": 85800,
+      "description": "이지컨텍 - 리워드 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "WITHDRAWAL",
+      "amount": 89760,
+      "description": "티에스애드 - 슬롯 구입 정산(스노우)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "WITHDRAWAL",
+      "amount": 542080,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "따옴농장",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)커피디오리진",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 72600,
+      "description": "에스제이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "리치프로모션",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 1973988,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "비케이컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "소크 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "잘빠진메밀 올림픽공원 직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "뮤즈의원",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "(주)레베코코",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 264000,
+      "description": "하루애담",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 2000000,
+      "description": "유한회사 제로세븐",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "오늘의 비비",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "보드니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 1485000,
+      "description": "더갤러리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-29",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "WITHDRAWAL",
+      "amount": 11500,
+      "description": "(주)제이더블유파크 - 리워드 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "WITHDRAWAL",
+      "amount": 86900,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트,울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "WITHDRAWAL",
+      "amount": 19800,
+      "description": "주식회사 피크마케팅 - 슬롯 구입 정산(실리뷰어 배포)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "WITHDRAWAL",
+      "amount": 35900,
+      "description": "주식회사 블랭커 - N사 공식광고 리워드 (12월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "WITHDRAWAL",
+      "amount": 230340,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 176000,
+      "description": "일육공도토리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "에스제이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "하우스홀드몰",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 654500,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 1980000,
+      "description": "두꺼비식당",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 쉴트",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 742500,
+      "description": "선녀와나무꾼",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 500940,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 456500,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 성신여대직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-30",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 1578720,
+      "description": "주식회사 글로시엘 - 슬롯 구입 정산(토마토)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 327800,
+      "description": "주식회사 제이솔컴퍼니 - 쿠팡슬롯, 플레이스 리워드 구입 정산",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 418770,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 297000,
+      "description": "온랩 - 지수플 구매 정산",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 840180,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 622613,
+      "description": "주식회사 브라더메이즈 - 더널리 보면소득 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 44000,
+      "description": "티에스애드 - 슬롯 구입 정산(탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 1938075,
+      "description": "사업자교육센터 - 더널리 보면소득 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 8646261,
+      "description": "주식회사 체리그라운드 - 더널리 체리포인트 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 1449883,
+      "description": "네이앤컴퍼니 - 더널리 네이버스 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 4653153,
+      "description": "앱블리 - 더널리 캐시마스터 외 1개 작업 정산 (12~1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 175548,
+      "description": "주식회사 아이티노 - 더널리 캐시645 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 67100,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(엘리트,울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 7458658,
+      "description": "원셀프월드 주식회사 - 더널리 마이비 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 2933436,
+      "description": "주식회사 더블엔씨 - 더널리 니콘내콘 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 554285,
+      "description": "주식회사 크레페이 - 더널리 크레페이 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 65565,
+      "description": "주식회사 브라보식스 - 더널리 머니팡 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 2156228,
+      "description": "컴업 - 더널리 캐시상사 외 9개 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 26433,
+      "description": "주식회사 로똔다 - 더널리 부리또월드 작업 정산 (12월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 115923,
+      "description": "에듀컬쳐 - 더널리 포커스플래닛 작업 정산 (1월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 843480,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "WITHDRAWAL",
+      "amount": 1439373,
+      "description": "(주)위시켓 - AWS이용 내역 결제",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "DEPOSIT",
+      "amount": 1326604,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-01-31",
+      "type": "DEPOSIT",
+      "amount": 201644,
+      "description": "나이스정보통신",
+      "category": "더널리"
+    }
+  ],
+  "2026-02": [
+    {
+      "date": "2026-02-01",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-01",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "율인",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-01",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-01",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-01",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "WITHDRAWAL",
+      "amount": 1293600,
+      "description": "주식회사 바디넥스 - 리워드 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "WITHDRAWAL",
+      "amount": 43560,
+      "description": "줄서서마케팅 - 리워드 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 291500,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 1375000,
+      "description": "(주)월드와이드메모리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 544500,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 577500,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 677600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 413820,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 330000,
+      "description": "라로엘",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 2494800,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 1894981,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "주식회사 제이앤제이글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-02",
+      "type": "DEPOSIT",
+      "amount": 40000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "WITHDRAWAL",
+      "amount": 200000,
+      "description": "메가존(주) - 호스팅케이알 예치금 충전",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "WITHDRAWAL",
+      "amount": 245960,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 363000,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "플라워라",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 432630,
+      "description": "마케팅 설계자들",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 59400,
+      "description": "엠에이치컴즈",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 9680,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "휘게더",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 143000,
+      "description": "스카이아트홀",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 서촌본점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 352000,
+      "description": "광주광역시 서구 학교밖 청소년 지원센터",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 익선점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "유존디자인",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "행복노인주간보호센터",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "(주)굿키노",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "수목부천병원",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-03",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "WITHDRAWAL",
+      "amount": 168960,
+      "description": "티에스애드 - 슬롯 구입 정산(스노우)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "WITHDRAWAL",
+      "amount": 577280,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "매일건재사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 46420,
+      "description": "나눔커뮤니티마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "오잇",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 1039500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 297000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "원라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 184800,
+      "description": "(주)레베코코",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)누죤패션몰",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 406560,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)큐텔",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 115500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "행정사사무소 백승",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "행정사사무소 백승",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "WITHDRAWAL",
+      "amount": 44000,
+      "description": "포인트리 - 플레이스 순위체크 프로그램 (애드로그)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "WITHDRAWAL",
+      "amount": 176000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 209000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 1155000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 10560,
+      "description": "티에스애드",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "에스에스네트워크",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 264000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 77000,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 792000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 210000,
+      "description": "주식회사 갤럭시글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "닥터투데이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "WITHDRAWAL",
+      "amount": 207900,
+      "description": "주식회사 셀러버스 - 슬롯 구입 정산(피코)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "WITHDRAWAL",
+      "amount": 77000,
+      "description": "주식회사 유노애드 - 슬롯구입정산(바른)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "WITHDRAWAL",
+      "amount": 1144000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "공들인홍삼",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "에이디라인",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "주식회사 에스크리션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "주식회사 잘빠진 마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 이룬",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 1881000,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 654500,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 891000,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 462000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 745360,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "하이쉬",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-07",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-07",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-07",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "크레디셀",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-07",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-08",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-08",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-08",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 50000,
+      "description": "(주)다우기술 - 비즈뿌리오 예치금 충전",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 14300,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 247500,
+      "description": "마스테리 - 관리형 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 221760,
+      "description": "주식회사 글로시엘 - 슬롯 구입 정산(토마토)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 26400,
+      "description": "하루애담 - 리워드 계약 취소로 인한 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 1386550,
+      "description": "코이랩스 - 쿠팡 슬롯 구입 정산 (프라다,가드,자몽)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "WITHDRAWAL",
+      "amount": 936100,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "DK공조",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "따옴농장",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 25400,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 594000,
+      "description": "선녀와나무꾼",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 346500,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 1155000,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 466400,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "리치프로모션",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 성신여대직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 1155000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "보드니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 677600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 498520,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)커피디오리진",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "플라워라",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "WITHDRAWAL",
+      "amount": 285120,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "WITHDRAWAL",
+      "amount": 44000,
+      "description": "티에스애드 - 슬롯 구입 정산(탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "WITHDRAWAL",
+      "amount": 320320,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "WITHDRAWAL",
+      "amount": 57750,
+      "description": "주식회사 유노애드 - 슬롯구입정산(바른)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "멀티샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "소크 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "데일리포유",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "티앤씨",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 1235509,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 88000,
+      "description": "일육공도토리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)이엔엠",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 마케팅율",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 55000,
+      "description": "코이랩스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-10",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "WITHDRAWAL",
+      "amount": 500000,
+      "description": "카페24주식회사 - 카페24 예치금 충전",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "WITHDRAWAL",
+      "amount": 495000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "WITHDRAWAL",
+      "amount": 410300,
+      "description": "주식회사 피크마케팅 - 슬롯 구입 정산(가구매)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "지피앤(주)",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 을지로 직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 330000,
+      "description": "라로엘",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 3575000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 495000,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 1375000,
+      "description": "(주)월드와이드메모리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 426800,
+      "description": "에스에이치코리아",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "광주장애인자립생활센터",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 143000,
+      "description": "목동평강요양원",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-11",
+      "type": "DEPOSIT",
+      "amount": 498520,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "WITHDRAWAL",
+      "amount": 176000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "WITHDRAWAL",
+      "amount": 132000,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "찬솔",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "찬솔",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "원라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "제이앤스토어",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 968000,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 264000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 1831500,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 462000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "(주)유엠에스",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 49500,
+      "description": "올리브를 담다",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 841500,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 319000,
+      "description": "(주)휴먼솔루션",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 264000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 1894200,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "빛과설탕",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "하이펜드",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 72600,
+      "description": "따옴농장",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-12",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "WITHDRAWAL",
+      "amount": 215600,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "WITHDRAWAL",
+      "amount": 1017280,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "에스에스네트워크",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 290400,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 297000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 862400,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 539000,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "잘빠진메밀 익선점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 308000,
+      "description": "(주)레베코코",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 서촌본점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 500500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 290400,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 1379400,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "(주)웰더스",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "하우스홀드몰",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-13",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-14",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-14",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-14",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-15",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-15",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-15",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-15",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-16",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-17",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-17",
+      "type": "DEPOSIT",
+      "amount": 40000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-17",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-17",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "리엔제이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-17",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "미리미리",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-17",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-18",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-18",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-18",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-18",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)커피디오리진",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-18",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "WITHDRAWAL",
+      "amount": 1450240,
+      "description": "주식회사 글로시엘 - 슬롯 구입 정산(토마토)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "WITHDRAWAL",
+      "amount": 696740,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "WITHDRAWAL",
+      "amount": 290400,
+      "description": "주식회사 피크마케팅 - 슬롯 구입 정산(가구매)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 그래솔루션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "(주)굿키노",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "주식회사 갤럭시글로벌",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 2302987,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 37257,
+      "description": "나눔커뮤니티마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 346500,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "매일건재사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "닥터투데이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 369600,
+      "description": "주식회사 금수실업",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "애드팩",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 247500,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 306900,
+      "description": "(주)에스비통상",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 49500,
+      "description": "올리브를 담다",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 21120,
+      "description": "티에스애드",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "주식회사 잘빠진 마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 396000,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 462000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "WITHDRAWAL",
+      "amount": 1430000,
+      "description": "어바웃워크 - 티앤에스컴퍼니 사내 시스템 유지보수",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "WITHDRAWAL",
+      "amount": 668800,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "WITHDRAWAL",
+      "amount": 88000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "WITHDRAWAL",
+      "amount": 1347500,
+      "description": "주식회사 피크마케팅 - 슬롯 구입 정산(가구매)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "(주)케이아이티",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "오잇",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 352000,
+      "description": "천사나래주간활동",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 466400,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "하이펜드",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 330000,
+      "description": "라로엘",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 594000,
+      "description": "선녀와나무꾼",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "제이앤스토어",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "휘게더",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 88000,
+      "description": "일육공도토리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 387200,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "브리안포",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 1894200,
+      "description": "주식회사 원빈다이어리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 1397000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "어서와중고폰 김포구래본점",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "주식회사 에스크리션",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "하이쉬",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-20",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-21",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-21",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "율인",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-21",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-21",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-21",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-22",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-22",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "보드니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-22",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "공들인홍삼",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-22",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "WITHDRAWAL",
+      "amount": 67100,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(울프, 엘리트)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "WITHDRAWAL",
+      "amount": 33000,
+      "description": "주식회사 피크마케팅 - 슬롯 구입 정산(가구매)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "WITHDRAWAL",
+      "amount": 629640,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "WITHDRAWAL",
+      "amount": 1390400,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "WITHDRAWAL",
+      "amount": 415800,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 200000,
+      "description": "모두샵",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 874500,
+      "description": "주식회사 컴엔더",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "따옴농장",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 2902944,
+      "description": "주식회사 브라보식스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 577500,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 742500,
+      "description": "카이트 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 2324208,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 201644,
+      "description": "나이스정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 을지로 직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 220000,
+      "description": "잘빠진메밀 성신여대직영점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 123750,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 164450,
+      "description": "마케팅 설계자들",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 154000,
+      "description": "원라인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 264000,
+      "description": "이안코리아 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 392040,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 203280,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 677600,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 275000,
+      "description": "잘빠진메밀 서촌본점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "크레디셀",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 808500,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 15000,
+      "description": "노비타코리아",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-23",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "WITHDRAWAL",
+      "amount": 2310000,
+      "description": "티에스애드 - 슬롯 구입 정산(탑)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "WITHDRAWAL",
+      "amount": 261360,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어,원부전용 리워드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "라이프알파",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 500000,
+      "description": "카템팩토리 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 165000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "테크니칼 코리아",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 198000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "랜드만",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "코코타임",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "오리진사이트",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 308000,
+      "description": "(주)레베코코",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 77000,
+      "description": "이노블루",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 45980,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 132000,
+      "description": "주식회사 마케팅율",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-24",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 1881000,
+      "description": "코이랩스 - 쿠팡 슬롯 구입 정산 (프라다,가드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 348480,
+      "description": "주식회사 글로시엘 - 슬롯 구입 정산(토마토)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 28600,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(울프)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 352000,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 222036,
+      "description": "샤밍주얼리 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 157437,
+      "description": "주식회사 르샤밍 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 890442,
+      "description": "위케 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 183980,
+      "description": "인피니티밸류 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 224142,
+      "description": "위캔설트 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 326256,
+      "description": "한양리테일 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 5572759,
+      "description": "주식회사 더밸류 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 142870,
+      "description": "주식회사 와이디컴퍼니그룹 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 21173,
+      "description": "제로텐코퍼레이션 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 4952,
+      "description": "주식회사 디지케이 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 485831,
+      "description": "주식회사 그래솔루션 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 377985,
+      "description": "(주)컨비젼 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "WITHDRAWAL",
+      "amount": 41800,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "주식회사 제이앤제이글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 77000,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 264000,
+      "description": "플러스에이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "비엠컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "바이나투라 주식회사",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "주식회사 에프비엘",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "에이스산업",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 1000000,
+      "description": "닥터투데이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "이지임스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 285560,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 11346709,
+      "description": "에이엠피엠글로벌",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 495000,
+      "description": "이안코리아 주식회사",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 56100,
+      "description": "코이랩스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-25",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "비케이컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 200000,
+      "description": "메가존(주) - 호스팅케이알 예치금 충전",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 510400,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 154000,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 2921,
+      "description": "센츠코리아 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 116306,
+      "description": "더인 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 68497,
+      "description": "킥커머스 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "WITHDRAWAL",
+      "amount": 159830,
+      "description": "세일즈 플러스 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "주식회사 캣츠빌",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 66000,
+      "description": "창영산업",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 88000,
+      "description": "관우몰",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 1320000,
+      "description": "삼현건설",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 33000,
+      "description": "(주)현대쏠라텍",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "(주)대한한방연구소",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "에스에스네트워크",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 1584000,
+      "description": "티엔스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "(주)커피디오리진",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 1980000,
+      "description": "더갤러리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "마이캐리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "어서와중고폰 김포구래본점",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 192500,
+      "description": "잘빠진메밀 익선점",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 495000,
+      "description": "이삭방앗간",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 742500,
+      "description": "(주)비비아뜰리에",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 231000,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-26",
+      "type": "DEPOSIT",
+      "amount": 379000,
+      "description": "핫블",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "WITHDRAWAL",
+      "amount": 109500,
+      "description": "핫블 - 금액 착오로 인해 차액 환불",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "WITHDRAWAL",
+      "amount": 101996,
+      "description": "(주)얼리버드프렌즈 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "WITHDRAWAL",
+      "amount": 576400,
+      "description": "제로커뮤니케이션 - 슬롯구입정산(그램)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "(주)니즈원",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 577500,
+      "description": "비에스디자인",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 88000,
+      "description": "일육공도토리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 99000,
+      "description": "지니스키친",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "지니스키친",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 616000,
+      "description": "수성정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 10000,
+      "description": "비케이컴퍼니",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 110000,
+      "description": "위노시스",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 462000,
+      "description": "주식회사 니즈테크",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 440000,
+      "description": "주식회사 아이마크코리아",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 330000,
+      "description": "디앤티컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "퍼퓸핏",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "하이펜드",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 1155000,
+      "description": "(주)브리즈문",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 346500,
+      "description": "파티플로리",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 571120,
+      "description": "줄서서마케팅",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 352000,
+      "description": "닥터투데이",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 594000,
+      "description": "선녀와나무꾼",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 92400,
+      "description": "다옴컴퍼니",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 121000,
+      "description": "태성무역",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-27",
+      "type": "DEPOSIT",
+      "amount": 300000,
+      "description": "360마켓",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 74800,
+      "description": "제이비컴퍼니 - 슬롯 구입 정산(울프,엘리트)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 405167,
+      "description": "주식회사 제이솔컴퍼니 - 쿠팡슬롯 랭크업 구입 정산",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 1401945,
+      "description": "네이앤컴퍼니 - 더널리 네이버스 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 6393469,
+      "description": "주식회사 체리그라운드 - 더널리 체리포인트 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 1379870,
+      "description": "사업자교육센터 - 더널리 캐시올리고 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 99000,
+      "description": "온랩 - 지수플 구매 정산",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 3185463,
+      "description": "앱블리 - 더널리 캐시마스터 외 1개 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 504301,
+      "description": "주식회사 브라더메이즈 - 더널리 보면소득 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 742390,
+      "description": "주식회사 노스푼 - 슬롯구입정산(에어)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 546040,
+      "description": "티에스애드 - 슬롯 구입 정산(탑,배터리,미라)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 891000,
+      "description": "코이랩스 - 쿠팡 슬롯 구입 정산 (프라다,가드)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 466400,
+      "description": "주식회사 글로시엘 - 슬롯 구입 정산(토마토)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 463320,
+      "description": "주식회사 프라이트 - 슬롯 구입 정산(뮤즈)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 6502678,
+      "description": "원셀프월드 주식회사 - 더널리 마이비 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 113692,
+      "description": "주식회사 아이티노 - 더널리 캐시645 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 21408,
+      "description": "슬로비 - N사 공식광고 리워드 (25년 12월 + 26년 1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 2466024,
+      "description": "주식회사 더블엔씨 - 더널리 니콘내콘 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 546867,
+      "description": "주식회사 크레페이 - 더널리 크레페이 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 178200,
+      "description": "주식회사 제이솔컴퍼니 - 쿠팡슬롯 탑 구입 정산",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 46096,
+      "description": "주식회사 블랭커 - N사 공식광고 리워드 (1월분)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 1705209,
+      "description": "컴업 - 더널리 캐시상사 외 9개 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 46813,
+      "description": "주식회사 브라보식스 - 더널리 머니팡 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 1275872,
+      "description": "(주)위시켓 - AWS이용 내역 결제",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 17528,
+      "description": "주식회사 로똔다 - 더널리 부리또월드 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "WITHDRAWAL",
+      "amount": 84815,
+      "description": "에듀컬쳐 - 더널리 포커스플래닛 작업 정산 (2월)",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "이지임스",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 20000,
+      "description": "리엔제이",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 50000,
+      "description": "홀그린",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 100000,
+      "description": "따옴농장",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 30000,
+      "description": "브리안포",
+      "category": "더널리 충전"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 679222,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 201644,
+      "description": "나이스정보통신",
+      "category": "더널리"
+    },
+    {
+      "date": "2026-02-28",
+      "type": "DEPOSIT",
+      "amount": 2143792,
+      "description": "나이스정보통신",
+      "category": "티제이웹"
+    }
+  ]
+}

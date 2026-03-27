@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS public.server_logs (
   created_at  timestamptz DEFAULT now()
 );
 
--- 오래된 로그 자동 정리 (90일 이상)
 CREATE INDEX IF NOT EXISTS server_logs_created_at_idx ON public.server_logs (created_at DESC);
 
 -- RLS 비활성화 (서버 전용, service role만 사용)

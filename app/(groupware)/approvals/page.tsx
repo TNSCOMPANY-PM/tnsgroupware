@@ -593,7 +593,21 @@ export default function ApprovalsPage() {
                 className="flex cursor-pointer items-center gap-4 rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 truncate">{a.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-slate-800 truncate">{a.title}</p>
+                    {a.sheet_classification && (
+                      <span className={cn(
+                        "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                        a.sheet_classification === "환불" ? "bg-rose-100 text-rose-700" :
+                        a.sheet_classification === "정산" ? "bg-sky-100 text-sky-700" :
+                        a.sheet_classification === "결제" ? "bg-violet-100 text-violet-700" :
+                        a.sheet_classification === "슬롯구입정산" ? "bg-amber-100 text-amber-700" :
+                        "bg-slate-100 text-slate-600"
+                      )}>
+                        {a.sheet_classification}
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {a.requester_name} · {format(parseISO(a.created_at), "M월 d일 HH:mm", { locale: ko })}
                   </p>
@@ -615,7 +629,7 @@ export default function ApprovalsPage() {
 
       {/* 신청 모달 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 py-8" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 py-8">
           <div className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="shrink-0 flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-bold text-slate-900">결재 신청</h2>

@@ -23,8 +23,8 @@ type FinRow = { type: string; amount: number; category: string | null };
 
 function normalizeTeam(category: string | undefined | null): "더널리" | "티제이웹" | "기타" {
   const raw = (category ?? "").trim();
-  if (raw === "더널리" || raw === "더널리 충전") return "더널리";
-  if (raw === "티제이웹" || raw === "유지보수") return "티제이웹";
+  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체" || raw === "매체비정산" || raw === "CPC정산" || raw === "환불(더널리)") return "더널리";
+  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지" || raw === "환불(티제이웹)") return "티제이웹";
   return "기타";
 }
 
@@ -50,11 +50,18 @@ function calcBonus(rows: FinRow[]): Record<BonusKey, number> {
   const jaemin           = Math.round(bonusPool * BONUS_JAEMIN_RATE);
   const teamPool         = bonusPool - jaemin;
 
+  // 팀 기여% = 팀별 초과달성액 / 전체 초과달성액 (엑셀 방식)
+  const DN_TARGET = 42_000_000;
+  const TJ_TARGET = 8_000_000;
   const dnGross = Math.max(0, byTeam["더널리"].revenue - byTeam["더널리"].cost);
   const tjGross = Math.max(0, byTeam["티제이웹"].revenue - byTeam["티제이웹"].cost);
-  const sumGross = dnGross + tjGross;
+  const dnGrossSupply = Math.round(dnGross / 1.1);
+  const tjGrossSupply = Math.round(tjGross / 1.1);
+  const dnExcess = Math.max(0, dnGrossSupply - DN_TARGET);
+  const tjExcess = Math.max(0, tjGrossSupply - TJ_TARGET);
+  const sumExcess = dnExcess + tjExcess;
 
-  const tjContributionBonus = sumGross > 0 ? Math.round((teamPool * tjGross) / sumGross) : 0;
+  const tjContributionBonus = sumExcess > 0 ? Math.round((teamPool * tjExcess) / sumExcess) : 0;
   const dnContributionBonus = teamPool - tjContributionBonus;
 
   const jeongseop = Math.round(dnContributionBonus * BONUS_DN_JEONGSEOP_RATE);

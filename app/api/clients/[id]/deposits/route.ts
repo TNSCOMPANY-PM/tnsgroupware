@@ -23,11 +23,23 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("finance")
-    .select("id, date, amount, type, status, category, client_name, description, created_at")
+    .select("id, date, amount, type, status, category, client_name, description, deposit_time, created_at")
     .in("client_name", names)
     .order("date", { ascending: false })
-    .limit(100);
+    .limit(200);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+
+  // deposit_time 기반 중복 제거: (date, amount, type, deposit_time)이 같으면 1건만
+  const seen = new Set<string>();
+  const deduped = (data ?? []).filter((r) => {
+    const dt = (r as Record<string, unknown>).deposit_time as string | null;
+    if (!dt) return true; // deposit_time 없으면 그대로 포함
+    const key = `${r.date}_${r.amount}_${r.type}_${dt}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return NextResponse.json(deduped);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FileText, Loader2, ChevronRight, PenLine, FileDown, X } from "lucide-react";
 import { CONTRACT_TYPE_LABELS } from "@/lib/contractForms";
 import { ContractDocument, A4Page } from "@/lib/contractTemplates";
@@ -14,9 +14,7 @@ export function ContractManageTab() {
   const [tableMissingMessage, setTableMissingMessage] = useState<string | null>(null);
   const [selectedContract, setSelectedContract] = useState<ContractRow | null>(null);
   const [signing, setSigning] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [toast, setToast] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
 
   const fetchList = () => {
     setTableMissingMessage(null);
@@ -56,34 +54,9 @@ export function ContractManageTab() {
     }
   };
 
-  const handlePdfDownload = async () => {
-    if (!printRef.current || !selectedContract) return;
-    setPdfLoading(true);
-    try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const doc = new jsPDF("p", "mm", "a4");
-      const pdfW = doc.internal.pageSize.getWidth();
-      const pdfH = doc.internal.pageSize.getHeight();
-      doc.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
-      const safeName = (selectedContract.content as { employeeName?: string })?.employeeName ?? "계약서";
-      const datePart = new Date().toISOString().slice(0, 10);
-      doc.save(`계약서_${safeName}_${datePart}.pdf`);
-    } catch (e) {
-      console.error(e);
-      window.print();
-    } finally {
-      setPdfLoading(false);
-    }
+  const handlePdfDownload = () => {
+    if (!selectedContract) return;
+    window.open(`/print/contract/${selectedContract.id}`, "_blank");
   };
 
   if (loading) {
@@ -174,7 +147,7 @@ export function ContractManageTab() {
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <div ref={printRef} className="print:border-0">
+              <div>
                 <A4Page>
                   <ContractDocument contract={selectedContract} />
                 </A4Page>
@@ -197,10 +170,9 @@ export function ContractManageTab() {
                   <button
                     type="button"
                     onClick={handlePdfDownload}
-                    disabled={pdfLoading}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-slate-700 hover:bg-slate-50"
                   >
-                    {pdfLoading ? <Loader2 className="size-5 animate-spin" /> : <FileDown className="size-5" />}
+                    <FileDown className="size-5" />
                     PDF로 다운로드
                   </button>
                 )}

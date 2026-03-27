@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-type TableName = "employees" | "leaves" | "projects";
+type TableName = "employees" | "leaves" | "leave_requests" | "projects";
 
 type PayloadRecord = Record<string, unknown> & { id?: string };
 

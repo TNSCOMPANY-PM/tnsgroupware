@@ -42,7 +42,7 @@ export function Sidebar() {
   const { isCLevel, isTeamLead } = usePermission();
   const { open, close } = useSidebar();
 
-  const showAssets = isCLevel || isTeamLead;
+  const showAssets = !hideIncompleteMenus && (isCLevel || isTeamLead);
   const items = [
     ...navItems,
     ...(showAssets ? [assetsNavItem] : []),

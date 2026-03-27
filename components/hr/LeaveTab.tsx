@@ -65,7 +65,6 @@ import {
   Clock,
   Leaf,
   Loader2,
-  MoreVertical,
   Paperclip,
   FileText,
   Trash2,
@@ -118,66 +117,6 @@ function dbRowToLeaveRequest(row: Record<string, unknown>): LeaveRequest {
     createdAt: (row.created_at as string) ?? new Date().toISOString(),
   };
 }
-
-const DEFAULT_LEAVE_REQUESTS: LeaveRequest[] = [
-  {
-    id: "1",
-    applicantId: "6",
-    applicantName: "박재민",
-    applicantDepartment: "마케팅사업부",
-    leaveType: "annual",
-    startDate: "2025-03-15",
-    endDate: "2025-03-16",
-    days: 2,
-    reason: "개인 사정",
-    status: "C레벨_최종_승인_대기",
-    teamLeadApprovedAt: "2025-03-10T10:00:00",
-    createdAt: "2025-03-10T09:00:00",
-  },
-  {
-    id: "2",
-    applicantId: "7",
-    applicantName: "심규성",
-    applicantDepartment: "마케팅사업부",
-    leaveType: "annual",
-    startDate: "2025-03-20",
-    endDate: "2025-03-20",
-    days: 1,
-    reason: "병원 진료",
-    status: "팀장_1차_승인_대기",
-    createdAt: "2025-03-09T14:00:00",
-  },
-  {
-    id: "3",
-    applicantId: "7",
-    applicantName: "심규성",
-    applicantDepartment: "마케팅사업부",
-    leaveType: "annual",
-    startDate: "2026-01-23",
-    endDate: "2026-01-23",
-    days: 1,
-    reason: "개인",
-    status: "승인_완료",
-    cLevelApprovedAt: "2026-01-20T10:00:00",
-    createdAt: "2026-01-15T09:00:00",
-  },
-  {
-    id: "4",
-    applicantId: "6",
-    applicantName: "박재민",
-    applicantDepartment: "마케팅사업부",
-    leaveType: "military",
-    startDate: "2026-03-10",
-    endDate: "2026-03-10",
-    days: 1,
-    reason: "예비군 훈련",
-    status: "승인_완료",
-    cLevelApprovedAt: "2026-03-08T10:00:00",
-    createdAt: "2026-03-05T09:00:00",
-    requiresProof: true,
-    proofStatus: "pending",
-  },
-];
 
 const ANNUAL_LEAVE_TYPES: LeaveTypeKey[] = [
   "annual",
@@ -455,7 +394,7 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
 export function LeaveTab({ initialDate }: { initialDate?: string }) {
   const { currentRole, isCLevel, isTeamLead, currentUserId, currentUserName } = usePermission();
   const { showRealtimeToast } = useRealtimeToast() ?? {};
-  useSupabaseRealtime("leaves", { onRealtime: showRealtimeToast });
+  useSupabaseRealtime("leave_requests", { onRealtime: showRealtimeToast });
   const [subTab, setSubTab] = useState("overview");
 
   return (
@@ -1174,9 +1113,6 @@ function LeaveRecordRow({
             </Button>
           )}
           <span className="text-sm font-medium">{request.days}일</span>
-          <Button variant="ghost" size="icon" className="size-8">
-            <MoreVertical className="size-4" />
-          </Button>
         </div>
       </div>
       {/* 증빙 서류 영역 (RBAC) */}

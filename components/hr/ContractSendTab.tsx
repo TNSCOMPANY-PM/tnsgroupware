@@ -28,77 +28,6 @@ function getDisplayDepartment(emp: Employee): string {
   return emp.display_department ?? emp.department;
 }
 
-/** 이전 계약서 더미 (직원 선택 시 해당 직원 정보로 채워서 사용) */
-function getDummyPreviousContracts(employeeId: string, employeeName: string, birthDate: string): ContractRow[] {
-  const base = {
-    employee_id: employeeId,
-    created_at: "",
-    signed_at: null as string | null,
-  };
-  return [
-    {
-      ...base,
-      id: "dummy-salary-1",
-      contract_type: "salary",
-      status: "signed",
-      created_at: "2025-02-01T09:00:00Z",
-      signed_at: "2025-02-05T14:00:00Z",
-      content: {
-        employeeName,
-        birthDate: birthDate || "1997-08-16",
-        startDate: "2024-07-01",
-        endDate: "2025-06-30",
-        totalAnnual: 48000000,
-        monthlyBase: 3800000,
-        monthlyMeal: 200000,
-      },
-    },
-    {
-      ...base,
-      id: "dummy-employment-1",
-      contract_type: "employment",
-      status: "signed",
-      created_at: "2024-12-15T09:00:00Z",
-      signed_at: "2024-12-16T10:00:00Z",
-      content: {
-        employeeName,
-        birthDate: birthDate || "1997-08-16",
-        startDate: "2024-07-01",
-        probationEndDate: "2024-09-30",
-        mainWork: "홈페이지 기획 및 운영",
-        totalAnnual: 48000000,
-        monthlyBase: 3800000,
-      },
-    },
-    {
-      ...base,
-      id: "dummy-privacy-1",
-      contract_type: "privacy",
-      status: "signed",
-      created_at: "2024-06-20T09:00:00Z",
-      signed_at: "2024-06-21T11:00:00Z",
-      content: { employeeName, birthDate: birthDate || "1997-08-16" },
-    },
-    {
-      ...base,
-      id: "dummy-noncompete-1",
-      contract_type: "non_compete",
-      status: "signed",
-      created_at: "2024-06-20T09:00:00Z",
-      signed_at: "2024-06-21T11:00:00Z",
-      content: { employeeName, birthDate: birthDate || "1997-08-16" },
-    },
-    {
-      ...base,
-      id: "dummy-nda-1",
-      contract_type: "nda",
-      status: "pending",
-      created_at: "2025-03-01T09:00:00Z",
-      content: { employeeName, birthDate: birthDate || "1997-08-16" },
-    },
-  ];
-}
-
 const CONTRACT_TYPES: ContractType[] = [
   "salary",
   "employment",
@@ -120,6 +49,7 @@ export function ContractSendTab({ employees, onSuccess }: ContractSendTabProps) 
   const [employeeId, setEmployeeId] = useState("");
   const [contractType, setContractType] = useState<ContractType>("salary");
   const [selectedContractForPopup, setSelectedContractForPopup] = useState<ContractRow | null>(null);
+  const [previousContracts, setPreviousContracts] = useState<ContractRow[]>([]);
   const [form, setForm] = useState<Record<string, string | number>>({
     employeeName: "",
     birthDate: "",
@@ -142,25 +72,22 @@ export function ContractSendTab({ employees, onSuccess }: ContractSendTabProps) 
   }, []);
 
   useEffect(() => {
-    if (!employeeId) return;
+    if (!employeeId) {
+      setPreviousContracts([]);
+      return;
+    }
     const emp = employees.find((e) => e.id === employeeId);
     if (emp) {
-      setForm((prev) => ({
-        ...prev,
-        employeeName: emp.name ?? "",
-      }));
+      setForm((prev) => ({ ...prev, employeeName: emp.name ?? "" }));
       setBirthDateFromProfile(emp);
     }
+    fetch(`/api/contracts?employee_id=${employeeId}`)
+      .then((r) => r.json())
+      .then((data) => setPreviousContracts(Array.isArray(data) ? data : []))
+      .catch(() => setPreviousContracts([]));
   }, [employeeId, employees, setBirthDateFromProfile]);
 
   const selectedEmployee = employees.find((e) => e.id === employeeId);
-  const previousContracts = selectedEmployee
-    ? getDummyPreviousContracts(
-        employeeId,
-        selectedEmployee.name ?? "",
-        String(form.birthDate ?? "")
-      )
-    : [];
 
   useEffect(() => {
     if (contractType !== "salary") return;

@@ -21,7 +21,6 @@ const AnnualLeavePromotionTab = dynamic(() => import("@/components/hr/AnnualLeav
 const LabourLawVerificationDashboard = dynamic(() => import("@/components/hr/LabourLawVerificationDashboard").then((m) => ({ default: m.LabourLawVerificationDashboard })), { ssr: false });
 const ContractSendTab = dynamic(() => import("@/components/hr/ContractSendTab").then((m) => ({ default: m.ContractSendTab })), { ssr: false });
 const ContractManageTab = dynamic(() => import("@/components/hr/ContractManageTab").then((m) => ({ default: m.ContractManageTab })), { ssr: false });
-const PayslipTab = dynamic(() => import("@/components/hr/PayslipTab").then((m) => ({ default: m.PayslipTab })), { ssr: false });
 import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
 import { createEmployee } from "./actions";
 import { useSearchParams } from "next/navigation";
@@ -29,7 +28,7 @@ import { usePermission } from "@/contexts/PermissionContext";
 import { useRealtimeToast } from "@/contexts/RealtimeToastContext";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { getProfileForEmployee } from "@/constants/profile";
-import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck, Receipt, BarChart3 } from "lucide-react";
+import { Users, Calendar, ShieldCheck, UserPlus, Loader2, FileSignature, FileCheck, BarChart3 } from "lucide-react";
 import type { Employee } from "@/types/employee";
 import { format } from "date-fns";
 
@@ -127,13 +126,6 @@ function HRPageContent() {
               연차 현황
             </TabsTrigger>
           )}
-          <TabsTrigger
-            value="payslip"
-            className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Receipt className="size-4" />
-            급여 명세
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="members">
@@ -169,9 +161,6 @@ function HRPageContent() {
           </TabsContent>
         )}
 
-        <TabsContent value="payslip">
-          <PayslipTab />
-        </TabsContent>
       </Tabs>
     </div>
   );
@@ -400,7 +389,7 @@ function AnnualLeaveSummaryTab() {
     });
   }, []);
 
-  const rows = employees.map((emp) => {
+  const rows = employees.filter((emp) => emp.emp_number !== "REDACTED_MASTER_EMP").map((emp) => {
     const joinDateStr = emp.hire_date ? (emp.hire_date as string).replace(/\./g, "-") : null;
     const granted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
     const used = leaveRequests
