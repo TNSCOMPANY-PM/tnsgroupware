@@ -625,7 +625,7 @@ export default function DashboardPage() {
                 <span className="text-xs text-amber-600">전자결재에서 결재하기 →</span>
               </Link>
             )}
-            <UserTodoWidget userId={currentUserId} />
+            <UserTodoWidget userId={currentUserId} userName={currentUserName} />
           </CardContent>
         </Card>
 

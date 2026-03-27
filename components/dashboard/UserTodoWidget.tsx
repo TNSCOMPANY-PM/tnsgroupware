@@ -16,6 +16,14 @@ type ClientAlert = {
   triggered_date: string;
 };
 
+type ExpiryAlert = {
+  id: string;
+  client_name: string;
+  type: string;
+  expires_at: string;
+  days_left: number;
+};
+
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 export type UserTodoItem = {
   id: string;
@@ -68,7 +76,7 @@ function getWeekLabel(dates: Date[]): string {
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
 // ─── 컴포넌트 ──────────────────────────────────────────────────────────────────
-export function UserTodoWidget({ userId }: { userId: string }) {
+export function UserTodoWidget({ userId, userName }: { userId: string; userName?: string }) {
   const today = new Date();
   const todayStr = format(today, "yyyy-MM-dd");
 
@@ -79,6 +87,7 @@ export function UserTodoWidget({ userId }: { userId: string }) {
   // 요일 배지 카운트 — 서버/클라이언트 hydration 불일치 방지용 (마운트 후 로드)
   const [dayCounts, setDayCounts] = useState<Record<string, number>>({});
   const [crmAlerts, setCrmAlerts] = useState<ClientAlert[]>([]);
+  const [expiryAlerts, setExpiryAlerts] = useState<ExpiryAlert[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const weekBase = addWeeks(today, weekOffset);
@@ -109,6 +118,15 @@ export function UserTodoWidget({ userId }: { userId: string }) {
       .then((data) => setCrmAlerts(data))
       .catch(() => {});
   }, [userId]);
+
+  // 만료일 알림 로드 (김동균만)
+  useEffect(() => {
+    if (!userName) return;
+    fetch(`/api/client-alerts/expiry?userName=${encodeURIComponent(userName)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setExpiryAlerts(data))
+      .catch(() => {});
+  }, [userName]);
 
   // 요일 배지 카운트 갱신 (주 변경 또는 todos 변경 시)
   useEffect(() => {
@@ -229,6 +247,34 @@ export function UserTodoWidget({ userId }: { userId: string }) {
               >
                 <X className="size-3.5" />
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 만료일 알림 (김동균) */}
+      {expiryAlerts.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-700">
+            <Bell className="size-3.5" />
+            티제이웹 만료 예정 {expiryAlerts.length}건
+          </div>
+          {expiryAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs shadow-sm"
+            >
+              <div className="flex-1">
+                <span className="font-semibold text-slate-800">{alert.client_name}</span>
+                <span className="text-slate-500"> {alert.type} 만료까지 </span>
+                <span className={cn(
+                  "font-semibold",
+                  alert.days_left <= 3 ? "text-red-600" : alert.days_left <= 7 ? "text-amber-600" : "text-violet-600"
+                )}>
+                  D-{alert.days_left}
+                </span>
+                <span className="ml-1 text-slate-400">({alert.expires_at})</span>
+              </div>
             </div>
           ))}
         </div>
