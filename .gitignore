@@ -40,4 +40,28 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# claude
+.claude/
+
+# logs
+*.log
+pushbullet.log
+
+# scripts
+scripts/.pb_processed_idens.json
+
+# data files
+*.xlsx
+*.pdf
+*.json
+!package.json
+!package-lock.json
+transactions_2026*.json
+
+# temp/local scripts
+run-pb.ps1
+parse_finance_final.py
+scripts/test-chatbot.mjs
+
+# html exports
+26년*.html
