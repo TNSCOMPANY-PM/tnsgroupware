@@ -239,22 +239,24 @@ export function AIChatWidget() {
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {messages.map((m, i) => (
-              <div key={i} className={cn("flex items-end gap-1", m.role === "user" ? "justify-end" : "justify-start")}>
-                {m.role === "user" && (
-                  <button type="button" onClick={() => toggleFavorite(m.content)}
-                    className="mb-1 shrink-0 text-base leading-none"
-                    title={favorites.includes(m.content) ? "즐겨찾기 해제" : "즐겨찾기 저장"}
-                  >
-                    {favorites.includes(m.content) ? "★" : "☆"}
-                  </button>
-                )}
+              <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
                 <div className={cn(
-                  "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed",
+                  "relative max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed group",
                   m.role === "user"
                     ? "bg-blue-600 text-white rounded-br-sm"
                     : "bg-slate-100 text-slate-800 rounded-bl-sm"
                 )}>
                   {m.content}
+                  {m.role === "user" && (
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(m.content)}
+                      title={favorites.includes(m.content) ? "즐겨찾기 해제" : "즐겨찾기 저장"}
+                      className="absolute -left-5 bottom-1 text-sm opacity-40 hover:opacity-100 transition-opacity"
+                    >
+                      {favorites.includes(m.content) ? "★" : "☆"}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
