@@ -24,6 +24,13 @@ interface Client {
   business_item: string | null;
   email: string | null;
   created_at: string;
+  // 티제이웹 전용
+  emails: string[] | null;
+  contacts: string[] | null;
+  hosting_type: string | null;
+  hosting_expires_at: string | null;
+  domain_expires_at: string | null;
+  ssl_expires_at: string | null;
 }
 
 const CATEGORIES = ["더널리", "티제이웹", "기타"] as const;
@@ -57,6 +64,8 @@ const emptyForm = (): Record<string, string | string[]> => ({
   name: "", category: "", aliases: [] as string[],
   contact: "", notes: "", business_number: "", representative: "",
   address: "", business_type: "", business_item: "", email: "",
+  emails: [] as string[], contacts: [] as string[],
+  hosting_type: "", hosting_expires_at: "", domain_expires_at: "", ssl_expires_at: "",
 });
 
 /* 사업자등록번호 포맷 XXX-XX-XXXXX */
@@ -101,6 +110,10 @@ function CrmPageInner() {
   const [editTarget, setEditTarget] = useState<Client | null>(null);
   const [form, setForm] = useState<Record<string, string | string[]>>(emptyForm());
   const [aliasInput, setAliasInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [contactInput, setContactInput] = useState("");
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const contactInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -206,8 +219,13 @@ function CrmPageInner() {
       business_number: c.business_number ?? "", representative: c.representative ?? "",
       address: c.address ?? "", business_type: c.business_type ?? "",
       business_item: c.business_item ?? "", email: c.email ?? "",
+      emails: [...(c.emails ?? [])], contacts: [...(c.contacts ?? [])],
+      hosting_type: c.hosting_type ?? "", hosting_expires_at: c.hosting_expires_at ?? "",
+      domain_expires_at: c.domain_expires_at ?? "", ssl_expires_at: c.ssl_expires_at ?? "",
     });
     setAliasInput("");
+    setEmailInput("");
+    setContactInput("");
     setModalOpen(true);
   }
 
@@ -249,6 +267,30 @@ function CrmPageInner() {
     setForm((p) => ({ ...p, aliases: (p.aliases as string[]).filter((x) => x !== a) }));
   }
 
+  const tjEmails = form.emails as string[];
+  const tjContacts = form.contacts as string[];
+
+  function addEmail() {
+    const v = emailInput.trim();
+    if (!v || tjEmails.includes(v)) { setEmailInput(""); return; }
+    setForm((p) => ({ ...p, emails: [...(p.emails as string[]), v] }));
+    setEmailInput("");
+    emailInputRef.current?.focus();
+  }
+  function removeEmail(e: string) {
+    setForm((p) => ({ ...p, emails: (p.emails as string[]).filter((x) => x !== e) }));
+  }
+  function addContact() {
+    const v = contactInput.trim();
+    if (!v || tjContacts.includes(v)) { setContactInput(""); return; }
+    setForm((p) => ({ ...p, contacts: [...(p.contacts as string[]), v] }));
+    setContactInput("");
+    contactInputRef.current?.focus();
+  }
+  function removeContact(c: string) {
+    setForm((p) => ({ ...p, contacts: (p.contacts as string[]).filter((x) => x !== c) }));
+  }
+
   function setField(key: string, val: string) {
     setForm((p) => ({ ...p, [key]: val }));
   }
@@ -262,6 +304,14 @@ function CrmPageInner() {
       const aliases = pendingAlias && !(form.aliases as string[]).includes(pendingAlias)
         ? [...(form.aliases as string[]), pendingAlias]
         : form.aliases;
+      const pendingEmail = emailInput.trim();
+      const finalEmails = pendingEmail && !(form.emails as string[]).includes(pendingEmail)
+        ? [...(form.emails as string[]), pendingEmail]
+        : form.emails;
+      const pendingContact = contactInput.trim();
+      const finalContacts = pendingContact && !(form.contacts as string[]).includes(pendingContact)
+        ? [...(form.contacts as string[]), pendingContact]
+        : form.contacts;
       const payload = {
         name: (form.name as string).trim(),
         category: (form.category as string) || null,
@@ -274,6 +324,12 @@ function CrmPageInner() {
         business_type: (form.business_type as string).trim() || null,
         business_item: (form.business_item as string).trim() || null,
         email: (form.email as string).trim() || null,
+        emails: (finalEmails as string[]).length > 0 ? finalEmails : null,
+        contacts: (finalContacts as string[]).length > 0 ? finalContacts : null,
+        hosting_type: (form.hosting_type as string).trim() || null,
+        hosting_expires_at: (form.hosting_expires_at as string) || null,
+        domain_expires_at: (form.domain_expires_at as string) || null,
+        ssl_expires_at: (form.ssl_expires_at as string) || null,
       };
       const url = editTarget ? `/api/clients/${editTarget.id}` : "/api/clients";
       const method = editTarget ? "PUT" : "POST";
@@ -992,6 +1048,98 @@ function CrmPageInner() {
                   </div>
                 </div>
               </section>
+
+              {/* § 티제이웹 전용 */}
+              {(form.category as string) === "티제이웹" && (
+                <section>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-violet-400">티제이웹 전용</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* 이메일 (복수) */}
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-slate-600">이메일</label>
+                      <div className="min-h-[40px] flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 focus-within:ring-2 focus-within:ring-slate-200">
+                        {tjEmails.map((e, i) => (
+                          <span key={`${e}-${i}`} className="flex items-center gap-0.5 rounded bg-violet-50 px-2 py-0.5 text-xs text-violet-700">
+                            {e}
+                            <button type="button" onClick={() => removeEmail(e)} className="ml-0.5 text-violet-300 hover:text-violet-600"><X className="size-3" /></button>
+                          </span>
+                        ))}
+                        <input
+                          ref={emailInputRef}
+                          type="email"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
+                          placeholder={tjEmails.length === 0 ? "이메일 입력 후 Enter" : ""}
+                          className="min-w-[160px] flex-1 bg-transparent text-sm outline-none placeholder:text-slate-300"
+                        />
+                      </div>
+                    </div>
+                    {/* 연락처 (복수) */}
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-slate-600">연락처</label>
+                      <div className="min-h-[40px] flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 focus-within:ring-2 focus-within:ring-slate-200">
+                        {tjContacts.map((c, i) => (
+                          <span key={`${c}-${i}`} className="flex items-center gap-0.5 rounded bg-violet-50 px-2 py-0.5 text-xs text-violet-700">
+                            {c}
+                            <button type="button" onClick={() => removeContact(c)} className="ml-0.5 text-violet-300 hover:text-violet-600"><X className="size-3" /></button>
+                          </span>
+                        ))}
+                        <input
+                          ref={contactInputRef}
+                          type="text"
+                          value={contactInput}
+                          onChange={(e) => setContactInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addContact(); } }}
+                          placeholder={tjContacts.length === 0 ? "연락처 입력 후 Enter" : ""}
+                          className="min-w-[160px] flex-1 bg-transparent text-sm outline-none placeholder:text-slate-300"
+                        />
+                      </div>
+                    </div>
+                    {/* 호스팅 유형 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">호스팅 유형</label>
+                      <input
+                        type="text"
+                        value={form.hosting_type as string}
+                        onChange={(e) => setField("hosting_type", e.target.value)}
+                        placeholder="카페24, 가비아 등"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    {/* 호스팅 만료일 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">호스팅 만료일</label>
+                      <input
+                        type="date"
+                        value={form.hosting_expires_at as string}
+                        onChange={(e) => setField("hosting_expires_at", e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    {/* 도메인 만료일 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">도메인 만료일 <span className="font-normal text-slate-400">(업체 소유 시 공란)</span></label>
+                      <input
+                        type="date"
+                        value={form.domain_expires_at as string}
+                        onChange={(e) => setField("domain_expires_at", e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                    {/* 인증서 만료일 */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">인증서 만료일 <span className="font-normal text-slate-400">(미설치 시 공란)</span></label>
+                      <input
+                        type="date"
+                        value={form.ssl_expires_at as string}
+                        onChange={(e) => setField("ssl_expires_at", e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                  </div>
+                </section>
+              )}
 
               {/* § 메모 */}
               <section>
