@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import type { ContractInsert } from "@/types/contract";
 
 /** GET: employee_id 쿼리로 해당 직원 계약 목록 조회 / all=true이면 전체 (C레벨용) */
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     if (!employeeId && !all) {
       return NextResponse.json({ error: "employee_id or all=true required" }, { status: 400 });
     }
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     let query = supabase
       .from("contracts")
       .select("*")
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("contracts")
       .insert({

@@ -54,7 +54,14 @@ import {
   RefreshCw,
   Trash2,
   FileText,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 
 const SHEET_LABELS = [
@@ -123,8 +130,8 @@ function isRowOnCalendarDay(rowDate: string, dayYmd: string): boolean {
 function normalizeLedgerTeamLabel(classification: string | undefined): string {
   const raw = classification?.trim();
   if (!raw) return "기타";
-  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체" || raw === "매체비정산" || raw === "CPC정산") return "더널리";
-  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지") return "티제이웹";
+  if (raw === "더널리" || raw === "더널리 충전" || raw === "더널리충전" || raw === "광고 매체" || raw === "매체비정산" || raw === "CPC정산" || raw === "환불(더널리)") return "더널리";
+  if (raw === "티제이웹" || raw === "유지보수" || raw === "호스팅" || raw === "홈페이지" || raw === "환불(티제이웹)") return "티제이웹";
   return "기타";
 }
 
@@ -172,7 +179,8 @@ type FinanceRow = {
 };
 
 const CLASSIFICATION_OPTIONS = [
-  "더널리", "더널리 충전", "매체비정산", "CPC정산", "티제이웹", "기타",
+  "더널리", "더널리 충전", "티제이웹", "기타",
+  "매체비정산", "CPC정산", "환불(더널리)", "환불(티제이웹)",
 ];
 
 const LEDGER_CUSTOM_STORAGE_KEY = "finance-ledger-custom-entries";
@@ -247,6 +255,7 @@ export default function FinancePage() {
   const [viewMode, setViewMode] = useState<ViewMode>("ledger");
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [ledgerFilter, setLedgerFilter] = useState<"all" | "pending" | "approved">("all");
+  const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState<string>("");
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [justApprovedId, setJustApprovedId] = useState<string | null>(null);
   const [receivablesExpected, setReceivablesExpected] = useState<ExpectedLineItem[]>(SAMPLE_EXPECTED_RECEIVABLES);
@@ -765,9 +774,9 @@ export default function FinancePage() {
       const team = normalizeLedgerTeamLabel(r.classification);
       if (!byTeam.has(team)) byTeam.set(team, { revenue: 0, cost: 0 });
       const rec = byTeam.get(team)!;
-      const amt = Number(r.amount) || 0;
-      if (r.type === "DEPOSIT") rec.revenue += amt;
-      else rec.cost += amt;
+      const { supply } = amountToSupplyVat(Number(r.amount) || 0);
+      if (r.type === "DEPOSIT") rec.revenue += supply;
+      else rec.cost += supply;
     }
     return Array.from(byTeam.entries())
       .map(([team, { revenue, cost }]) => {
@@ -844,11 +853,15 @@ export default function FinancePage() {
     return ledgerWithCustomAndEdits.filter((row) => {
       if (!isRowInDateRange(row.date)) return false;
       if (hiddenIds.has(row.id)) return false;
-      if (ledgerFilter === "pending") return row.status === "UNMAPPED";
-      if (ledgerFilter === "approved") return row.status === "PAID";
+      if (ledgerFilter === "pending") { if (row.status !== "UNMAPPED") return false; }
+      else if (ledgerFilter === "approved") { if (row.status !== "PAID") return false; }
+      if (ledgerCategoryFilter) {
+        if (ledgerCategoryFilter === "(미분류)") { if (row.classification) return false; }
+        else if ((row.classification ?? "") !== ledgerCategoryFilter) return false;
+      }
       return true;
     });
-  }, [ledgerWithCustomAndEdits, ledgerFilter, hiddenIds, isRowInDateRange]);
+  }, [ledgerWithCustomAndEdits, ledgerFilter, ledgerCategoryFilter, hiddenIds, isRowInDateRange]);
 
   const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInDateRange(r.date) && r.status === "UNMAPPED" && !hiddenIds.has(r.id)).length;
 
@@ -1210,95 +1223,105 @@ export default function FinancePage() {
                   <Receipt className="size-4 text-[var(--primary)]" />
                   통합 입출금 원장
                 </h2>
-                {/* 필터 토글 */}
-                <div className="flex rounded-xl bg-slate-100/80 p-1">
-                {[
-                  { key: "all" as const, label: "전체" },
-                  { key: "pending" as const, label: "🚨 대기", count: pendingCount },
-                  { key: "approved" as const, label: "완료" },
-                ].map(({ key, label, count }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setLedgerFilter(key)}
-                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium tracking-tight transition-colors ${
-                      ledgerFilter === key ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-600 hover:text-slate-800"
-                    }`}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* 상태 필터 */}
+                  <div className="flex rounded-xl bg-slate-100/80 p-1">
+                  {[
+                    { key: "all" as const, label: "전체" },
+                    { key: "pending" as const, label: "🚨 대기", count: pendingCount },
+                    { key: "approved" as const, label: "완료" },
+                  ].map(({ key, label, count }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setLedgerFilter(key)}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs font-medium tracking-tight transition-colors ${
+                        ledgerFilter === key ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-600 hover:text-slate-800"
+                      }`}
+                    >
+                      {label}
+                      {count != null && count > 0 && (
+                        <span className="ml-1 rounded-full bg-amber-200/80 px-1.5 py-0.5 text-xs">{count}</span>
+                      )}
+                    </button>
+                  ))}
+                  </div>
+                  {/* 카테고리 필터 */}
+                  <select
+                    value={ledgerCategoryFilter}
+                    onChange={(e) => setLedgerCategoryFilter(e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                   >
-                    {label}
-                    {count != null && count > 0 && (
-                      <span className="ml-1 rounded-full bg-amber-200/80 px-1.5 py-0.5 text-xs">{count}</span>
-                    )}
-                  </button>
-                ))}
+                    <option value="">카테고리 전체</option>
+                    {CLASSIFICATION_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    <option value="(미분류)">(미분류)</option>
+                  </select>
+                  {/* 입금 동기화 */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchSyncPushbullet()}
+                    disabled={syncLoading}
+                    className="shrink-0 gap-1"
+                    title="원장 갱신 + Pushbullet 입금 메시지 동기화"
+                  >
+                    <RefreshCw className={`size-3.5 ${syncLoading ? "animate-spin" : ""}`} />
+                    입금 동기화
+                  </Button>
+                  {/* 수동 추가 */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddLedgerOpen(true)}
+                    className="shrink-0 gap-1"
+                  >
+                    <Plus className="size-3.5" />
+                    수동 추가
+                  </Button>
+                  {/* 추가 액션 드롭다운 */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" className="shrink-0 px-2">
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => { setSmsOpen(true); setSmsText(""); setSmsParsed(null); }}>
+                        <FileText className="size-3.5 mr-2" />
+                        SMS 등록
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={autoMapping}
+                        onClick={async () => {
+                          setAutoMapping(true);
+                          setAutoMapMsg(null);
+                          try {
+                            const res = await fetch("/api/clients/remap", { method: "POST" });
+                            const json = await res.json();
+                            setAutoMapMsg(`✓ ${json.updated}건 매핑`);
+                            if ((json.updated ?? 0) > 0) {
+                              await fetchLedger();
+                              const freshClients = await fetch("/api/clients").then((r) => r.ok ? r.json() : []);
+                              if (Array.isArray(freshClients)) setCrmClients(freshClients);
+                            }
+                          } catch {
+                            setAutoMapMsg("매핑 실패");
+                          } finally {
+                            setAutoMapping(false);
+                            setTimeout(() => setAutoMapMsg(null), 3000);
+                          }
+                        }}
+                      >
+                        <RefreshCw className={`size-3.5 mr-2 ${autoMapping ? "animate-spin" : ""}`} />
+                        {autoMapMsg ?? "거래처 자동 매칭"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </div>
-              {/* 액션 버튼 행 */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchSyncPushbullet()}
-                  disabled={syncLoading}
-                  className="shrink-0 gap-1"
-                  title="원장 갱신 + Pushbullet 입금 메시지 동기화"
-                >
-                  <RefreshCw className={`size-3.5 ${syncLoading ? "animate-spin" : ""}`} />
-                  <span className="hidden sm:inline">입금 동기화</span>
-                  <span className="sm:hidden">동기화</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setSmsOpen(true); setSmsText(""); setSmsParsed(null); }}
-                  className="shrink-0 gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-                >
-                  <FileText className="size-3.5" />
-                  SMS 등록
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAddLedgerOpen(true)}
-                  className="shrink-0 gap-1"
-                >
-                  <Plus className="size-3.5" />
-                  수동 추가
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={autoMapping}
-                  onClick={async () => {
-                    setAutoMapping(true);
-                    setAutoMapMsg(null);
-                    try {
-                      const res = await fetch("/api/clients/remap", { method: "POST" });
-                      const json = await res.json();
-                      setAutoMapMsg(`✓ ${json.updated}건 매핑`);
-                      if ((json.updated ?? 0) > 0) {
-                        await fetchLedger();
-                        const freshClients = await fetch("/api/clients").then((r) => r.ok ? r.json() : []);
-                        if (Array.isArray(freshClients)) setCrmClients(freshClients);
-                      }
-                    } catch {
-                      setAutoMapMsg("매핑 실패");
-                    } finally {
-                      setAutoMapping(false);
-                      setTimeout(() => setAutoMapMsg(null), 3000);
-                    }
-                  }}
-                  className="shrink-0 gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-                  title="입금자명을 CRM 거래처 별칭과 대조해 고객사를 자동으로 채웁니다"
-                >
-                  <RefreshCw className={`size-3.5 ${autoMapping ? "animate-spin" : ""}`} />
-                  <span className="hidden sm:inline">{autoMapMsg ?? "거래처 자동 매칭"}</span>
-                  <span className="sm:hidden">{autoMapMsg ?? "자동 매칭"}</span>
-                </Button>
               </div>
             </div>
           </div>
@@ -1745,6 +1768,7 @@ export default function FinancePage() {
           workDays={workDays}
           passedWorkDays={passedWorkDays}
           selectedMonth={selectedMonth}
+          targetGrossProfit={summary.targetGrossProfit}
         />
       )}
     </div>
@@ -1766,6 +1790,7 @@ function SalesAnalysisView({
   workDays = 0,
   passedWorkDays = 0,
   selectedMonth = "",
+  targetGrossProfit = 0,
 }: {
   currentStatus: CurrentStatus;
   survival: { operatingDeduction: number; vatOnGross?: number };
@@ -1780,6 +1805,7 @@ function SalesAnalysisView({
   workDays?: number;
   passedWorkDays?: number;
   selectedMonth?: string;
+  targetGrossProfit?: number;
 }) {
   const receivablesTotal = receivablesExpected.reduce((s, x) => s + x.supplyAmount + x.vat, 0);
   const receivablesSupply = receivablesExpected.reduce((s, x) => s + x.supplyAmount, 0);
@@ -1812,8 +1838,58 @@ function SalesAnalysisView({
   const totalTeamGross = teamSalesReport.reduce((s, x) => s + x.grossProfit, 0);
   const overallMarginPct = totalTeamRevenue > 0 ? (totalTeamGross / totalTeamRevenue) * 100 : 0;
 
+  // KPI 계산
+  const currentGross = currentStatus.grossSupply;
+  const achievementPct = targetGrossProfit > 0 ? (currentGross / targetGrossProfit) * 100 : 0;
+  const dailyTargetGross = workDays > 0 ? targetGrossProfit / workDays : 0;
+  const dailyActualGross = passedWorkDays > 0 ? currentGross / passedWorkDays : 0;
+  const dailyAchievementPct = dailyTargetGross > 0 ? (dailyActualGross / dailyTargetGross) * 100 : 0;
+  const monthlyPerformance = currentGross - targetGrossProfit;
+  const projectedFinalGross = dailyAvgProfit * workDays + receivablesSupply - payablesSupply;
+
   return (
     <div className="view-fade-in space-y-6">
+      {/* KPI 요약 카드 */}
+      {targetGrossProfit > 0 && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-medium text-slate-500">목표 달성율</p>
+            <p className={`mt-1 text-2xl font-bold tabular-nums ${achievementPct >= 100 ? "text-emerald-600" : achievementPct >= 70 ? "text-amber-600" : "text-rose-600"}`}>
+              {achievementPct.toFixed(1)}%
+            </p>
+            <p className="text-xs text-slate-400">목표 {formatWonIntl(targetGrossProfit)}</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full transition-all duration-500 ${achievementPct >= 100 ? "bg-emerald-500" : achievementPct >= 70 ? "bg-amber-400" : "bg-rose-400"}`}
+                style={{ width: `${Math.min(achievementPct, 100)}%` }} />
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-medium text-slate-500">일평균 달성율</p>
+            <p className={`mt-1 text-2xl font-bold tabular-nums ${dailyAchievementPct >= 100 ? "text-emerald-600" : dailyAchievementPct >= 70 ? "text-amber-600" : "text-rose-600"}`}>
+              {passedWorkDays > 0 ? `${dailyAchievementPct.toFixed(1)}%` : "-"}
+            </p>
+            <p className="text-xs text-slate-400">영업일 {passedWorkDays}/{workDays}일 경과</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full transition-all duration-500 ${dailyAchievementPct >= 100 ? "bg-emerald-500" : dailyAchievementPct >= 70 ? "bg-amber-400" : "bg-rose-400"}`}
+                style={{ width: `${Math.min(dailyAchievementPct, 100)}%` }} />
+            </div>
+          </div>
+          <div className={`rounded-xl border px-4 py-3 ${monthlyPerformance >= 0 ? "border-emerald-200 bg-emerald-50/60" : "border-rose-200 bg-rose-50/60"}`}>
+            <p className="text-xs font-medium text-slate-500">이번달 성과</p>
+            <p className={`mt-1 text-2xl font-bold tabular-nums ${monthlyPerformance >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+              {monthlyPerformance >= 0 ? "+" : ""}{formatWonIntl(monthlyPerformance)}
+            </p>
+            <p className="text-xs text-slate-400">현재 매총 − 목표</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-medium text-slate-500">월말 예상 매총</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-800">
+              {passedWorkDays > 0 ? formatWonIntl(projectedFinalGross) : "-"}
+            </p>
+            <p className="text-xs text-slate-400">일평균 × {workDays}영업일 + 미수/미지급</p>
+          </div>
+        </div>
+      )}
       {selectedMonth && workDays > 0 && (
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm">
           <span className="text-slate-600">{selectedMonth} · 통합 원장 연동 · 승인(PAID) · </span>
@@ -1875,57 +1951,55 @@ function SalesAnalysisView({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* 미수금 - 기입 가능 */}
-        <Card className="overflow-hidden rounded-2xl glass-card">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base">미수금</CardTitle>
-              <CardDescription className="text-xs">미수금/미지급금 관리 — 미수금. 통합 원장·로컬 저장과 동기화</CardDescription>
-            </div>
-            <button
-              type="button"
-              onClick={() => setReceivablesExpected((prev) => [...prev, { id: `er-${Date.now()}`, category: "미수금", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
-              className="rounded-lg bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-200"
-            >
-              + 행 추가
-            </button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ExpectedLinesTable
-              rows={receivablesExpected}
-              setRows={setReceivablesExpected}
-              totalLabel="합산"
-              showTotalRow={false}
-            />
-          </CardContent>
-        </Card>
+      {/* 미수금 */}
+      <Card className="overflow-hidden rounded-2xl glass-card">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">미수금</CardTitle>
+            <CardDescription className="text-xs">통합 원장·로컬 저장과 동기화</CardDescription>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReceivablesExpected((prev) => [...prev, { id: `er-${Date.now()}`, category: "미수금", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
+            className="rounded-lg bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-200"
+          >
+            + 행 추가
+          </button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ExpectedLinesTable
+            rows={receivablesExpected}
+            setRows={setReceivablesExpected}
+            totalLabel="합산"
+            showTotalRow
+          />
+        </CardContent>
+      </Card>
 
-        {/* 미지급금 - 기입 가능 */}
-        <Card className="overflow-hidden rounded-2xl glass-card">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base">미지급금</CardTitle>
-              <CardDescription className="text-xs">미수금/미지급금 관리 — 미지급금. 통합 원장·로컬 저장과 동기화</CardDescription>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPayablesExpected((prev) => [...prev, { id: `ep-${Date.now()}`, category: "미지급금", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
-              className="rounded-lg bg-rose-100 px-3 py-1.5 text-sm font-medium text-rose-800 hover:bg-rose-200"
-            >
-              + 행 추가
-            </button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ExpectedLinesTable
-              rows={payablesExpected}
-              setRows={setPayablesExpected}
-              totalLabel="합산"
-              showTotalRow
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {/* 미지급금 */}
+      <Card className="overflow-hidden rounded-2xl glass-card">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">미지급금</CardTitle>
+            <CardDescription className="text-xs">통합 원장·로컬 저장과 동기화</CardDescription>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPayablesExpected((prev) => [...prev, { id: `ep-${Date.now()}`, category: "미지급금", item: "", supplyAmount: 0, vat: 0, memo: "" }])}
+            className="rounded-lg bg-rose-100 px-3 py-1.5 text-sm font-medium text-rose-800 hover:bg-rose-200"
+          >
+            + 행 추가
+          </button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ExpectedLinesTable
+            rows={payablesExpected}
+            setRows={setPayablesExpected}
+            totalLabel="합산"
+            showTotalRow
+          />
+        </CardContent>
+      </Card>
 
       {/* 매출 총이익 예상 */}
       <Card className="overflow-hidden rounded-2xl glass-card">
@@ -2036,15 +2110,35 @@ function SalesAnalysisView({
                       </td>
                     </tr>
                   ) : (
-                    teamSalesReport.map((r) => (
-                      <tr key={r.team} className="border-b border-slate-100">
-                        <td className="px-4 py-2 font-medium text-slate-800">{r.team}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.revenue)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.cost)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(r.grossProfit)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{r.marginRatePct.toFixed(2)}%</td>
-                      </tr>
-                    ))
+                    teamSalesReport.map((r) => {
+                      const tgt = teamTargetGp.find((t) => t.team === r.team);
+                      const pct = tgt && tgt.target > 0 ? Math.min((r.grossProfit / tgt.target) * 100, 100) : 0;
+                      const showBar = !!tgt && tgt.target > 0;
+                      return (
+                        <tr key={r.team} className="border-b border-slate-100">
+                          <td className="px-4 py-2 font-medium text-slate-800">
+                            <div>{r.team}</div>
+                            {showBar && (
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? "bg-emerald-500" : pct >= 70 ? "bg-amber-400" : "bg-rose-400"}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className={`text-[10px] font-medium tabular-nums ${pct >= 100 ? "text-emerald-600" : pct >= 70 ? "text-amber-600" : "text-rose-500"}`}>
+                                  {((r.grossProfit / tgt.target) * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.revenue)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatWonIntl(r.cost)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-medium">{formatWonIntl(r.grossProfit)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{r.marginRatePct.toFixed(2)}%</td>
+                        </tr>
+                      );
+                    })
                   )}
                   <tr className="border-t-2 border-slate-200/80 bg-slate-50/50 font-semibold">
                     <td className="px-4 py-2 text-slate-800">전체 매출총이익률</td>
@@ -2108,6 +2202,120 @@ function SalesAnalysisView({
           </CardContent>
         </Card>
       </div>
+
+      {/* 성과급 계산기 */}
+      {(() => {
+        const grossSupply = currentStatus.grossSupply;
+        const totalExcess = grossSupply - targetGrossProfit;
+        if (targetGrossProfit <= 0) return null;
+        const bonusPool = totalExcess > 0 ? totalExcess * 0.20 : 0;
+        const commonBonus = bonusPool * 0.15;
+        const teamBonus = bonusPool * 0.85;
+        const teamExcesses = teamTargetGp.map((r) => Math.max(0, r.grossProfit - r.target));
+        const sumTeamExcess = teamExcesses.reduce((s, v) => s + v, 0);
+        const teamRows = teamTargetGp.map((r, i) => {
+          const teamExcess = teamExcesses[i]!;
+          const contribPct = sumTeamExcess > 0 ? teamExcess / sumTeamExcess : 0;
+          const contribAmt = teamBonus * contribPct;
+          return { ...r, teamExcess, contribPct, contribAmt };
+        });
+        return (
+          <Card className="overflow-hidden rounded-2xl glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">성과급 계산기</CardTitle>
+              <CardDescription className="text-xs">초과달성액 × 20% → 공동기여금 15% / 팀별기여금 85% · 팀 기여% = 팀별 초과달성액 비율</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              {/* 재원 요약 */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">전체 초과달성액</p>
+                  <p className={`mt-1 text-xl font-bold tabular-nums ${totalExcess >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                    {totalExcess >= 0 ? "+" : ""}{formatWonIntl(totalExcess)}
+                  </p>
+                  <p className="text-xs text-slate-400">매총 − 목표</p>
+                </div>
+                <div className={`rounded-xl border px-4 py-3 ${bonusPool > 0 ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-slate-50"}`}>
+                  <p className="text-xs font-medium text-slate-500">성과급 재원 (×20%)</p>
+                  <p className={`mt-1 text-xl font-bold tabular-nums ${bonusPool > 0 ? "text-emerald-700" : "text-slate-400"}`}>
+                    {formatWonIntl(bonusPool)}
+                  </p>
+                  <p className="text-xs text-slate-400">초과달성 시 지급</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">공동기여금 (15%) — 박재민</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-slate-800">{formatWonIntl(commonBonus)}</p>
+                  <p className="text-xs text-slate-400">성과급 재원의 15%</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">팀별기여금 (85%)</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-slate-800">{formatWonIntl(teamBonus)}</p>
+                  <p className="text-xs text-slate-400">팀 기여% 비율 배분</p>
+                </div>
+              </div>
+
+              {/* 팀별 상세 */}
+              {bonusPool > 0 && teamRows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm tracking-tight">
+                    <thead>
+                      <tr className="border-b border-slate-200/80 bg-slate-50/80">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">팀</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-500">팀 초과달성액</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-500">기여 %</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-500">팀 기여금</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">비율 시각화</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamRows.map((r) => (
+                        <tr key={r.team} className="border-b border-slate-100">
+                          <td className="px-4 py-2.5 font-medium text-slate-800">{r.team}</td>
+                          <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${r.teamExcess > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                            {r.teamExcess > 0 ? "+" : ""}{formatWonIntl(r.teamExcess)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                            {(r.contribPct * 100).toFixed(1)}%
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-800">
+                            {formatWonIntl(r.contribAmt)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className="h-full rounded-full bg-[var(--primary)] transition-all duration-500"
+                                  style={{ width: `${r.contribPct * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="border-t-2 border-slate-200/80 bg-slate-50/60 font-semibold">
+                        <td className="px-4 py-2.5 text-slate-700">합계</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-emerald-600">
+                          +{formatWonIntl(teamRows.reduce((s, r) => s + r.teamExcess, 0))}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {(teamRows.reduce((s, r) => s + r.contribPct, 0) * 100).toFixed(1)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
+                          {formatWonIntl(teamRows.reduce((s, r) => s + r.contribAmt, 0))}
+                        </td>
+                        <td className="px-4 py-2.5" />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {bonusPool <= 0 && (
+                <p className="text-sm text-slate-400 text-center py-2">목표 미달성 — 초과달성 시 성과급 계산이 활성화됩니다.</p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
@@ -2129,7 +2337,10 @@ function ExpectedLinesTable({
       prev.map((r) => {
         if (r.id !== id) return r;
         const next = { ...r, ...patch };
-        if (typeof patch.supplyAmount === "number") next.vat = Math.round(patch.supplyAmount * 0.1);
+        // vat가 명시적으로 함께 전달된 경우(합산 입력) 자동계산 스킵
+        if (typeof patch.supplyAmount === "number" && typeof patch.vat !== "number") {
+          next.vat = Math.round(patch.supplyAmount * 0.1);
+        }
         return next;
       })
     );
@@ -2139,79 +2350,125 @@ function ExpectedLinesTable({
   const totalSupply = rows.reduce((s, x) => s + x.supplyAmount, 0);
   const totalVat = rows.reduce((s, x) => s + x.vat, 0);
   const totalSum = totalSupply + totalVat;
+  const totalSettled = rows.reduce((s, x) => s + (x.settledAmount ?? 0), 0);
+  const totalDiff = totalSum - totalSettled;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm tracking-tight">
+        <colgroup>
+          <col className="w-24" />
+          <col className="w-32" />
+          <col className="w-28" />
+          <col className="w-24" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col />
+          <col className="w-8" />
+        </colgroup>
         <thead>
           <tr className="border-b border-slate-200/80 bg-slate-50/80">
-            <th className="px-2 py-2 text-left font-medium text-slate-600 w-20">구분</th>
-            <th className="px-2 py-2 text-left font-medium text-slate-600">항목</th>
-            <th className="px-2 py-2 text-right font-medium text-slate-600">공급가액</th>
-            <th className="px-2 py-2 text-right font-medium text-slate-600">부가세</th>
-            <th className="px-2 py-2 text-right font-medium text-slate-600">{totalLabel}</th>
-            <th className="px-2 py-2 text-left font-medium text-slate-600">비고</th>
-            <th className="px-2 py-2 w-16" />
+            <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 whitespace-nowrap">구분</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 whitespace-nowrap">항목</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 whitespace-nowrap">공급가액</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 whitespace-nowrap">부가세</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 whitespace-nowrap">{totalLabel}</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 whitespace-nowrap">정산완료액</th>
+            <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 whitespace-nowrap">차액</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 whitespace-nowrap">비고</th>
+            <th className="w-8" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-              <td className="px-2 py-1.5">
-                <input
-                  value={r.category}
-                  onChange={(e) => updateRow(r.id, { category: e.target.value })}
-                  className="w-full min-w-0 rounded border border-slate-200 px-1.5 py-1 text-xs focus:border-[var(--primary)] focus:outline-none"
-                />
-              </td>
-              <td className="px-2 py-1.5">
-                <input
-                  value={r.item}
-                  onChange={(e) => updateRow(r.id, { item: e.target.value })}
-                  className="w-full min-w-0 rounded border border-slate-200 px-1.5 py-1 text-xs focus:border-[var(--primary)] focus:outline-none"
-                  placeholder="항목"
-                />
-              </td>
-              <td className="px-2 py-1.5">
-                <input
-                  type="number"
-                  value={r.supplyAmount || ""}
-                  onChange={(e) => updateRow(r.id, { supplyAmount: Number(e.target.value) || 0 })}
-                  className="w-28 rounded border border-slate-200 px-1.5 py-1 text-right text-xs tabular-nums focus:border-[var(--primary)] focus:outline-none"
-                  placeholder="0"
-                />
-              </td>
-              <td className="px-2 py-1.5 text-right tabular-nums text-slate-600">{formatWonIntl(r.vat)}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums font-medium">{formatWonIntl(r.supplyAmount + r.vat)}</td>
-              <td className="px-2 py-1.5">
-                <input
-                  value={r.memo ?? ""}
-                  onChange={(e) => updateRow(r.id, { memo: e.target.value })}
-                  className="w-full min-w-0 rounded border border-slate-200 px-1.5 py-1 text-xs focus:border-[var(--primary)] focus:outline-none"
-                  placeholder="비고"
-                />
-              </td>
-              <td className="px-2 py-1.5">
-                <button
-                  type="button"
-                  onClick={() => removeRow(r.id)}
-                  className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
-                  title="행 삭제"
-                >
-                  ✕
-                </button>
-              </td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const rowTotal = r.supplyAmount + r.vat;
+            const settled = r.settledAmount ?? 0;
+            const diff = rowTotal - settled;
+            return (
+              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                <td className="px-3 py-2">
+                  <input
+                    value={r.category}
+                    onChange={(e) => updateRow(r.id, { category: e.target.value })}
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-[var(--primary)] focus:outline-none"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    value={r.item}
+                    onChange={(e) => updateRow(r.id, { item: e.target.value })}
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-[var(--primary)] focus:outline-none"
+                    placeholder="항목"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="number"
+                    value={r.supplyAmount || ""}
+                    onChange={(e) => updateRow(r.id, { supplyAmount: Number(e.target.value) || 0 })}
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-right text-xs tabular-nums focus:border-[var(--primary)] focus:outline-none"
+                    placeholder="0"
+                  />
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-600">{formatWonIntl(r.vat)}</td>
+                <td className="px-3 py-2">
+                  <input
+                    type="number"
+                    value={rowTotal || ""}
+                    onChange={(e) => {
+                      const total = Number(e.target.value) || 0;
+                      const supply = Math.round(total / 1.1);
+                      updateRow(r.id, { supplyAmount: supply, vat: total - supply });
+                    }}
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-right text-xs tabular-nums focus:border-[var(--primary)] focus:outline-none"
+                    placeholder="0"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="number"
+                    value={settled || ""}
+                    onChange={(e) => updateRow(r.id, { settledAmount: Number(e.target.value) || 0 })}
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-right text-xs tabular-nums focus:border-[var(--primary)] focus:outline-none"
+                    placeholder="0"
+                  />
+                </td>
+                <td className={`px-3 py-2 text-right tabular-nums text-sm font-medium ${diff !== 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                  {formatWonIntl(diff)}
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    value={r.memo ?? ""}
+                    onChange={(e) => updateRow(r.id, { memo: e.target.value })}
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-[var(--primary)] focus:outline-none"
+                    placeholder="비고"
+                  />
+                </td>
+                <td className="px-1 py-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => removeRow(r.id)}
+                    className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
+                    title="행 삭제"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
         {showTotalRow && rows.length > 0 && (
           <tfoot>
-            <tr className="border-t-2 border-slate-200/80 bg-slate-50/80 font-semibold">
-              <td className="px-2 py-2" colSpan={2}>총액</td>
-              <td className="px-2 py-2 text-right tabular-nums text-rose-600">{formatWonIntl(totalSupply)}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-rose-600">{formatWonIntl(totalVat)}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-rose-600">{formatWonIntl(totalSum)}</td>
-              <td className="px-2 py-2" colSpan={2} />
+            <tr className="border-t-2 border-slate-200/80 bg-slate-50/60 font-semibold text-sm">
+              <td className="px-3 py-2.5" colSpan={2}>총액</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{formatWonIntl(totalSupply)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{formatWonIntl(totalVat)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-800">{formatWonIntl(totalSum)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{formatWonIntl(totalSettled)}</td>
+              <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${totalDiff !== 0 ? "text-rose-600" : "text-emerald-600"}`}>{formatWonIntl(totalDiff)}</td>
+              <td className="px-3 py-2.5" colSpan={2} />
             </tr>
           </tfoot>
         )}

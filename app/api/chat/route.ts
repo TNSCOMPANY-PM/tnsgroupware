@@ -453,32 +453,24 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     const dateTo = args.date_to as string | undefined;
     const singleDate = args.date as string | undefined;
 
-    // leave_requests 조회
+    // 조회는 전체 공개 — 권한 제한은 쓰기에만 적용
     let q1 = supabase.from("leave_requests").select("id,applicant_name,applicant_department,leave_type,start_date,end_date,days,status,reason");
     if (dateFrom && dateTo) q1 = q1.lte("start_date", dateTo).gte("end_date", dateFrom);
     else if (singleDate) q1 = q1.lte("start_date", singleDate).gte("end_date", singleDate);
-    if (user.role === "사원") q1 = q1.eq("applicant_id", user.userId);
-    else if (user.role === "팀장") q1 = q1.eq("applicant_department", user.department);
     if (args.mine) q1 = q1.eq("applicant_id", user.userId);
     if (args.employee_name) q1 = q1.ilike("applicant_name", `%${args.employee_name}%`);
     if (args.status) q1 = q1.eq("status", args.status as string);
-    const { data: d1, error: e1 } = await q1.order("start_date", { ascending: false }).limit(30);
-    if (e1) console.error("[query_leaves] leave_requests error:", e1.message, { dateFrom, dateTo, singleDate });
+    const { data: d1 } = await q1.order("start_date", { ascending: false }).limit(30);
 
-    // planned_leaves 조회 (연차 계획)
     let q2 = supabase.from("planned_leaves").select("id,applicant_name,applicant_department,leave_type,start_date,end_date,days,status");
     if (dateFrom && dateTo) q2 = q2.lte("start_date", dateTo).gte("end_date", dateFrom);
     else if (singleDate) q2 = q2.lte("start_date", singleDate).gte("end_date", singleDate);
-    if (user.role === "사원") q2 = q2.eq("applicant_id", user.userId);
-    else if (user.role === "팀장") q2 = q2.eq("applicant_department", user.department);
     if (args.mine) q2 = q2.eq("applicant_id", user.userId);
     if (args.employee_name) q2 = q2.ilike("applicant_name", `%${args.employee_name}%`);
-    const { data: d2, error: e2 } = await q2.order("start_date", { ascending: false }).limit(30);
-    if (e2) console.error("[query_leaves] planned_leaves error:", e2.message);
+    const { data: d2 } = await q2.order("start_date", { ascending: false }).limit(30);
 
-    console.log("[query_leaves] params:", { dateFrom, dateTo, singleDate }, "d1:", d1?.length, "d2:", d2?.length);
     const combined = [...(d1 ?? []), ...(d2 ?? [])];
-    if (!combined.length) return JSON.stringify({ result: "없음", queried: { dateFrom, dateTo, singleDate, role: user.role } });
+    if (!combined.length) return "해당 조건의 휴가 내역이 없습니다.";
     return JSON.stringify(combined);
   }
 
@@ -582,21 +574,11 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_annual_leaves") {
-    if (user.role === "사원" && !args.employee_name) {
-      // 사원: 본인 정보만
-      args = { ...args, employee_name: user.name };
-    }
     const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
     const { data: used } = await supabase.from("leave_requests").select("applicant_id,applicant_name,days,status").eq("status", "승인_완료");
     if (!granted) return "연차 데이터가 없습니다.";
     const year = new Date().getFullYear();
-    let grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
-    // 팀장: 본인 부서 직원의 user_id 목록으로 필터
-    if (user.role === "팀장") {
-      const { data: deptEmps } = await supabase.from("employees").select("id").eq("department", user.department).eq("employment_status", "재직");
-      const deptIds = new Set((deptEmps ?? []).map((e: Record<string, unknown>) => e.id));
-      grantedThisYear = grantedThisYear.filter((g) => deptIds.has(g.user_id));
-    }
+    const grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
     const summary = grantedThisYear.map((g) => {
       const usedDays = (used as Record<string, unknown>[] ?? []).filter((u) => u.applicant_id === g.user_id).reduce((s, u) => s + (Number(u.days) || 0), 0);
       return { 이름: g.user_name, 발생: g.days, 사용: usedDays, 잔여: Number(g.days) - usedDays };
@@ -609,11 +591,8 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_burnout_risk") {
-    if (user.role === "사원") return "번아웃 위험 조회는 팀장/C레벨만 가능합니다.";
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    let empQ = supabase.from("employees").select("id,name,department").eq("employment_status", "재직");
-    if (user.role === "팀장") empQ = empQ.eq("department", user.department); // 팀장: 본인 부서만
-    const { data: employees } = await empQ;
+    const { data: employees } = await supabase.from("employees").select("id,name,department").eq("employment_status", "재직");
     const { data: recentLeaves } = await supabase.from("leave_requests").select("applicant_id").eq("status", "승인_완료").gte("end_date", ninetyDaysAgo);
     if (!employees) return "직원 데이터가 없습니다.";
     const usedIds = new Set((recentLeaves ?? []).map((l: Record<string, unknown>) => l.applicant_id));
@@ -874,49 +853,69 @@ export async function POST(req: Request) {
   const todayDisplay = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
   const todayKST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 
-  const systemPrompt = `당신은 TNS 그룹웨어의 업무 도우미 AI입니다.
-오늘 날짜/시간: ${todayDisplay} (YYYY-MM-DD: ${todayKST})
-현재 사용자: ${user.name} (${user.department}, ${user.role}, emp: ${user.empNumber})
-
-권한:
-- C레벨: 모든 기능 + 전사 직원 조회 + 결재 승인/반려 + 공지사항 등록
-- 팀장: 본인 부서 직원 정보/휴가/연차만 조회 가능 + 결재 승인/반려 + 휴가 승인
-- 사원: 본인 정보만 조회 가능 + 본인 휴가 신청/취소 + 결재 신청
+  const systemPrompt = `당신은 TNS 그룹웨어 AI 도우미입니다.
+오늘: ${todayDisplay} (${todayKST}) | 사용자: ${user.name} (${user.department}, ${user.role})
 
 규칙:
-0. 날짜 범위 계산 규칙 (오늘: ${todayKST}):
-   - 이번 주: 이번 주 월요일 ~ 금요일 (월이 바뀌어도 실제 날짜로 계산)
-   - 다음 주: 다음 주 월요일 ~ 금요일 (월이 바뀌어도 실제 날짜로 계산)
-   - 주간 휴가 조회는 반드시 date_from/date_to를 사용합니다 (단일 date 금지)
-   - 예: 오늘이 2026-03-27(금)이면 다음 주 = date_from: 2026-03-30, date_to: 2026-04-03
-   - 중요: 휴가/연차 관련 질문은 자체 판단으로 절대 답변하지 않습니다. 반드시 query_leaves 툴을 먼저 호출하고, 툴 결과만을 기반으로 답합니다. 툴 결과가 빈 배열이어야만 "휴가자가 없습니다"라고 답할 수 있습니다.
-1. 조회는 바로 실행합니다. 재무(매출·매입·매출총이익·입금) 관련 질문은 이전 대화에 같은 질문의 답이 있어도 반드시 query_finance_summary 또는 query_finance 툴을 새로 호출하여 최신 데이터를 조회합니다. 절대 이전 답변의 숫자를 재사용하지 않습니다.
-2. 쓰기 작업(create_approval, create_leave, create_event 등)은 반드시 아래 순서를 지킵니다. 절대로 사용자 동의 없이 바로 실행하지 않습니다.
-3. 본인 명의 외 다른 사람 휴가/결재 신청은 거부합니다.
-4. 숫자는 xxx,xxx원 형식, 날짜는 M월 d일로 표시합니다.
-5. 답변은 한국어로 간결하고 친근하게 합니다.
-6. 입금/원장 내역을 보여줄 때는 툴이 반환한 items를 하나도 빠짐없이 모두 나열합니다. 임의로 묶거나 생략하지 않습니다. 합계는 반드시 total_amount 값을 그대로 사용합니다.
-6-2. 일정(캘린더) 조회 결과를 보여줄 때: 제목·날짜·내용(description)·등록자(author_name)를 표시합니다. 색상(color)은 절대 언급하지 않습니다. description이 있으면 반드시 포함합니다.
-6-1. query_finance_summary 결과를 답할 때 반드시 지킬 규칙:
-    - 답변 형식: "조회기간: YYYY-MM-DD / 매출 N건 X원, 매입 M건 Y원, 매출총이익 Z원"
-    - 모든 금액은 부가세 제외 공급가 기준 (툴이 이미 계산해서 반환)
-7. 재무 용어를 정확히 구분합니다:
+1. 조회는 즉시 툴 호출. 재무 수치는 매번 새로 조회 (이전 답변 숫자 재사용 금지).
+2. 쓰기(create_*/update_*/delete_*) 전에 내용 먼저 보여주고 동의 받은 후 실행.
+3. "휴가 올려줘" "연차 신청해줘" 등은 ${user.name} 본인 휴가 신청으로 처리.
+4. 입금/원장 내역은 items 전부 나열, total_amount 그대로 사용.
+5. 숫자: xxx,xxx원 | 날짜: M월 d일 | 한국어 간결하게.
+6. 일정 표시: 제목·날짜·내용·등록자 표시, 색상 언급 금지.
+7. 매출총이익 = 매출액 - 매입액 (혼용 금지, query_finance_summary 결과 그대로 사용).
 
-[전자결재 신청 필수 절차]
-1. query_clients로 고객사 카테고리 조회
-2. prepare_approval 툴 호출 → 사용자에게 확인 요청
-3. 사용자가 "응/네/해줘/진행/ok" 등 동의하면 → 즉시 create_approval 실행
-※ 사용자가 동의한 뒤 prepare_approval을 다시 호출하는 것은 절대 금지입니다. 동의 후에는 반드시 create_approval만 호출합니다.
-   - 매출액 = type이 '매출'인 항목의 합계
-   - 매입액 = type이 '매입'인 항목의 합계
-   - 매출총이익 = 매출액 - 매입액
-   - 이 세 가지는 서로 다른 값입니다. 절대 혼용하지 않습니다. 매출총이익을 매출액이라고 하거나 그 반대로 하지 않습니다.
-   - query_finance_summary 툴을 사용하면 이 값들이 자동으로 계산되어 반환됩니다.`;
+[결재 신청] query_clients → prepare_approval → 동의 확인 → create_approval (동의 후 prepare_approval 재호출 금지).`;
 
   const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     ...messages,
   ];
+
+  // 휴가자 조회 키워드 감지 → 자동으로 query_leaves 선실행 (신청/취소는 제외)
+  const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+  const lastContent = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+  const isLeaveWriteRequest = /올려줘|신청|취소|등록/.test(lastContent);
+  const isLeaveQuery = /휴가|연차/.test(lastContent) && !isLeaveWriteRequest;
+  if (isLeaveQuery) {
+    // todayKST는 "YYYY-MM-DD" 문자열 → 로컬 자정으로 파싱 (UTC 변환 없음)
+    const [ty, tm, td] = todayKST.split("-").map(Number);
+    const todayDate = new Date(ty, tm - 1, td);
+    const dow = todayDate.getDay(); // 0=일, 1=월 ... 6=토
+    const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    let autoDateFrom: string | undefined;
+    let autoDateTo: string | undefined;
+
+    if (/다음\s*주/.test(lastContent)) {
+      const daysToNextMon = dow === 0 ? 1 : 8 - dow;
+      const nextMon = new Date(todayDate);
+      nextMon.setDate(todayDate.getDate() + daysToNextMon);
+      const nextFri = new Date(nextMon);
+      nextFri.setDate(nextMon.getDate() + 4);
+      autoDateFrom = fmtDate(nextMon);
+      autoDateTo = fmtDate(nextFri);
+    } else if (/이번\s*주/.test(lastContent)) {
+      const daysToMon = dow === 0 ? -6 : 1 - dow;
+      const thisMon = new Date(todayDate);
+      thisMon.setDate(todayDate.getDate() + daysToMon);
+      const thisFri = new Date(thisMon);
+      thisFri.setDate(thisMon.getDate() + 4);
+      autoDateFrom = fmtDate(thisMon);
+      autoDateTo = fmtDate(thisFri);
+    }
+
+    const autoArgs: Record<string, unknown> = {};
+    if (autoDateFrom && autoDateTo) { autoArgs.date_from = autoDateFrom; autoArgs.date_to = autoDateTo; }
+
+    const autoResult = await runTool("query_leaves", autoArgs, user);
+    const autoCallId = "auto-leave-0";
+    allMessages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [{ id: autoCallId, type: "function", function: { name: "query_leaves", arguments: JSON.stringify(autoArgs) } }],
+    } as OpenAI.Chat.ChatCompletionMessageParam);
+    allMessages.push({ role: "tool", tool_call_id: autoCallId, content: autoResult });
+  }
 
   for (let i = 0; i < 6; i++) {
     const res = await openai.chat.completions.create({

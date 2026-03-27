@@ -59,11 +59,12 @@ export interface CurrentStatus {
 /** 매출 예정액(미수금) / 매입 예정액(미지급금) 한 행 — 기입용 */
 export interface ExpectedLineItem {
   id: string;
-  category: string;   // 구분
-  item: string;       // 항목
+  category: string;     // 구분
+  item: string;         // 항목
   supplyAmount: number; // 공급가액
-  vat: number;        // 부가세 (공급가액의 10%)
-  memo?: string;      // 비고
+  vat: number;          // 부가세 (공급가액의 10%)
+  settledAmount?: number; // 정산완료액 (엑셀: 정산 완료액)
+  memo?: string;        // 비고
 }
 
 /** 팀별 목표 GP (목표, 매출총이익, 초과 달성액, 달성 여부) */

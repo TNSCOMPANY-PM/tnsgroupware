@@ -1,8 +1,8 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { id } = await params;
   const body = await req.json() as Record<string, unknown>;
   const patch: Record<string, unknown> = {};
@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { id } = await params;
   const { error } = await supabase
     .from("ledger_custom_entries")

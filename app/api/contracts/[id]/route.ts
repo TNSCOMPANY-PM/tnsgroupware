@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { logAudit } from "@/lib/auditLog";
 
 /** GET: 단일 계약 조회 (본인 계약만) */
@@ -16,13 +17,14 @@ export async function GET(
     if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { data: emp } = await supabase
+    const admin = createAdminClient();
+    const { data: emp } = await admin
       .from("employees")
       .select("id")
       .eq("email", user.email)
       .limit(1)
       .single();
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from("contracts")
       .select("*")
       .eq("id", id)
@@ -62,14 +64,15 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const authClient = await createClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
     if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { data: emp } = await supabase
+    const admin = createAdminClient();
+    const { data: emp } = await admin
       .from("employees")
       .select("id")
       .eq("email", user.email)
@@ -78,7 +81,7 @@ export async function PATCH(
     if (!emp?.id) {
       return NextResponse.json({ error: "Employee not found" }, { status: 403 });
     }
-    const { data: row, error: fetchErr } = await supabase
+    const { data: row, error: fetchErr } = await admin
       .from("contracts")
       .select("employee_id")
       .eq("id", id)
@@ -96,13 +99,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     // 서명 전 계약 내용 조회 (type + content)
-    const { data: contractData } = await supabase
+    const { data: contractData } = await admin
       .from("contracts")
       .select("contract_type, content")
       .eq("id", id)
       .single();
 
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await admin
       .from("contracts")
       .update({ status: "signed", signed_at: new Date().toISOString() })
       .eq("id", id)
@@ -136,7 +139,7 @@ export async function PATCH(
       }
 
       if (Object.keys(empPatch).length > 0) {
-        await supabase.from("employees").update(empPatch).eq("id", emp.id);
+        await admin.from("employees").update(empPatch).eq("id", emp.id);
       }
 
       logAudit("contract.signed", {

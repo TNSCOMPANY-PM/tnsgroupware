@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Loader2, Bot, ImagePlus } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Bot, ImagePlus, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 
@@ -11,7 +11,26 @@ interface Message {
 }
 
 const STORAGE_KEY = "groupware-chat-history";
+const FAVORITES_KEY = "groupware-chat-favorites";
 const MAX_STORED = 60;
+
+function loadFavorites(userId: string): string[] {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as Record<string, string[]>;
+    return data[userId] ?? [];
+  } catch { return []; }
+}
+
+function saveFavorites(userId: string, favs: string[]) {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    const data: Record<string, string[]> = raw ? JSON.parse(raw) : {};
+    data[userId] = favs;
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(data));
+  } catch {}
+}
 
 const SUGGESTIONS = [
   "오늘 입금 내역 알려줘",
@@ -48,6 +67,9 @@ export function AIChatWidget() {
   const [loading, setLoading] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [hoveredMsgIdx, setHoveredMsgIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -65,8 +87,18 @@ export function AIChatWidget() {
       } else {
         setMessages([{ role: "assistant", content: `안녕하세요, ${currentUserName}님! 무엇이든 물어보거나 업무를 요청하세요 😊` }]);
       }
+      setFavorites(loadFavorites(currentUserId));
     }
   }, [mounted, currentUserId, currentUserName]);
+
+  const toggleFavorite = useCallback((text: string) => {
+    if (!currentUserId) return;
+    setFavorites((prev) => {
+      const next = prev.includes(text) ? prev.filter((f) => f !== text) : [...prev, text];
+      saveFavorites(currentUserId, next);
+      return next;
+    });
+  }, [currentUserId]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
@@ -164,6 +196,12 @@ export function AIChatWidget() {
               <p className="text-sm font-semibold text-white">업무 도우미</p>
               <p className="text-[11px] text-blue-200">{currentUserName} · {role}</p>
             </div>
+            <button type="button" onClick={() => setShowFavorites((v) => !v)}
+              className={cn("p-1 rounded transition-colors", showFavorites ? "text-yellow-300" : "text-blue-300 hover:text-white")}
+              title="즐겨찾기"
+            >
+              <Star className="size-4" fill={showFavorites ? "currentColor" : "none"} />
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -172,13 +210,49 @@ export function AIChatWidget() {
               }}
               className="text-[10px] text-blue-300 hover:text-white"
             >
-              대화 초기화
+              초기화
             </button>
           </div>
 
+          {showFavorites && (
+            <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+              <p className="text-[10px] text-slate-400 mb-1.5">즐겨찾기 — 클릭하면 바로 전송</p>
+              {favorites.length === 0 ? (
+                <p className="text-xs text-slate-400">저장된 항목이 없습니다. 메시지에 ★를 눌러 저장하세요.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {favorites.map((fav) => (
+                    <div key={fav} className="flex items-center gap-1">
+                      <button type="button" onClick={() => { send(fav); setShowFavorites(false); }}
+                        className="flex-1 text-left rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-blue-50 hover:border-blue-200 transition-colors truncate">
+                        {fav}
+                      </button>
+                      <button type="button" onClick={() => toggleFavorite(fav)}
+                        className="shrink-0 p-1 text-slate-300 hover:text-red-400 transition-colors">
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {messages.map((m, i) => (
-              <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+              <div key={i}
+                className={cn("flex items-end gap-1", m.role === "user" ? "justify-end" : "justify-start")}
+                onMouseEnter={() => m.role === "user" ? setHoveredMsgIdx(i) : undefined}
+                onMouseLeave={() => setHoveredMsgIdx(null)}
+              >
+                {m.role === "user" && hoveredMsgIdx === i && (
+                  <button type="button" onClick={() => toggleFavorite(m.content)}
+                    className="mb-1 shrink-0 transition-colors"
+                    title={favorites.includes(m.content) ? "즐겨찾기 해제" : "즐겨찾기 저장"}
+                  >
+                    <Star className={cn("size-3.5", favorites.includes(m.content) ? "text-yellow-400 fill-yellow-400" : "text-slate-300 hover:text-yellow-400")} />
+                  </button>
+                )}
                 <div className={cn(
                   "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed",
                   m.role === "user"

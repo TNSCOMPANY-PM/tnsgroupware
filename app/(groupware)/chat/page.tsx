@@ -56,12 +56,17 @@ export default function ChatPage() {
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    if (mounted && currentUserId) {
+    if (mounted && currentUserId && currentUserName) {
+      const greeting = `안녕하세요, ${currentUserName}님! 무엇이든 물어보거나 업무를 요청하세요 😊`;
       const saved = loadMessages(currentUserId);
       if (saved.length > 0) {
+        // 저장된 첫 메시지가 인사말이면 현재 이름으로 갱신
+        if (saved[0]?.role === "assistant" && saved[0].content.startsWith("안녕하세요,")) {
+          saved[0] = { role: "assistant", content: greeting };
+        }
         setMessages(saved);
       } else {
-        setMessages([{ role: "assistant", content: `안녕하세요, ${currentUserName}님! 무엇이든 물어보거나 업무를 요청하세요 😊` }]);
+        setMessages([{ role: "assistant", content: greeting }]);
       }
     }
   }, [mounted, currentUserId, currentUserName]);

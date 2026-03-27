@@ -33,12 +33,12 @@ export default async function GroupwareLayout({
       <PlannedLeavesProvider>
       <GrantedLeavesProvider>
       <SidebarProvider>
-      <div className="flex h-screen w-full overflow-hidden">
-        <Sidebar />
-        <div className="md:ml-64 flex min-w-0 flex-1 flex-col">
-          <Header />
-          <main className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
-            <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 md:p-10 lg:p-12">
+      <div className="flex h-screen w-full overflow-hidden print:block print:h-auto print:overflow-visible">
+        <div className="print:hidden"><Sidebar /></div>
+        <div className="md:ml-64 flex min-w-0 flex-1 flex-col print:ml-0 print:block">
+          <div className="print:hidden"><Header /></div>
+          <main className="flex-1 overflow-y-auto overflow-x-auto min-h-0 print:overflow-visible print:flex-none">
+            <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 md:p-10 lg:p-12 print:p-0 print:max-w-none">
               {children}
             </div>
           </main>
@@ -48,7 +48,7 @@ export default async function GroupwareLayout({
       </GrantedLeavesProvider>
       </PlannedLeavesProvider>
       </ProfileOverridesProvider>
-      <AIChatWidget />
+      <div className="print:hidden"><AIChatWidget /></div>
       </RealtimeToastProvider>
     </PermissionProvider>
   );

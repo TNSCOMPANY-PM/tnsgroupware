@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("employees").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("employees").select("*").eq("employment_status", "재직").order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json(

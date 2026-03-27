@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 /** GET: 로그인한 사용자의 employee_id로 내 계약 목록 조회 */
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const authClient = await createClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
     if (!user?.email) {
       return NextResponse.json([]);
     }
+    const supabase = createAdminClient();
     const { data: employees } = await supabase
       .from("employees")
       .select("id")
