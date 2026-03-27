@@ -37,7 +37,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
       parameters: { type: "object", properties: {
         date: { type: "string", description: "날짜 (YYYY-MM-DD). 오늘=today, 어제=yesterday" },
         month: { type: "string", description: "월 (YYYY-MM). 이번달=current" },
-        type: { type: "string", description: "매출 또는 매입" },
+        type: { type: "string", enum: ["매출", "매입"], description: "입금·매출=매출, 출금·매입=매입. '입금내역'을 물어보면 반드시 '매출'을 사용합니다." },
         client_name: { type: "string", description: "고객사명 (부분일치)" },
         limit: { type: "number" },
       }},
@@ -46,9 +46,11 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: "function", function: {
       name: "query_leaves",
-      description: "휴가 내역을 조회합니다. 특정 날짜 휴가자, 내 휴가 현황, 승인 대기 휴가를 확인합니다.",
+      description: "휴가 내역을 조회합니다. 특정 날짜·기간 휴가자, 내 휴가 현황, 승인 대기 휴가를 확인합니다. '이번 주'·'다음 주' 같은 기간 질문엔 date_from과 date_to를 함께 사용합니다.",
       parameters: { type: "object", properties: {
-        date: { type: "string", description: "해당 날짜 휴가자 조회 (YYYY-MM-DD)" },
+        date: { type: "string", description: "특정 날짜 휴가자 조회 (YYYY-MM-DD). 단일 날짜일 때만 사용합니다." },
+        date_from: { type: "string", description: "기간 조회 시작일 (YYYY-MM-DD). 이번 주·다음 주 등 범위 조회 시 date_to와 함께 사용합니다." },
+        date_to: { type: "string", description: "기간 조회 종료일 (YYYY-MM-DD). date_from과 함께 사용합니다." },
         employee_name: { type: "string", description: "직원 이름" },
         status: { type: "string", description: "승인_완료 / C레벨_최종_승인_대기 / 팀장_1차_승인_대기" },
         mine: { type: "boolean", description: "내 휴가만 조회" },
@@ -432,7 +434,11 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     if (date) q = q.eq("date", date);
     const month = args.month === "current" ? today.slice(0, 7) : (args.month as string | undefined);
     if (month && !date) q = q.eq("month", month);
-    if (args.type) q = q.eq("type", args.type as string);
+    if (args.type) {
+      // DB 저장값은 한글(매출/매입). 영어·한글 모두 대응
+      const typeMap: Record<string, string> = { "DEPOSIT": "매출", "입금": "매출", "WITHDRAWAL": "매입", "출금": "매입" };
+      q = q.eq("type", typeMap[args.type as string] ?? args.type as string);
+    }
     if (args.client_name) q = q.ilike("client_name", `%${args.client_name}%`);
     q = q.limit((args.limit as number) ?? 50);
     const { data, error } = await q;
@@ -443,22 +449,37 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_leaves") {
-    let q = supabase.from("leave_requests").select("id,applicant_name,applicant_department,leave_type,start_date,end_date,days,status,reason");
-    if (args.date) q = q.lte("start_date", args.date as string).gte("end_date", args.date as string);
-    // 권한별 범위 제한
-    if (user.role === "사원") {
-      q = q.eq("applicant_id", user.userId); // 사원: 본인만
-    } else if (user.role === "팀장") {
-      q = q.eq("applicant_department", user.department); // 팀장: 본인 부서만
-    }
-    // C레벨은 전체 조회 가능
-    if (args.mine) q = q.eq("applicant_id", user.userId);
-    if (args.employee_name) q = q.ilike("applicant_name", `%${args.employee_name}%`);
-    if (args.status) q = q.eq("status", args.status as string);
-    const { data, error } = await q.order("start_date", { ascending: false }).limit(20);
-    if (error) return `오류: ${error.message}`;
-    if (!data?.length) return "해당 조건의 휴가 내역이 없습니다.";
-    return JSON.stringify(data);
+    const dateFrom = args.date_from as string | undefined;
+    const dateTo = args.date_to as string | undefined;
+    const singleDate = args.date as string | undefined;
+
+    // leave_requests 조회
+    let q1 = supabase.from("leave_requests").select("id,applicant_name,applicant_department,leave_type,start_date,end_date,days,status,reason");
+    if (dateFrom && dateTo) q1 = q1.lte("start_date", dateTo).gte("end_date", dateFrom);
+    else if (singleDate) q1 = q1.lte("start_date", singleDate).gte("end_date", singleDate);
+    if (user.role === "사원") q1 = q1.eq("applicant_id", user.userId);
+    else if (user.role === "팀장") q1 = q1.eq("applicant_department", user.department);
+    if (args.mine) q1 = q1.eq("applicant_id", user.userId);
+    if (args.employee_name) q1 = q1.ilike("applicant_name", `%${args.employee_name}%`);
+    if (args.status) q1 = q1.eq("status", args.status as string);
+    const { data: d1, error: e1 } = await q1.order("start_date", { ascending: false }).limit(30);
+    if (e1) console.error("[query_leaves] leave_requests error:", e1.message, { dateFrom, dateTo, singleDate });
+
+    // planned_leaves 조회 (연차 계획)
+    let q2 = supabase.from("planned_leaves").select("id,applicant_name,applicant_department,leave_type,start_date,end_date,days,status");
+    if (dateFrom && dateTo) q2 = q2.lte("start_date", dateTo).gte("end_date", dateFrom);
+    else if (singleDate) q2 = q2.lte("start_date", singleDate).gte("end_date", singleDate);
+    if (user.role === "사원") q2 = q2.eq("applicant_id", user.userId);
+    else if (user.role === "팀장") q2 = q2.eq("applicant_department", user.department);
+    if (args.mine) q2 = q2.eq("applicant_id", user.userId);
+    if (args.employee_name) q2 = q2.ilike("applicant_name", `%${args.employee_name}%`);
+    const { data: d2, error: e2 } = await q2.order("start_date", { ascending: false }).limit(30);
+    if (e2) console.error("[query_leaves] planned_leaves error:", e2.message);
+
+    console.log("[query_leaves] params:", { dateFrom, dateTo, singleDate }, "d1:", d1?.length, "d2:", d2?.length);
+    const combined = [...(d1 ?? []), ...(d2 ?? [])];
+    if (!combined.length) return "해당 조건의 휴가 내역이 없습니다.";
+    return JSON.stringify(combined);
   }
 
   if (name === "query_approvals") {
@@ -863,7 +884,13 @@ export async function POST(req: Request) {
 - 사원: 본인 정보만 조회 가능 + 본인 휴가 신청/취소 + 결재 신청
 
 규칙:
-1. 조회는 바로 실행합니다.
+0. 날짜 범위 계산 규칙 (오늘: ${todayKST}):
+   - 이번 주: 이번 주 월요일 ~ 금요일 (월이 바뀌어도 실제 날짜로 계산)
+   - 다음 주: 다음 주 월요일 ~ 금요일 (월이 바뀌어도 실제 날짜로 계산)
+   - 주간 휴가 조회는 반드시 date_from/date_to를 사용합니다 (단일 date 금지)
+   - 예: 오늘이 2026-03-27(금)이면 다음 주 = date_from: 2026-03-30, date_to: 2026-04-03
+   - 중요: 휴가/연차 관련 질문은 자체 판단으로 절대 답변하지 않습니다. 반드시 query_leaves 툴을 먼저 호출하고, 툴 결과만을 기반으로 답합니다. 툴 결과가 빈 배열이어야만 "휴가자가 없습니다"라고 답할 수 있습니다.
+1. 조회는 바로 실행합니다. 재무(매출·매입·매출총이익·입금) 관련 질문은 이전 대화에 같은 질문의 답이 있어도 반드시 query_finance_summary 또는 query_finance 툴을 새로 호출하여 최신 데이터를 조회합니다. 절대 이전 답변의 숫자를 재사용하지 않습니다.
 2. 쓰기 작업(create_approval, create_leave, create_event 등)은 반드시 아래 순서를 지킵니다. 절대로 사용자 동의 없이 바로 실행하지 않습니다.
 3. 본인 명의 외 다른 사람 휴가/결재 신청은 거부합니다.
 4. 숫자는 xxx,xxx원 형식, 날짜는 M월 d일로 표시합니다.
