@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Loader2, Bot, ImagePlus, Star } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Bot, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 
@@ -286,18 +286,14 @@ export function AIChatWidget() {
                 }
               }}
               className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-xl border transition-colors",
-                input.trim()
-                  ? favorites.includes(input.trim())
-                    ? "border-yellow-300 bg-yellow-50 text-yellow-500"
-                    : "border-slate-200 text-slate-400 hover:border-yellow-300 hover:text-yellow-500"
-                  : showFavorites
-                    ? "border-yellow-300 bg-yellow-50 text-yellow-500"
-                    : "border-slate-200 text-slate-400 hover:bg-slate-50"
+                "flex size-9 shrink-0 items-center justify-center rounded-xl border text-base transition-colors",
+                (input.trim() && favorites.includes(input.trim())) || (!input.trim() && showFavorites)
+                  ? "border-yellow-300 bg-yellow-50 text-yellow-500"
+                  : "border-slate-200 text-slate-400 hover:border-yellow-300 hover:text-yellow-400"
               )}
               title={input.trim() ? "즐겨찾기에 저장" : "즐겨찾기 보기"}
             >
-              <Star className={cn("size-4", (input.trim() && favorites.includes(input.trim())) || (!input.trim() && showFavorites) ? "fill-current" : "")} />
+              {(input.trim() && favorites.includes(input.trim())) || (!input.trim() && showFavorites) ? "★" : "☆"}
             </button>
             <input
               ref={inputRef}
