@@ -478,7 +478,7 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
 
     console.log("[query_leaves] params:", { dateFrom, dateTo, singleDate }, "d1:", d1?.length, "d2:", d2?.length);
     const combined = [...(d1 ?? []), ...(d2 ?? [])];
-    if (!combined.length) return "해당 조건의 휴가 내역이 없습니다.";
+    if (!combined.length) return JSON.stringify({ result: "없음", queried: { dateFrom, dateTo, singleDate, role: user.role } });
     return JSON.stringify(combined);
   }
 
@@ -531,7 +531,7 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
     const fromDate = args.from === "today" ? today : args.from === "current_month_start" ? monthStart : (args.from as string | undefined);
     const toDate = args.to === "current_month_end" ? monthEnd : (args.to as string | undefined);
-    let q = supabase.from("calendar_events").select("id,title,start_date,end_date,description,color,author_name").order("start_date");
+    let q = supabase.from("calendar_events").select("id,title,start_date,end_date,description,author_name").order("start_date");
     if (fromDate) q = q.gte("start_date", fromDate);
     if (toDate) q = q.lte("start_date", toDate);
     if (args.keyword) q = q.ilike("title", `%${args.keyword}%`);
@@ -896,6 +896,7 @@ export async function POST(req: Request) {
 4. 숫자는 xxx,xxx원 형식, 날짜는 M월 d일로 표시합니다.
 5. 답변은 한국어로 간결하고 친근하게 합니다.
 6. 입금/원장 내역을 보여줄 때는 툴이 반환한 items를 하나도 빠짐없이 모두 나열합니다. 임의로 묶거나 생략하지 않습니다. 합계는 반드시 total_amount 값을 그대로 사용합니다.
+6-2. 일정(캘린더) 조회 결과를 보여줄 때: 제목·날짜·내용(description)·등록자(author_name)를 표시합니다. 색상(color)은 절대 언급하지 않습니다. description이 있으면 반드시 포함합니다.
 6-1. query_finance_summary 결과를 답할 때 반드시 지킬 규칙:
     - 답변 형식: "조회기간: YYYY-MM-DD / 매출 N건 X원, 매입 M건 Y원, 매출총이익 Z원"
     - 모든 금액은 부가세 제외 공급가 기준 (툴이 이미 계산해서 반환)
