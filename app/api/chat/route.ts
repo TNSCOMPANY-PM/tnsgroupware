@@ -23,10 +23,10 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: "function", function: {
       name: "query_finance_summary",
-      description: "매출액·매입액·매출총이익을 정확히 계산합니다. '매출총이익', '매출액', '매입액', '손익' 등을 물어볼 때 반드시 이 툴을 사용합니다.",
+      description: "매출액·매입액·매출총이익을 정확히 계산합니다. '매출총이익', '매출액', '매입액', '손익' 등을 물어볼 때 반드시 이 툴을 사용합니다. 특정 날짜(오늘/어제/날짜)를 말하면 반드시 date 파라미터를 사용합니다. month는 명시적으로 '이번달', 'N월' 등 월 단위를 요청할 때만 사용합니다.",
       parameters: { type: "object", properties: {
-        month: { type: "string", description: "월 (YYYY-MM). 이번달=current" },
-        date: { type: "string", description: "날짜 (YYYY-MM-DD). 오늘=today" },
+        month: { type: "string", description: "월 단위 조회 (YYYY-MM). 이번달=current. 날짜를 물어볼 때는 사용하지 않습니다." },
+        date: { type: "string", description: "날짜 (YYYY-MM-DD). 오늘=today, 어제=yesterday. 날짜 지정 시 항상 이것을 사용합니다." },
       }},
     },
   },
@@ -35,7 +35,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
       name: "query_finance",
       description: "매출·매입 원장을 조회합니다. 입금 내역, 특정 고객사 거래, 월별 매출 등을 확인합니다.",
       parameters: { type: "object", properties: {
-        date: { type: "string", description: "날짜 (YYYY-MM-DD). 오늘=today" },
+        date: { type: "string", description: "날짜 (YYYY-MM-DD). 오늘=today, 어제=yesterday" },
         month: { type: "string", description: "월 (YYYY-MM). 이번달=current" },
         type: { type: "string", description: "매출 또는 매입" },
         client_name: { type: "string", description: "고객사명 (부분일치)" },
@@ -80,9 +80,9 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: "function", function: {
       name: "query_clients",
-      description: "고객사(CRM) 정보를 조회합니다. 거래처 목록, 사업자번호, 대표자 등을 확인합니다.",
+      description: "고객사(CRM) 정보를 조회합니다. 거래처 목록, 사업자번호, 대표자 등을 확인합니다. name으로 검색하면 상호명·대표자명·입금자명 모두에서 찾습니다.",
       parameters: { type: "object", properties: {
-        name: { type: "string", description: "고객사명 (부분일치)" },
+        name: { type: "string", description: "검색어 — 상호명, 대표자명, 입금자명 중 하나 (부분일치)" },
         category: { type: "string", description: "카테고리" },
       }},
     },
@@ -210,20 +210,34 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   },
   {
     type: "function", function: {
-      name: "create_approval",
-      description: "전자결재를 신청합니다. 정산요청/비품구입/기타 결재를 올립니다.",
+      name: "prepare_approval",
+      description: "전자결재 신청 전 확인 단계. 반드시 이 툴을 먼저 호출해 사용자에게 내용을 보여주고 동의를 받아야 합니다. query_clients로 카테고리 조회 후 호출합니다.",
       parameters: { type: "object", properties: {
-        type: { type: "string", description: "expense(정산요청) / purchase(비품구입) / etc(기타)" },
+        title: { type: "string", description: "결재 제목 (고객사명)" },
+        amount: { type: "number", description: "금액(원)" },
+        date: { type: "string", description: "날짜 (YYYY-MM-DD 또는 today)" },
+        sheet_classification: { type: "string", description: "결제/정산/환불/슬롯구입정산/CPC리워드. 모르면 빈 문자열" },
+        category: { type: "string", description: "CRM 조회 결과: 더널리 / 티제이웹 / 기타. 찾지 못하면 빈 문자열" },
+      }, required: ["title", "amount"]},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "create_approval",
+      description: "전자결재를 실제로 신청합니다. 사용자가 동의한 뒤에만 호출합니다.",
+      parameters: { type: "object", properties: {
+        type: { type: "string", description: "expense(정산요청·결제·환불·슬롯구입정산·CPC리워드 등 금전 지출 전반) / purchase(비품구입) / etc(기타 비금전)" },
         title: { type: "string", description: "결재 제목 (고객사명 등)" },
         content: { type: "string", description: "내용" },
         amount: { type: "number", description: "금액(원)" },
         date: { type: "string", description: "원장 기록 날짜 (YYYY-MM-DD). 오늘=today. 미지정 시 오늘" },
         payment_reason: { type: "string" },
-        sheet_classification: { type: "string", description: "결제/정산/환불/슬롯구입정산/CPC리워드" },
+        sheet_classification: { type: "string", description: "결제/정산/환불/슬롯구입정산/CPC리워드. 반드시 사용자에게 확인 후 입력" },
+        category: { type: "string", description: "더널리 / 티제이웹 / 기타. query_clients 조회 결과 또는 사용자 확인 후 입력. 반드시 필요" },
         bank: { type: "string" },
         account_number: { type: "string" },
         account_holder_name: { type: "string" },
-      }, required: ["type", "title", "amount"]},
+      }, required: ["type", "title", "amount", "sheet_classification", "category"]},
     },
   },
   {
@@ -373,7 +387,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 // ── 툴 실행 ───────────────────────────────────────────────────────────────────
 async function runTool(name: string, args: Record<string, unknown>, user: UserContext): Promise<string> {
   const supabase = createAdminClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
   const now = new Date();
 
   if (name === "get_lunch") {
@@ -389,24 +403,32 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
 
   // ── 조회 ─────────────────────────────────────────────────────────────
   if (name === "query_finance_summary") {
-    const date = args.date === "today" ? today : (args.date as string | undefined);
+    const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().slice(0, 10);
+    const date = args.date === "today" ? today : args.date === "yesterday" ? yesterday : (args.date as string | undefined);
     const month = args.month === "current" ? today.slice(0, 7) : (args.month as string | undefined);
-    let q = supabase.from("finance").select("type,amount");
+    let q = supabase.from("finance").select("type,amount,status");
     if (date) q = q.eq("date", date);
     else if (month) q = q.eq("month", month);
     const { data, error } = await q;
     if (error) return `오류: ${error.message}`;
     if (!data?.length) return "해당 기간 데이터가 없습니다.";
     const rows = data as { type: string; amount: number }[];
-    const revenue = rows.filter(r => r.type === "매출").reduce((s, r) => s + r.amount, 0);
-    const expense = rows.filter(r => r.type === "매입").reduce((s, r) => s + r.amount, 0);
-    const grossProfit = revenue - expense;
-    return JSON.stringify({ 매출액: revenue, 매입액: expense, 매출총이익: grossProfit, 기간: date ?? month ?? "전체" });
+    const revRaw = rows.filter(r => r.type === "매출").reduce((s, r) => s + r.amount, 0);
+    const expRaw = rows.filter(r => r.type === "매입").reduce((s, r) => s + r.amount, 0);
+    return JSON.stringify({
+      조회기간: date ?? month ?? "전체",
+      매출액: Math.round(revRaw / 1.1),
+      매출건수: rows.filter(r => r.type === "매출").length,
+      매입액: Math.round(expRaw / 1.1),
+      매입건수: rows.filter(r => r.type === "매입").length,
+      매출총이익: Math.round(revRaw / 1.1) - Math.round(expRaw / 1.1),
+    });
   }
 
   if (name === "query_finance") {
     let q = supabase.from("finance").select("date,month,type,amount,client_name,description,category,status").order("date", { ascending: false });
-    const date = args.date === "today" ? today : (args.date as string | undefined);
+    const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().slice(0, 10);
+    const date = args.date === "today" ? today : args.date === "yesterday" ? yesterday : (args.date as string | undefined);
     if (date) q = q.eq("date", date);
     const month = args.month === "current" ? today.slice(0, 7) : (args.month as string | undefined);
     if (month && !date) q = q.eq("month", month);
@@ -461,8 +483,11 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_clients") {
-    let q = supabase.from("clients").select("id,name,category,contact,business_number,representative,address,business_type,business_item");
-    if (args.name) q = q.ilike("name", `%${args.name}%`);
+    let q = supabase.from("clients").select("id,name,category,contact,business_number,representative,address,aliases");
+    if (args.name) {
+      const kw = (args.name as string).replace(/'/g, "''");
+      q = q.or(`name.ilike.%${kw}%,representative.ilike.%${kw}%`);
+    }
     if (args.category) q = q.eq("category", args.category as string);
     const { data, error } = await q.order("name").limit(30);
     if (error) return `오류: ${error.message}`;
@@ -621,6 +646,27 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     return "취소할 수 없는 상태입니다.";
   }
 
+  if (name === "prepare_approval") {
+    const todayStr = today;
+    const dateStr = args.date === "today" || !args.date ? todayStr : String(args.date);
+    const classification = String(args.sheet_classification ?? "").trim() || "[선택 필요]";
+    const category = String(args.category ?? "").trim() || "[선택 필요]";
+    const lines = [
+      `1. 결재 제목: ${args.title}`,
+      `2. 금액: ${Number(args.amount).toLocaleString()}원`,
+      `3. 날짜: ${dateStr}`,
+      `4. 분류: ${classification}`,
+      `5. 카테고리: ${category}`,
+    ];
+    const missing: string[] = [];
+    if (classification === "[선택 필요]") missing.push("분류(결제/정산/환불/슬롯구입정산/CPC리워드 중 선택)");
+    if (category === "[선택 필요]") missing.push("카테고리(더널리/티제이웹/기타 중 선택)");
+    const askLine = missing.length > 0
+      ? `\n📌 ${missing.join(", ")}을 알려주시면 진행하겠습니다!`
+      : `\n진행하시려면 "응/네/해줘"라고 말씀해 주세요! (동의 시 prepare_approval 재호출 없이 create_approval 바로 실행)`;
+    return `아래 내용으로 결재를 신청할까요?\n\n${lines.join("\n")}${askLine}`;
+  }
+
   if (name === "approve_leave") {
     const isAuthorized = user.role === "C레벨" || user.role === "팀장";
     if (!isAuthorized) return "승인 권한이 없습니다.";
@@ -633,7 +679,7 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   if (name === "create_approval") {
     const financeDate = args.date === "today" || !args.date ? today : (args.date as string);
     const insert: Record<string, unknown> = {
-      type: args.type, title: args.title, content: args.content ?? "",
+      type: args.type, title: args.title, content: [args.content, args.category ? `카테고리: ${args.category}` : ""].filter(Boolean).join(" | "),
       amount: args.amount, requester_name: user.name, requester_id: user.userId, status: "pending",
       finance_date: financeDate,
     };
@@ -646,16 +692,21 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     const { data, error } = await supabase.from("approvals").insert(insert).select().single();
     if (error) return `결재 신청 실패: ${error.message}`;
 
-    if (args.type === "expense" || args.type === "purchase") {
-      await supabase.from("finance").insert({
-        month: today.slice(0, 7), date: today, type: "매입", amount: args.amount, status: "UNMAPPED",
+    const approvalId = String((data as Record<string, unknown>).id);
+    let financeNote = "";
+    if (Number(args.amount) > 0) {
+      const financeDate = args.date === "today" || !args.date ? today : (args.date as string);
+      const { error: finErr } = await supabase.from("finance").insert({
+        month: financeDate.slice(0, 7), date: financeDate, type: "매입", amount: args.amount, status: "UNMAPPED",
         description: `결재: ${args.title} | 신청자: ${user.name}`,
-        client_name: args.title, approval_id: String((data as Record<string, unknown>).id),
+        client_name: args.title, approval_id: approvalId,
       } as Record<string, unknown>);
+      if (finErr) financeNote = ` (원장 등록 실패: ${finErr.message})`;
+      else financeNote = " + 원장에 미지급금으로 등록됨";
     }
     const apiKey = process.env.PUSHBULLET_API_KEY?.trim();
     if (apiKey) fetch("https://api.pushbullet.com/v2/pushes", { method: "POST", headers: { "Content-Type": "application/json", "Access-Token": apiKey }, body: JSON.stringify({ type: "note", title: "전자결재 새 건", body: `요청자: ${user.name}\n제목: ${args.title}\n금액: ${Number(args.amount).toLocaleString()}원` }) }).catch(() => {});
-    return `✅ 결재 신청 완료 (${args.title}, ${Number(args.amount).toLocaleString()}원)`;
+    return `✅ 결재 신청 완료 (${args.title}, ${Number(args.amount).toLocaleString()}원)${financeNote}`;
   }
 
   if (name === "approve_approval") {
@@ -799,10 +850,11 @@ export async function POST(req: Request) {
     user: UserContext;
   };
 
-  const today = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+  const todayDisplay = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+  const todayKST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 
   const systemPrompt = `당신은 TNS 그룹웨어의 업무 도우미 AI입니다.
-오늘 날짜/시간: ${today}
+오늘 날짜/시간: ${todayDisplay} (YYYY-MM-DD: ${todayKST})
 현재 사용자: ${user.name} (${user.department}, ${user.role}, emp: ${user.empNumber})
 
 권한:
@@ -812,12 +864,21 @@ export async function POST(req: Request) {
 
 규칙:
 1. 조회는 바로 실행합니다.
-2. 쓰기 작업(신청·등록·승인 등)은 먼저 "~하시겠어요?"로 확인 후, "응/네/해줘" 등 동의하면 실행합니다.
+2. 쓰기 작업(create_approval, create_leave, create_event 등)은 반드시 아래 순서를 지킵니다. 절대로 사용자 동의 없이 바로 실행하지 않습니다.
 3. 본인 명의 외 다른 사람 휴가/결재 신청은 거부합니다.
 4. 숫자는 xxx,xxx원 형식, 날짜는 M월 d일로 표시합니다.
 5. 답변은 한국어로 간결하고 친근하게 합니다.
 6. 입금/원장 내역을 보여줄 때는 툴이 반환한 items를 하나도 빠짐없이 모두 나열합니다. 임의로 묶거나 생략하지 않습니다. 합계는 반드시 total_amount 값을 그대로 사용합니다.
+6-1. query_finance_summary 결과를 답할 때 반드시 지킬 규칙:
+    - 답변 형식: "조회기간: YYYY-MM-DD / 매출 N건 X원, 매입 M건 Y원, 매출총이익 Z원"
+    - 모든 금액은 부가세 제외 공급가 기준 (툴이 이미 계산해서 반환)
 7. 재무 용어를 정확히 구분합니다:
+
+[전자결재 신청 필수 절차]
+1. query_clients로 고객사 카테고리 조회
+2. prepare_approval 툴 호출 → 사용자에게 확인 요청
+3. 사용자가 "응/네/해줘/진행/ok" 등 동의하면 → 즉시 create_approval 실행
+※ 사용자가 동의한 뒤 prepare_approval을 다시 호출하는 것은 절대 금지입니다. 동의 후에는 반드시 create_approval만 호출합니다.
    - 매출액 = type이 '매출'인 항목의 합계
    - 매입액 = type이 '매입'인 항목의 합계
    - 매출총이익 = 매출액 - 매입액

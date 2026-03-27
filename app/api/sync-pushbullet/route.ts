@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 
   const headers = { "Access-Token": apiKey };
-  const parsedList: { date: string; amount: number; client_name: string; iden?: string }[] = [];
+  const parsedList: { date: string; amount: number; client_name: string; iden?: string; time?: string }[] = [];
   let pushesCount = 0;
   let shinhanFromPushes = 0;
   let smsThreadsFetched = 0;
@@ -151,13 +151,32 @@ export async function GET(request: NextRequest) {
         .filter((v): v is string => v !== null)
     );
 
-    // amount+date 폴백은 항상 로드 (iden 형식 불일치로 인한 이중 INSERT 방지)
+    // amount+date+time 폴백 로드 (시간 있으면 시간까지, 없으면 amount+date만 비교)
     const { data: existingFallback } = await supabase
       .from("finance")
-      .select("amount, date, month")
+      .select("amount, date, month, description")
       .eq("type", "매출");
 
-    const fallbackSet = new Set(
+    // description에서 raw 입금자 이름 추출 ("입금자: XXX t:" 패턴)
+    const extractRawName = (desc: string): string => {
+      const m = String(desc).match(/^입금자:\s*(.+?)(?:\s+t:|\s+pb:|$)/);
+      return m ? m[1].trim() : "";
+    };
+
+    // 시간 있는 항목: amount_date_HH:MM_rawName, 없는 항목: amount_date
+    const fallbackWithTime = new Set(
+      (existingFallback ?? [])
+        .map((r: Record<string, unknown>) => {
+          const desc = String(r.description ?? "");
+          const timeMatch = desc.match(/t:(\d{2}:\d{2})/);
+          if (!timeMatch) return null;
+          const rawName = extractRawName(desc);
+          const base = r.date ? `${r.amount}_${String(r.date).slice(0, 10)}` : `${r.amount}_${r.month}`;
+          return `${base}_${timeMatch[1]}_${rawName}`;
+        })
+        .filter((v): v is string => v !== null)
+    );
+    const fallbackNoTime = new Set(
       (existingFallback ?? []).map((r: Record<string, unknown>) =>
         r.date ? `${r.amount}_${String(r.date).slice(0, 10)}` : `${r.amount}_${r.month}`
       )
@@ -166,8 +185,13 @@ export async function GET(request: NextRequest) {
     const toInsert = parsedList.filter((p) => {
       // iden이 DB에 있으면 명확한 중복
       if (p.iden && existingIdens.has(p.iden)) return false;
-      // amount+date 조합이 이미 존재하면 중복 (iden 형식 달라도 차단)
-      if (fallbackSet.has(`${p.amount}_${p.date}`)) return false;
+      if (p.time) {
+        // 시간 있으면 amount+date+time+rawName 모두 일치해야 중복
+        if (fallbackWithTime.has(`${p.amount}_${p.date}_${p.time}_${p.client_name ?? ""}`)) return false;
+      } else {
+        // 시간 없으면 amount+date만으로 차단
+        if (fallbackNoTime.has(`${p.amount}_${p.date}`)) return false;
+      }
       return true;
     });
 
@@ -203,11 +227,36 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // description에 pb:iden 태그 포함 (중복 체크 정확도 향상)
+      // description에 raw 이름 + 시간 태그 + pb:iden 태그 포함
+      const rawName = p.client_name || "";
+      const timeTag = p.time ? ` t:${p.time}` : "";
       const idenTag = p.iden ? ` pb:${p.iden}` : "";
-      const descriptionValue = finalClientName
-        ? `입금자: ${finalClientName}${idenTag}`
-        : idenTag || null;
+      const descriptionValue = rawName
+        ? `입금자: ${rawName}${timeTag}${idenTag}`
+        : `${timeTag}${idenTag}`.trim() || null;
+
+      // 같은 날+금액+시간+이름 기존 항목이 있으면 INSERT 대신 iden 업데이트
+      if (p.iden && p.time) {
+        let sameTimeQuery = supabase
+          .from("finance")
+          .select("id, description")
+          .eq("amount", p.amount)
+          .eq("date", p.date)
+          .eq("type", "매출")
+          .like("description", `%t:${p.time}%`);
+        if (rawName) sameTimeQuery = sameTimeQuery.ilike("description", `%${rawName}%`);
+        const { data: sameTime } = await sameTimeQuery.maybeSingle();
+        if (sameTime) {
+          const existDesc = String(sameTime.description ?? "");
+          if (!existDesc.includes(`pb:${p.iden}`)) {
+            await supabase.from("finance")
+              .update({ description: `${existDesc} pb:${p.iden}`.trim() })
+              .eq("id", (sameTime as Record<string, unknown>).id as string);
+          }
+          existingIdens.add(p.iden);
+          continue;
+        }
+      }
 
       // 새 컬럼 포함 INSERT 시도
       const { error } = await supabase.from("finance").insert({
@@ -219,6 +268,7 @@ export async function GET(request: NextRequest) {
         category: autoCategory,
         date: p.date,
         description: descriptionValue,
+        deposit_time: p.time ?? null,
       } as Record<string, unknown>);
 
       if (!error) {
