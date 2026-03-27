@@ -285,7 +285,13 @@ export default function FinancePage() {
   const [smsText, setSmsText] = useState("");
   const [smsParsed, setSmsParsed] = useState<{ date: string; amount: number; client_name: string } | null>(null);
   const [smsSaving, setSmsSaving] = useState(false);
-  const [crmClients, setCrmClients] = useState<{ id: string; name: string; aliases: string[]; representative?: string | null }[]>([]);
+  const [crmClients, setCrmClients] = useState<{
+    id: string; name: string; aliases: string[];
+    representative?: string | null; business_number?: string | null;
+    address?: string | null; contact?: string | null;
+    business_type?: string | null; business_item?: string | null;
+    email?: string | null;
+  }[]>([]);
   const [autoMapping, setAutoMapping] = useState(false);
   const [autoMapMsg, setAutoMapMsg] = useState<string | null>(null);
   const [ledgerDateFrom, setLedgerDateFrom] = useState<string>("");
@@ -1426,7 +1432,30 @@ export default function FinancePage() {
                         if (fr) {
                           const res = await fetch(`/api/finance/${row.id}`);
                           const json = res.ok ? await res.json() : {};
-                          setReceiptTarget({ ...fr, receipt_data: json.receipt_data ?? null });
+                          const existingReceipt = json.receipt_data ?? null;
+                          // CRM 매칭: receipt_data 없을 때 자동 채움
+                          let autoReceipt = existingReceipt;
+                          if (!existingReceipt?.company_name) {
+                            const cn = (fr.client_name ?? "").toLowerCase();
+                            const matched = crmClients.find((c) =>
+                              c.name.toLowerCase() === cn ||
+                              c.aliases.some((a) => a.toLowerCase() === cn)
+                            );
+                            if (matched) {
+                              autoReceipt = {
+                                ...existingReceipt,
+                                company_name: matched.name,
+                                representative: matched.representative ?? existingReceipt?.representative ?? "",
+                                business_number: matched.business_number ?? existingReceipt?.business_number ?? "",
+                                address: matched.address ?? existingReceipt?.address ?? "",
+                                phone: matched.contact ?? existingReceipt?.phone ?? "",
+                                business_type: matched.business_type ?? existingReceipt?.business_type ?? "",
+                                business_category: matched.business_item ?? existingReceipt?.business_category ?? "",
+                                tax_email: matched.email ?? existingReceipt?.tax_email ?? "",
+                              };
+                            }
+                          }
+                          setReceiptTarget({ ...fr, receipt_data: autoReceipt });
                         }
                       } : undefined}
                     />
