@@ -63,7 +63,7 @@ async function createPendingFinanceFromApproval(
       amount,
       status: "UNMAPPED",
       description,
-      category: null,
+      category: (approval.ledger_category as string) || null,
       client_name: (approval.title as string) ?? null,
       approval_id: String(approval.id),
     } as Record<string, unknown>);
