@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Plus, X, Check, ChevronDown, Loader2, FileText, Clock, CheckCircle2, XCircle, Paperclip, Trash2 } from "lucide-react";
+import { Plus, X, Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, FileText, Clock, CheckCircle2, XCircle, Paperclip, Trash2 } from "lucide-react";
 import { uploadApprovalAttachment } from "@/utils/supabase/storage";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -130,6 +130,9 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("all");
   const [typeFilter, setTypeFilter] = useState<string>("");
+  const [monthFilter, setMonthFilter] = useState<string>(() => format(new Date(), "yyyy-MM"));
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [showForm, setShowForm] = useState(false);
   const [detailItem, setDetailItem] = useState<Approval | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -311,10 +314,17 @@ export default function ApprovalsPage() {
     if (tab === "mine" && a.requester_id !== currentUserId) return false;
     if (tab !== "mine" && tab !== "all" && a.status !== tab) return false;
     if (typeFilter && a.type !== typeFilter) return false;
+    if (monthFilter && !a.created_at.startsWith(monthFilter)) return false;
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const pendingCount = approvals.filter((a) => a.status === "pending").length;
+
+  // 월 목록 생성 (승인 데이터 기준)
+  const availableMonths = Array.from(new Set(approvals.map((a) => a.created_at.slice(0, 7)))).sort().reverse();
 
   const openNormalForm = async () => {
     await fetchTemplates();
@@ -548,7 +558,7 @@ export default function ApprovalsPage() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => { setTab(t.id); setPage(1); }}
             className={cn(
               "relative px-4 py-2.5 text-sm font-medium transition-colors",
               tab === t.id ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:text-slate-700"
@@ -564,24 +574,51 @@ export default function ApprovalsPage() {
         ))}
       </div>
 
-      {/* 결재 유형 필터 (각 탭에서 정산요청/비품구입/기타 구분) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-slate-500">유형:</span>
-        {TYPE_FILTERS.map((f) => (
-          <button
-            key={f.value || "all"}
-            type="button"
-            onClick={() => setTypeFilter(f.value)}
-            className={cn(
-              "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              typeFilter === f.value
-                ? "bg-slate-700 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            )}
-          >
-            {f.label}
+      {/* 월 필터 + 유형 필터 */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => {
+            const months = availableMonths;
+            const idx = months.indexOf(monthFilter);
+            if (idx < months.length - 1) { setMonthFilter(months[idx + 1]!); setPage(1); }
+          }} className="flex size-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30" disabled={availableMonths.indexOf(monthFilter) >= availableMonths.length - 1}>
+            <ChevronLeft className="size-4" />
           </button>
-        ))}
+          <select
+            value={monthFilter}
+            onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          >
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>{m.replace("-", "년 ") + "월"}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => {
+            const months = availableMonths;
+            const idx = months.indexOf(monthFilter);
+            if (idx > 0) { setMonthFilter(months[idx - 1]!); setPage(1); }
+          }} className="flex size-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30" disabled={availableMonths.indexOf(monthFilter) <= 0}>
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-400">유형:</span>
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f.value || "all"}
+              type="button"
+              onClick={() => { setTypeFilter(f.value); setPage(1); }}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                typeFilter === f.value
+                  ? "bg-slate-700 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 목록 */}
@@ -596,7 +633,7 @@ export default function ApprovalsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((a) => {
+          {paginated.map((a) => {
             const statusCfg = STATUS_CONFIG[a.status];
             const StatusIcon = statusCfg.icon;
             return (
@@ -637,6 +674,28 @@ export default function ApprovalsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1.5">
+          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+            className="flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30">
+            <ChevronLeft className="size-4" />
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button key={p} type="button" onClick={() => setPage(p)}
+              className={cn("flex size-8 items-center justify-center rounded-lg text-sm font-medium transition-colors",
+                page === p ? "bg-slate-800 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+              )}>
+              {p}
+            </button>
+          ))}
+          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30">
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       )}
 
