@@ -233,7 +233,20 @@ export function AIChatWidget() {
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {messages.map((m, i) => (
-              <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+              <div key={i} className={cn("group flex items-end gap-1", m.role === "user" ? "justify-end" : "justify-start")}>
+                {m.role === "user" && (
+                  <button
+                    type="button"
+                    onClick={() => toggleFavorite(m.content)}
+                    className={cn(
+                      "mb-1 shrink-0 text-sm opacity-0 group-hover:opacity-100 transition-opacity",
+                      favorites.includes(m.content) ? "text-yellow-400" : "text-slate-300 hover:text-yellow-400"
+                    )}
+                    title="즐겨찾기에 저장"
+                  >
+                    {favorites.includes(m.content) ? "★" : "☆"}
+                  </button>
+                )}
                 <div className={cn(
                   "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed",
                   m.role === "user"
@@ -278,22 +291,16 @@ export function AIChatWidget() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (input.trim()) {
-                  toggleFavorite(input.trim());
-                } else {
-                  setShowFavorites((v) => !v);
-                }
-              }}
+              onClick={() => setShowFavorites((v) => !v)}
               className={cn(
                 "flex size-9 shrink-0 items-center justify-center rounded-xl border text-base transition-colors",
-                (input.trim() && favorites.includes(input.trim())) || (!input.trim() && showFavorites)
+                showFavorites
                   ? "border-yellow-300 bg-yellow-50 text-yellow-500"
                   : "border-slate-200 text-slate-400 hover:border-yellow-300 hover:text-yellow-400"
               )}
-              title={input.trim() ? "즐겨찾기에 저장" : "즐겨찾기 보기"}
+              title="즐겨찾기 보기"
             >
-              {(input.trim() && favorites.includes(input.trim())) || (!input.trim() && showFavorites) ? "★" : "☆"}
+              {showFavorites ? "★" : "☆"}
             </button>
             <input
               ref={inputRef}
