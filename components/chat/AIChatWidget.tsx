@@ -195,12 +195,6 @@ export function AIChatWidget() {
               <p className="text-sm font-semibold text-white">업무 도우미</p>
               <p className="text-[11px] text-blue-200">{currentUserName} · {role}</p>
             </div>
-            <button type="button" onClick={() => setShowFavorites((v) => !v)}
-              className={cn("p-1 rounded transition-colors", showFavorites ? "text-yellow-300" : "text-blue-300 hover:text-white")}
-              title="즐겨찾기"
-            >
-              <Star className="size-4" fill={showFavorites ? "currentColor" : "none"} />
-            </button>
             <button
               type="button"
               onClick={() => {
@@ -247,16 +241,6 @@ export function AIChatWidget() {
                     : "bg-slate-100 text-slate-800 rounded-bl-sm"
                 )}>
                   {m.content}
-                  {m.role === "user" && (
-                    <button
-                      type="button"
-                      onClick={() => toggleFavorite(m.content)}
-                      title={favorites.includes(m.content) ? "즐겨찾기 해제" : "즐겨찾기 저장"}
-                      className="ml-1.5 inline-block align-middle text-xs opacity-50 hover:opacity-100 transition-opacity"
-                    >
-                      {favorites.includes(m.content) ? "★" : "☆"}
-                    </button>
-                  )}
                 </div>
               </div>
             ))}
@@ -291,6 +275,29 @@ export function AIChatWidget() {
               title="사업자등록증 이미지 업로드"
             >
               <ImagePlus className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (input.trim()) {
+                  toggleFavorite(input.trim());
+                } else {
+                  setShowFavorites((v) => !v);
+                }
+              }}
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                input.trim()
+                  ? favorites.includes(input.trim())
+                    ? "border-yellow-300 bg-yellow-50 text-yellow-500"
+                    : "border-slate-200 text-slate-400 hover:border-yellow-300 hover:text-yellow-500"
+                  : showFavorites
+                    ? "border-yellow-300 bg-yellow-50 text-yellow-500"
+                    : "border-slate-200 text-slate-400 hover:bg-slate-50"
+              )}
+              title={input.trim() ? "즐겨찾기에 저장" : "즐겨찾기 보기"}
+            >
+              <Star className={cn("size-4", (input.trim() && favorites.includes(input.trim())) || (!input.trim() && showFavorites) ? "fill-current" : "")} />
             </button>
             <input
               ref={inputRef}
