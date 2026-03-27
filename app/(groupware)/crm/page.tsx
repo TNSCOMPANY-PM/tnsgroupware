@@ -54,6 +54,18 @@ function LastDepositBadge({ date, category }: { date?: string; category: string 
     </div>
   );
 }
+function ExpiryBadge({ date }: { date: string }) {
+  const days = differenceInDays(parseISO(date), new Date());
+  const label = date.slice(0, 10);
+  const color = days < 0 ? "text-red-600" : days < 30 ? "text-amber-600" : "text-slate-700";
+  const badge = days < 0
+    ? <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600">만료</span>
+    : days < 30
+    ? <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-600">D-{days}</span>
+    : <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">D-{days}</span>;
+  return <span className={`flex items-center ${color}`}>{label}{badge}</span>;
+}
+
 const CAT_COLOR: Record<string, string> = {
   "더널리":  "bg-blue-100 text-blue-700",
   "티제이웹": "bg-violet-100 text-violet-700",
@@ -771,6 +783,43 @@ function CrmPageInner() {
                   <>
                     <span className="text-slate-400">입금자명</span>
                     <span className="text-slate-700">{panelClient.aliases.join(", ")}</span>
+                  </>
+                )}
+                {/* 티제이웹 전용 */}
+                {panelClient.category === "티제이웹" && (panelClient.contacts ?? []).length > 0 && (
+                  <>
+                    <span className="text-slate-400">연락처</span>
+                    <span className="text-slate-700">{(panelClient.contacts ?? []).join(", ")}</span>
+                  </>
+                )}
+                {panelClient.category === "티제이웹" && (panelClient.emails ?? []).length > 0 && (
+                  <>
+                    <span className="text-slate-400">이메일</span>
+                    <span className="break-all text-slate-700">{(panelClient.emails ?? []).join(", ")}</span>
+                  </>
+                )}
+                {panelClient.category === "티제이웹" && panelClient.hosting_type && (
+                  <>
+                    <span className="text-slate-400">호스팅 유형</span>
+                    <span className="text-slate-700">{panelClient.hosting_type}</span>
+                  </>
+                )}
+                {panelClient.category === "티제이웹" && panelClient.hosting_expires_at && (
+                  <>
+                    <span className="text-slate-400">호스팅 만료</span>
+                    <ExpiryBadge date={panelClient.hosting_expires_at} />
+                  </>
+                )}
+                {panelClient.category === "티제이웹" && panelClient.domain_expires_at && (
+                  <>
+                    <span className="text-slate-400">도메인 만료</span>
+                    <ExpiryBadge date={panelClient.domain_expires_at} />
+                  </>
+                )}
+                {panelClient.category === "티제이웹" && panelClient.ssl_expires_at && (
+                  <>
+                    <span className="text-slate-400">인증서 만료</span>
+                    <ExpiryBadge date={panelClient.ssl_expires_at} />
                   </>
                 )}
               </div>
