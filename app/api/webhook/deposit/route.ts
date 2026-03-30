@@ -116,6 +116,10 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      // 중복 키 오류는 이미 등록된 건 — 200으로 정상 처리
+      if (error.code === "23505") {
+        return NextResponse.json({ ok: true, duplicate: true, date: parsed.date, amount: parsed.amount, client_name: mappedClientName });
+      }
       return NextResponse.json(
         { ok: false, error: error.message },
         { status: 500 }

@@ -34,7 +34,7 @@ const PRIORITY_STYLE = {
 const PRIORITY_LABEL = { high: "높음", medium: "보통", low: "낮음" };
 
 // ─── 마감일 상태 계산 ─────────────────────────────────────────────────────────
-function getDueDateStatus(due_date?: string): "overdue" | "today" | "normal" | null {
+function getDueDateStatus(due_date?: string): "overdue" | "today" | "soon" | "normal" | null {
   if (!due_date) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -42,6 +42,8 @@ function getDueDateStatus(due_date?: string): "overdue" | "today" | "normal" | n
   due.setHours(0, 0, 0, 0);
   if (due < today) return "overdue";
   if (due.getTime() === today.getTime()) return "today";
+  const diffDays = (due.getTime() - today.getTime()) / 86400000;
+  if (diffDays <= 3) return "soon";
   return "normal";
 }
 
@@ -60,6 +62,7 @@ function KanbanCardItem({
   const dueDateStatus = getDueDateStatus(card.due_date);
   const isOverdue = dueDateStatus === "overdue" && card.column !== "done";
   const isDueToday = dueDateStatus === "today" && card.column !== "done";
+  const isDueSoon = dueDateStatus === "soon" && card.column !== "done";
 
   return (
     <div
@@ -67,7 +70,7 @@ function KanbanCardItem({
       onDragStart={() => onDragStart(card)}
       className={cn(
         "group relative cursor-grab rounded-xl border p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing",
-        isOverdue ? "border-red-200 bg-red-50/60" : isDueToday ? "border-amber-200 bg-amber-50/60" : "border-slate-100 bg-white"
+        isOverdue ? "border-red-200 bg-red-50/60" : isDueToday ? "border-amber-200 bg-amber-50/60" : isDueSoon ? "border-orange-200 bg-orange-50/40" : "border-slate-100 bg-white"
       )}
       onClick={() => onEdit(card)}
     >
@@ -100,9 +103,9 @@ function KanbanCardItem({
         {card.due_date && (
           <span className={cn(
             "ml-auto text-[10px] font-medium",
-            isOverdue ? "text-red-500" : isDueToday ? "text-amber-500" : "text-slate-400"
+            isOverdue ? "text-red-500" : isDueToday ? "text-amber-500" : isDueSoon ? "text-orange-500" : "text-slate-400"
           )}>
-            {isOverdue && "⚠ "}{card.due_date}
+            {isOverdue ? "⚠ " : isDueSoon ? "⏰ " : ""}{card.due_date}
           </span>
         )}
       </div>
@@ -120,6 +123,7 @@ export default function KanbanPage() {
   const [editCard, setEditCard] = useState<KanbanCard | null>(null);
   const [addingCol, setAddingCol] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [tableMissingMessage, setTableMissingMessage] = useState<string | null>(null);
   const [newMemo, setNewMemo] = useState("");
   const addInputRef = useRef<HTMLInputElement>(null);
@@ -224,9 +228,26 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col gap-6 min-h-full">
       {/* 헤더 */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">칸반 보드</h1>
-        <p className="mt-1 text-sm text-slate-500">팀 업무를 드래그로 관리하세요</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">칸반 보드</h1>
+          <p className="mt-1 text-sm text-slate-500">팀 업무를 드래그로 관리하세요</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+          >
+            <option value="">담당자 전체</option>
+            {[...new Set(cards.map((c) => c.assignee).filter(Boolean))].map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          {assigneeFilter && (
+            <button onClick={() => setAssigneeFilter("")} className="text-xs text-slate-400 hover:text-slate-600">✕ 초기화</button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -242,7 +263,7 @@ export default function KanbanPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((col) => {
             const colCards = cards
-              .filter((c) => c.column === col.id)
+              .filter((c) => c.column === col.id && (!assigneeFilter || c.assignee === assigneeFilter))
               .sort((a, b) => a.position - b.position);
             return (
               <div

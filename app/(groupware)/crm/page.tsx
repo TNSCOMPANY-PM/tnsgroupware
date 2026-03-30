@@ -6,9 +6,10 @@ import {
   Building2, Search, Plus, X, Save, Trash2, RefreshCw,
   Phone, ChevronDown, Pencil, Copy, Check, Clock,
   TrendingUp, ArrowRight, AlertCircle, UserPlus, ArrowUpDown,
-  ScanLine, Loader2,
+  ScanLine, Loader2, MessageSquare, Send,
 } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
+import { usePermission } from "@/contexts/PermissionContext";
 
 interface Client {
   id: string;
@@ -31,9 +32,18 @@ interface Client {
   hosting_expires_at: string | null;
   domain_expires_at: string | null;
   ssl_expires_at: string | null;
+  // 상태 및 다음 연락
+  status: string | null;
+  next_contact_at: string | null;
 }
 
 const CATEGORIES = ["더널리", "티제이웹", "기타"] as const;
+const CLIENT_STATUSES = ["활성", "휴면", "종료"] as const;
+const STATUS_COLOR: Record<string, string> = {
+  "활성": "bg-emerald-100 text-emerald-700",
+  "휴면": "bg-amber-100 text-amber-700",
+  "종료": "bg-slate-100 text-slate-500",
+};
 
 // 카테고리별 알림 기준일
 const ALERT_THRESHOLD: Record<string, number> = { "더널리": 30, "티제이웹": 365 };
@@ -78,6 +88,7 @@ const emptyForm = (): Record<string, string | string[]> => ({
   address: "", business_type: "", business_item: "", email: "",
   emails: [] as string[], contacts: [] as string[],
   hosting_type: "", hosting_expires_at: "", domain_expires_at: "", ssl_expires_at: "",
+  status: "활성", next_contact_at: "",
 });
 
 /* 사업자등록번호 포맷 XXX-XX-XXXXX */
@@ -106,11 +117,19 @@ type UnmatchedRow = {
   type: string;
 };
 
+type CommentRow = {
+  id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+};
+
 function formatWon(n: number) {
   return n.toLocaleString("ko-KR") + "원";
 }
 
 function CrmPageInner() {
+  const { currentUserName } = usePermission();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<"clients" | "unmatched">("clients");
   const [clients, setClients] = useState<Client[]>([]);
@@ -142,6 +161,11 @@ function CrmPageInner() {
   const [unmatched, setUnmatched] = useState<UnmatchedRow[]>([]);
   const [unmatchedLoading, setUnmatchedLoading] = useState(false);
   const aliasInputRef = useRef<HTMLInputElement>(null);
+  // 댓글
+  const [comments, setComments] = useState<CommentRow[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentInput, setCommentInput] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -203,14 +227,54 @@ function CrmPageInner() {
     });
   }, [clients, search, catFilter, sortBy, lastDeposits]);
 
+  async function fetchComments(clientId: string) {
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/comments`);
+      setComments(res.ok ? await res.json() : []);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
+
+  async function submitComment(clientId: string) {
+    if (!commentInput.trim() || commentSaving) return;
+    setCommentSaving(true);
+    try {
+      await fetch(`/api/clients/${clientId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ author_name: currentUserName, content: commentInput.trim() }),
+      });
+      setCommentInput("");
+      await fetchComments(clientId);
+    } finally {
+      setCommentSaving(false);
+    }
+  }
+
+  async function deleteComment(clientId: string, commentId: string) {
+    await fetch(`/api/clients/${clientId}/comments`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId }),
+    });
+    await fetchComments(clientId);
+  }
+
   async function openPanel(c: Client) {
     setPanelClient(c);
     setDeposits([]);
+    setComments([]);
+    setCommentInput("");
     setDepositsLoading(true);
     try {
-      const res = await fetch(`/api/clients/${c.id}/deposits`);
-      const data = res.ok ? await res.json() : [];
-      setDeposits(data);
+      const [depositsRes, commentsRes] = await Promise.all([
+        fetch(`/api/clients/${c.id}/deposits`),
+        fetch(`/api/clients/${c.id}/comments`),
+      ]);
+      setDeposits(depositsRes.ok ? await depositsRes.json() : []);
+      setComments(commentsRes.ok ? await commentsRes.json() : []);
     } finally {
       setDepositsLoading(false);
     }
@@ -234,6 +298,7 @@ function CrmPageInner() {
       emails: [...(c.emails ?? [])], contacts: [...(c.contacts ?? [])],
       hosting_type: c.hosting_type ?? "", hosting_expires_at: c.hosting_expires_at ?? "",
       domain_expires_at: c.domain_expires_at ?? "", ssl_expires_at: c.ssl_expires_at ?? "",
+      status: c.status ?? "활성", next_contact_at: c.next_contact_at ?? "",
     });
     setAliasInput("");
     setEmailInput("");
@@ -342,6 +407,8 @@ function CrmPageInner() {
         hosting_expires_at: (form.hosting_expires_at as string) || null,
         domain_expires_at: (form.domain_expires_at as string) || null,
         ssl_expires_at: (form.ssl_expires_at as string) || null,
+        status: (form.status as string) || "활성",
+        next_contact_at: (form.next_contact_at as string) || null,
       };
       const url = editTarget ? `/api/clients/${editTarget.id}` : "/api/clients";
       const method = editTarget ? "PUT" : "POST";
@@ -710,11 +777,18 @@ function CrmPageInner() {
                 <TrendingUp className="size-4 text-slate-500" />
                 <div>
                   <h2 className="font-semibold text-slate-800">{panelClient.name}</h2>
-                  {panelClient.category && (
-                    <span className={`text-xs font-medium ${CAT_COLOR[panelClient.category] ?? "text-slate-500"}`}>
-                      {panelClient.category}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {panelClient.category && (
+                      <span className={`text-xs font-medium ${CAT_COLOR[panelClient.category] ?? "text-slate-500"}`}>
+                        {panelClient.category}
+                      </span>
+                    )}
+                    {panelClient.status && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLOR[panelClient.status] ?? "bg-slate-100 text-slate-500"}`}>
+                        {panelClient.status}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -783,6 +857,17 @@ function CrmPageInner() {
                   <>
                     <span className="text-slate-400">입금자명</span>
                     <span className="text-slate-700">{panelClient.aliases.join(", ")}</span>
+                  </>
+                )}
+                {panelClient.next_contact_at && (
+                  <>
+                    <span className="text-slate-400">다음 연락 예정</span>
+                    <span className={`font-medium ${differenceInDays(parseISO(panelClient.next_contact_at), new Date()) <= 3 ? "text-red-600" : differenceInDays(parseISO(panelClient.next_contact_at), new Date()) <= 7 ? "text-amber-600" : "text-slate-700"}`}>
+                      {panelClient.next_contact_at}
+                      {differenceInDays(parseISO(panelClient.next_contact_at), new Date()) >= 0
+                        ? ` (D-${differenceInDays(parseISO(panelClient.next_contact_at), new Date())})`
+                        : " (지남)"}
+                    </span>
                   </>
                 )}
                 {/* 티제이웹 전용 */}
@@ -900,6 +985,53 @@ function CrmPageInner() {
                   </tbody>
                 </table>
               )}
+            </div>
+
+            {/* 댓글 */}
+            <div className="border-t border-slate-200 flex flex-col" style={{ maxHeight: 280 }}>
+              <div className="flex items-center gap-2 px-5 py-2.5">
+                <MessageSquare className="size-3.5 text-slate-400" />
+                <span className="text-xs font-medium text-slate-500">댓글 {comments.length > 0 ? `(${comments.length})` : ""}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 space-y-2 pb-2">
+                {commentsLoading ? (
+                  <p className="text-xs text-slate-400">로딩 중...</p>
+                ) : comments.length === 0 ? (
+                  <p className="text-xs text-slate-400">첫 번째 댓글을 남겨보세요.</p>
+                ) : comments.map((c) => (
+                  <div key={c.id} className="group flex gap-2">
+                    <div className="flex-1 rounded-lg bg-slate-50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-slate-600">{c.author_name}</span>
+                        <span className="text-[10px] text-slate-400">{format(new Date(c.created_at), "MM/dd HH:mm")}</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-700 whitespace-pre-wrap break-words">{c.content}</p>
+                    </div>
+                    <button
+                      onClick={() => deleteComment(panelClient!.id, c.id)}
+                      className="shrink-0 self-start mt-1 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-opacity"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 border-t border-slate-100 px-5 py-2">
+                <input
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(panelClient!.id); } }}
+                  placeholder="댓글 입력 후 Enter"
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-400"
+                />
+                <button
+                  onClick={() => submitComment(panelClient!.id)}
+                  disabled={!commentInput.trim() || commentSaving}
+                  className="shrink-0 rounded-lg bg-slate-800 p-1.5 text-white hover:bg-slate-700 disabled:opacity-40"
+                >
+                  <Send className="size-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* 원장으로 이동 */}
@@ -1189,6 +1321,32 @@ function CrmPageInner() {
                   </div>
                 </section>
               )}
+
+              {/* § 상태 및 다음 연락 */}
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">상태 및 연락 관리</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">고객 상태</label>
+                    <select
+                      value={form.status as string}
+                      onChange={(e) => setField("status", e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                    >
+                      {CLIENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">다음 연락 예정일</label>
+                    <input
+                      type="date"
+                      value={form.next_contact_at as string}
+                      onChange={(e) => setField("next_contact_at", e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                    />
+                  </div>
+                </div>
+              </section>
 
               {/* § 메모 */}
               <section>

@@ -4,7 +4,7 @@ import { useRef, useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { usePermission } from "@/contexts/PermissionContext";
 import { formatWonIntl } from "@/utils/formatWon";
-import { Lock, FileDown, ChevronLeft, ChevronRight, Loader2, Settings2, Save, X } from "lucide-react";
+import { Lock, FileDown, ChevronLeft, ChevronRight, Loader2, Settings2, Save, X, Sparkles } from "lucide-react";
 import { StrategicRoadmapSection, getDefaultRoadmap } from "@/components/reports/StrategicRoadmapSection";
 import { createClient } from "@/utils/supabase/client";
 import { loadGanttOverrides } from "@/lib/ganttStorage";
@@ -201,6 +201,8 @@ export default function ReportsPage() {
   const [bonusSaving, setBonusSaving] = useState(false);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; actor_name: string | null; target_type: string | null; detail: Record<string, unknown> | null; created_at: string }>>([]);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
   const currentKey = useMemo(() => currentMonthKey(), []);
   const canPrev = monthKey > MIN_MONTH_KEY;
@@ -518,6 +520,31 @@ export default function ReportsPage() {
     window.print();
   };
 
+  const handleAiSummary = async () => {
+    setAiSummaryLoading(true);
+    try {
+      const { y, m } = parseMonthKey(monthKey);
+      const res = await fetch("/api/reports/ai-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          monthLabel: `20${y}년 ${m}월`,
+          revenue: reportMetrics.teamRows.reduce((s, t) => s + t.revenue, 0),
+          purchase: reportMetrics.teamRows.reduce((s, t) => s + t.cost, 0),
+          grossProfit: reportMetrics.teamRows.reduce((s, t) => s + t.grossProfit, 0),
+          targetGP: bonusSettings.target_gp ?? 50_000_000,
+          achievementRate: reportMetrics.expectedGrossSupply / (bonusSettings.target_gp ?? 50_000_000),
+          pendingCount: ledgerWithCustomAndEdits.filter((r) => r.status === "UNMAPPED").length,
+          teamRows: reportMetrics.teamRows,
+        }),
+      });
+      const json = await res.json() as { summary?: string };
+      setAiSummary(json.summary ?? "");
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
+
   const handleOpenAuditLog = () => {
     setAuditOpen(true);
     fetch("/api/audit-logs?limit=100")
@@ -607,14 +634,36 @@ export default function ReportsPage() {
               {title}
             </h1>
           </div>
-          <Button
-            onClick={handlePdfExport}
-            className="bg-slate-800 hover:bg-slate-900 text-white font-semibold shrink-0 print:hidden"
-          >
-            <FileDown className="mr-2 size-4" />
-            PDF로 내보내기
-          </Button>
+          <div className="flex items-center gap-2 print:hidden">
+            <Button
+              onClick={handleAiSummary}
+              disabled={aiSummaryLoading}
+              variant="outline"
+              className="shrink-0 gap-1.5"
+            >
+              <Sparkles className="size-4" />
+              {aiSummaryLoading ? "AI 작성 중..." : "AI 요약 작성"}
+            </Button>
+            <Button
+              onClick={handlePdfExport}
+              className="bg-slate-800 hover:bg-slate-900 text-white font-semibold shrink-0"
+            >
+              <FileDown className="mr-2 size-4" />
+              PDF로 내보내기
+            </Button>
+          </div>
         </header>
+
+        {/* AI 요약 박스 */}
+        {aiSummary && (
+          <div className="mb-6 rounded-xl border border-violet-200 bg-violet-50 px-5 py-4 print:border-slate-300 print:bg-white">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="size-4 text-violet-500 print:hidden" />
+              <span className="text-xs font-semibold text-violet-700 print:text-slate-700">AI 현황 요약</span>
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{aiSummary}</p>
+          </div>
+        )}
 
         {/* 섹션 1: 매출보고 (finance > 매출분석과 동일 로직 연동) */}
         <section className="border-b border-slate-100 py-8">

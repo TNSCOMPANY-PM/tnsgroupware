@@ -72,6 +72,44 @@ async function createPendingFinanceFromApproval(
   }
 }
 
+/** 결재 신청 시 approval_alerts 삽입 — 김동균 + 신청자 본인 */
+async function insertApprovalAlerts(
+  supabase: ReturnType<typeof createAdminClient>,
+  approval: Record<string, unknown>
+) {
+  try {
+    const approvalId = String(approval.id ?? "");
+    const approvalTitle = String(approval.title ?? "");
+    const requesterName = String(approval.requester_name ?? "");
+    const requesterId = String(approval.requester_id ?? "");
+
+    // 김동균의 employee id 조회
+    const { data: dong } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("name", "김동균")
+      .maybeSingle();
+
+    const dongId = dong?.id ? String(dong.id) : null;
+
+    const rows: { target_user_id: string; approval_id: string; approval_title: string; requester_name: string }[] = [];
+
+    if (dongId) {
+      rows.push({ target_user_id: dongId, approval_id: approvalId, approval_title: approvalTitle, requester_name: requesterName });
+    }
+    // 신청자가 김동균 본인이 아닌 경우에만 추가
+    if (requesterId && requesterId !== dongId) {
+      rows.push({ target_user_id: requesterId, approval_id: approvalId, approval_title: approvalTitle, requester_name: requesterName });
+    }
+
+    if (rows.length > 0) {
+      await supabase.from("approval_alerts").insert(rows);
+    }
+  } catch {
+    // 알림 실패해도 결재 생성 유지
+  }
+}
+
 export async function POST(req: Request) {
   const supabase = createAdminClient();
   const body = await req.json();
@@ -86,5 +124,6 @@ export async function POST(req: Request) {
 
   notifyApprovalToTeamLead(data).catch(() => {});
   createPendingFinanceFromApproval(supabase, data as Record<string, unknown>).catch(() => {});
+  insertApprovalAlerts(supabase, data as Record<string, unknown>).catch(() => {});
   return NextResponse.json(data);
 }

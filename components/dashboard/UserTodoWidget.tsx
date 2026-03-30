@@ -24,6 +24,22 @@ type ExpiryAlert = {
   days_left: number;
 };
 
+type NextContactAlert = {
+  id: string;
+  name: string;
+  category: string;
+  next_contact_at: string;
+  days_left: number;
+};
+
+type ApprovalAlert = {
+  id: string;
+  approval_id: string;
+  approval_title: string;
+  requester_name: string;
+  created_at: string;
+};
+
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 export type UserTodoItem = {
   id: string;
@@ -88,6 +104,8 @@ export function UserTodoWidget({ userId, userName }: { userId: string; userName?
   const [dayCounts, setDayCounts] = useState<Record<string, number>>({});
   const [crmAlerts, setCrmAlerts] = useState<ClientAlert[]>([]);
   const [expiryAlerts, setExpiryAlerts] = useState<ExpiryAlert[]>([]);
+  const [nextContactAlerts, setNextContactAlerts] = useState<NextContactAlert[]>([]);
+  const [approvalAlerts, setApprovalAlerts] = useState<ApprovalAlert[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const weekBase = addWeeks(today, weekOffset);
@@ -127,6 +145,23 @@ export function UserTodoWidget({ userId, userName }: { userId: string; userName?
       .then((data) => setExpiryAlerts(data))
       .catch(() => {});
   }, [userName]);
+
+  // 다음 연락 예정일 알림 로드
+  useEffect(() => {
+    fetch("/api/clients/next-contact")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setNextContactAlerts(data))
+      .catch(() => {});
+  }, []);
+
+  // 결재 알림 로드
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`/api/approval-alerts?userId=${userId}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setApprovalAlerts(data))
+      .catch(() => {});
+  }, [userId]);
 
   // 요일 배지 카운트 갱신 (주 변경 또는 todos 변경 시)
   useEffect(() => {
@@ -184,6 +219,15 @@ export function UserTodoWidget({ userId, userName }: { userId: string; userName?
     });
   }
 
+  async function dismissApprovalAlert(id: string) {
+    setApprovalAlerts((prev) => prev.filter((a) => a.id !== id));
+    await fetch("/api/approval-alerts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+  }
+
   const doneCnt = todos.filter((t) => t.done).length;
 
   return (
@@ -221,6 +265,34 @@ export function UserTodoWidget({ userId, userName }: { userId: string; userName?
           </span>
         )}
       </div>
+
+      {/* 결재 알림 */}
+      {approvalAlerts.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+            <Bell className="size-3.5" />
+            전자결재 알림 {approvalAlerts.length}건
+          </div>
+          {approvalAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              className="flex items-start justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs shadow-sm"
+            >
+              <div className="flex-1">
+                <span className="font-semibold text-slate-800">{alert.approval_title}</span>
+                <span className="text-slate-500"> — {alert.requester_name} 신청</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => dismissApprovalAlert(alert.id)}
+                className="shrink-0 text-slate-300 hover:text-slate-500 transition-colors"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* CRM 알림 */}
       {crmAlerts.length > 0 && (
@@ -274,6 +346,29 @@ export function UserTodoWidget({ userId, userName }: { userId: string; userName?
                   D-{alert.days_left}
                 </span>
                 <span className="ml-1 text-slate-400">({alert.expires_at})</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 다음 연락 예정일 알림 */}
+      {nextContactAlerts.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700">
+            <Bell className="size-3.5" />
+            연락 예정 고객 {nextContactAlerts.length}건
+          </div>
+          {nextContactAlerts.map((alert) => (
+            <div key={alert.id} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
+              <div className="flex-1">
+                <span className="font-semibold text-slate-800">{alert.name}</span>
+                {alert.category && <span className="ml-1 text-slate-400">{alert.category}</span>}
+                <span className="text-slate-500"> 연락 예정 </span>
+                <span className={cn("font-semibold", alert.days_left === 0 ? "text-red-600" : alert.days_left <= 3 ? "text-amber-600" : "text-blue-600")}>
+                  {alert.days_left === 0 ? "오늘" : `D-${alert.days_left}`}
+                </span>
+                <span className="ml-1 text-slate-400">({alert.next_contact_at})</span>
               </div>
             </div>
           ))}

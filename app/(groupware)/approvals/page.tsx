@@ -106,6 +106,7 @@ export type SimpleSettlementTemplate = {
   account_number: string;
   account_holder_name: string;
   attachment_note: string;
+  ledger_category?: string | null;
   created_at?: string;
 };
 
@@ -390,6 +391,7 @@ export default function ApprovalsPage() {
       account_number: t.account_number,
       account_holder_name: t.account_holder_name,
       attachment_note: t.attachment_note,
+      ledger_category: t.ledger_category ?? "",
       amount: "", // 금액만 비움
     }));
   };
@@ -423,6 +425,7 @@ export default function ApprovalsPage() {
         account_number: form.account_number,
         account_holder_name: form.account_holder_name,
         attachment_note: form.attachment_note,
+        ledger_category: form.ledger_category || null,
       }),
     });
     if (!res.ok) {
