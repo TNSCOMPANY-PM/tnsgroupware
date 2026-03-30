@@ -89,6 +89,7 @@ function employeeToUser(emp: Employee): User {
     employmentStatus: (emp.employment_status === "재직" || emp.employment_status === "휴직" || emp.employment_status === "퇴직") ? emp.employment_status as EmploymentStatus : "재직",
     email: emp.email ?? undefined,
     phone: emp.phone ?? undefined,
+    displayDepartment: emp.display_department ?? undefined,
   };
 }
 

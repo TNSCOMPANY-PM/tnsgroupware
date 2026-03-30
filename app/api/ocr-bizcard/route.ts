@@ -16,20 +16,31 @@ export async function POST(req: Request) {
     model: "gpt-4o-mini",
     messages: [
       {
+        role: "system",
+        content: "당신은 한국 사업자등록증 이미지에서 정보를 정확하게 추출하는 OCR 전문가입니다. 반드시 JSON 형식으로만 응답하세요.",
+      },
+      {
         role: "user",
         content: [
           {
             type: "text",
-            text: `이 사업자등록증 이미지에서 다음 정보를 추출해서 JSON으로만 응답하세요. 없는 항목은 빈 문자열로:
+            text: `아래 한국 사업자등록증 이미지를 분석하여 다음 JSON 형식으로 정보를 추출하세요.
+
+규칙:
+- business_number는 반드시 XXX-XX-XXXXX 형식으로 하이픈 포함
+- address는 도로명주소 또는 지번주소 전체를 그대로 (시/도 포함)
+- business_type(업태)과 business_item(종목)이 여러 개면 쉼표로 구분
+- 법인사업자는 representative에 대표이사명 기재
+- 확인 불가능한 항목은 빈 문자열("")로
+
 {
-  "name": "상호(법인명)",
-  "business_number": "사업자등록번호 (XXX-XX-XXXXX 형식)",
+  "name": "상호 또는 법인명",
+  "business_number": "사업자등록번호 (XXX-XX-XXXXX)",
   "representative": "대표자명",
-  "address": "사업장 소재지",
+  "address": "사업장 소재지 전체 주소",
   "business_type": "업태",
   "business_item": "종목"
-}
-JSON 외 다른 텍스트 없이 JSON만 응답하세요.`,
+}`,
           },
           {
             type: "image_url",
@@ -38,12 +49,13 @@ JSON 외 다른 텍스트 없이 JSON만 응답하세요.`,
         ],
       },
     ],
-    max_tokens: 500,
+    response_format: { type: "json_object" },
+    max_tokens: 1000,
   });
 
   const text = res.choices[0]?.message?.content ?? "";
   try {
-    const json = JSON.parse(text.replace(/```json|```/g, "").trim());
+    const json = JSON.parse(text);
     return NextResponse.json(json);
   } catch {
     return NextResponse.json({ error: "파싱 실패", raw: text }, { status: 500 });

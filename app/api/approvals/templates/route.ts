@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     account_number,
     account_holder_name,
     attachment_note,
+    ledger_category,
   } = body;
   const payload = {
     name: name?.trim() ?? "",
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     account_number: account_number?.trim() ?? "",
     account_holder_name: account_holder_name?.trim() ?? "",
     attachment_note: attachment_note?.trim() ?? "",
+    ledger_category: ledger_category?.trim() ?? null,
   };
   const { data, error } = await supabase
     .from("approval_settlement_templates")

@@ -55,6 +55,8 @@ import {
   Trash2,
   FileText,
   MoreHorizontal,
+  Download,
+  Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -269,6 +271,8 @@ export default function FinancePage() {
   const [editLedgerRow, setEditLedgerRow] = useState<LedgerRow | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, string>>({});
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
   const [receiptTarget, setReceiptTarget] = useState<FinanceRow | null>(null);
   type AddFormType = "DEPOSIT" | "WITHDRAWAL" | "RECEIVABLE" | "PAYABLE";
   const [addForm, setAddForm] = useState({
@@ -332,16 +336,30 @@ export default function FinancePage() {
     }).catch(() => {});
     setEditsOverlay(loadLedgerEdits());
     setHiddenIds(loadLedgerHidden());
-    try {
-      const raw = localStorage.getItem(SURVIVAL_CARRYOVER_STORAGE_KEY);
-      if (raw != null && raw !== "") {
-        const n = Number(raw);
-        if (Number.isFinite(n)) {
-          setCarryOverBalance(n);
-          carryLoadedFromStorage.current = true;
+    fetch("/api/finance/settings?key=survival_carryover")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { value: string | null } | null) => {
+        if (d?.value != null && d.value !== "") {
+          const n = Number(d.value);
+          if (Number.isFinite(n)) {
+            setCarryOverBalance(n);
+            carryLoadedFromStorage.current = true;
+          }
+        } else {
+          // DB에 없으면 localStorage 폴백 (마이그레이션용)
+          try {
+            const raw = localStorage.getItem(SURVIVAL_CARRYOVER_STORAGE_KEY);
+            if (raw != null && raw !== "") {
+              const n = Number(raw);
+              if (Number.isFinite(n)) {
+                setCarryOverBalance(n);
+                carryLoadedFromStorage.current = true;
+              }
+            }
+          } catch { /* ignore */ }
         }
-      }
-    } catch { /* ignore */ }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -871,6 +889,58 @@ export default function FinancePage() {
 
   const pendingCount = ledgerWithCustomAndEdits.filter((r) => isRowInDateRange(r.date) && r.status === "UNMAPPED" && !hiddenIds.has(r.id)).length;
 
+  const downloadCSV = useCallback(() => {
+    const headers = ["날짜", "구분", "금액", "거래처", "카테고리", "상태", "메모"];
+    const rows = filteredLedger.map((r) => [
+      r.date ?? "",
+      r.type === "DEPOSIT" ? "입금" : "출금",
+      r.amount ?? "",
+      r.senderName ?? "",
+      r.classification ?? "",
+      r.status === "PAID" ? "완료" : "대기",
+      r.description ?? "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `원장_${selectedMonth.replace(/\s/g, "_")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filteredLedger, selectedMonth]);
+
+  const handleAiSuggest = useCallback(async () => {
+    const unmapped = filteredLedger.filter((r) => r.status === "UNMAPPED");
+    if (!unmapped.length) return;
+    setAiSuggestLoading(true);
+    try {
+      const res = await fetch("/api/finance/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: unmapped.map((r) => ({
+            id: r.id,
+            senderName: r.senderName,
+            description: r.description,
+            amount: r.amount,
+            type: r.type,
+          })),
+        }),
+      });
+      const json = await res.json() as { suggestions?: { id: string; classification: string }[] };
+      const map: Record<string, string> = {};
+      for (const s of json.suggestions ?? []) {
+        if (s.id && s.classification) map[s.id] = s.classification;
+      }
+      setAiSuggestions(map);
+      setSyncToast(`AI 분류 제안 ${Object.keys(map).length}건 완료. 각 행에서 확인 후 승인하세요.`);
+      setTimeout(() => setSyncToast(null), 4000);
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  }, [filteredLedger]);
+
   const saveCustomEntries = useCallback((entries: LedgerRow[]) => {
     setCustomEntries(entries);
     try { localStorage.setItem(LEDGER_CUSTOM_STORAGE_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
@@ -1296,6 +1366,14 @@ export default function FinancePage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleAiSuggest} disabled={aiSuggestLoading}>
+                        <Sparkles className="size-3.5 mr-2" />
+                        {aiSuggestLoading ? "AI 분류 중..." : `AI 자동 분류${Object.keys(aiSuggestions).length > 0 ? ` (${Object.keys(aiSuggestions).length}건)` : ""}`}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={downloadCSV}>
+                        <Download className="size-3.5 mr-2" />
+                        CSV 내보내기
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setSmsOpen(true); setSmsText(""); setSmsParsed(null); }}>
                         <FileText className="size-3.5 mr-2" />
                         SMS 등록
@@ -1365,6 +1443,7 @@ export default function FinancePage() {
                     <LedgerRowComponent
                       key={row.id}
                       row={row}
+                      suggestedClassification={aiSuggestions[row.id]}
                       approvingId={approvingId}
                       justApprovedId={justApprovedId}
                       onApprove={async (classification, clientName) => {
@@ -1659,15 +1738,14 @@ export default function FinancePage() {
                     const v = raw === "" ? 0 : parseInt(raw, 10);
                     if (Number.isFinite(v)) {
                       setCarryOverBalance(v);
-                      try {
-                        localStorage.setItem(SURVIVAL_CARRYOVER_STORAGE_KEY, String(v));
-                      } catch { /* ignore */ }
                     }
                   }}
                   onBlur={() => {
-                    try {
-                      localStorage.setItem(SURVIVAL_CARRYOVER_STORAGE_KEY, String(carryOverBalance));
-                    } catch { /* ignore */ }
+                    fetch("/api/finance/settings", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ key: "survival_carryover", value: String(carryOverBalance) }),
+                    }).catch(() => {});
                   }}
                   className="h-8 w-28 text-right text-sm tabular-nums"
                   placeholder="0"
@@ -2583,6 +2661,7 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
   onDelete,
   onReceipt,
   clients,
+  suggestedClassification,
 }: {
   row: LedgerRow;
   approvingId: string | null;
@@ -2594,6 +2673,7 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
   onDelete?: (id: string) => void;
   onReceipt?: () => void;
   clients?: { id: string; name: string; aliases: string[]; representative?: string | null }[];
+  suggestedClassification?: string;
 }) {
   const isPending = row.status === "UNMAPPED";
   const isApproving = approvingId === row.id;
@@ -2609,6 +2689,9 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
   useEffect(() => {
     setAmountStr(String(row.amount));
   }, [row.amount]);
+  useEffect(() => {
+    if (suggestedClassification) setClassification(suggestedClassification);
+  }, [suggestedClassification]);
   const amountNum = parseInt(amountStr.replace(/[^0-9]/g, ""), 10) || 0;
 
   const revenueAmount = row.type === "DEPOSIT" ? row.amount : 0;

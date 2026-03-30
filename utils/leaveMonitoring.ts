@@ -102,7 +102,7 @@ export function getBurnoutRiskUsers(
       result.push({
         userId: user.id,
         userName: user.name,
-        department: user.department,
+        department: user.displayDepartment ?? user.department,
         lastLeaveDate,
         noLeaveIn90Days: true,
       });

@@ -163,7 +163,7 @@ export function AIChatWidget() {
   };
 
   if (!mounted) return null;
-  if (pathname === "/chat") return null;
+  if (pathname === "/chat" || pathname === "/crm") return null;
 
   return (
     <>
@@ -200,14 +200,14 @@ export function AIChatWidget() {
 
           {showFavorites && (
             <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
-              <p className="text-[10px] text-slate-400 mb-1.5">즐겨찾기 — 클릭하면 바로 전송</p>
+              <p className="text-[10px] text-slate-400 mb-1.5">즐겨찾기 — 클릭하면 입력창에 붙여넣기</p>
               {favorites.length === 0 ? (
                 <p className="text-xs text-slate-400">저장된 항목이 없습니다. 메시지에 ★를 눌러 저장하세요.</p>
               ) : (
                 <div className="flex flex-col gap-1">
                   {favorites.map((fav) => (
                     <div key={fav} className="flex items-center gap-1">
-                      <button type="button" onClick={() => { send(fav); setShowFavorites(false); }}
+                      <button type="button" onClick={() => { setInput(fav); setShowFavorites(false); }}
                         className="flex-1 text-left rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-blue-50 hover:border-blue-200 transition-colors truncate">
                         {fav}
                       </button>
