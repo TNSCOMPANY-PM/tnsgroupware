@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const mimeType = file.type || "image/jpeg";
 
   const res = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
