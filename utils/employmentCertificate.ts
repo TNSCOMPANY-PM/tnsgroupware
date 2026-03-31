@@ -223,49 +223,132 @@ export function buildCareerCertificateHTML(
   <meta charset="UTF-8" />
   <title>경력증명서</title>
   <style>
-    * { box-sizing: border-box; }
-    .cert-page { font-family: 'Pretendard','Malgun Gothic',sans-serif; color: #1e293b; font-size: 11px; line-height: 1.5; padding: 20mm 22mm; width: 100%; background: #fff; margin: 0; }
-    .doc-id { font-size: 10px; color: #64748b; margin-bottom: 6px; }
-    h1 { text-align: center; font-size: 20px; font-weight: 700; margin: 0 0 20px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 12px; vertical-align: top; }
-    th { width: 140px; font-weight: 600; color: #475569; background: #f8fafc; font-size: 11px; }
-    td { font-size: 11px; }
-    .section-title { font-weight: 700; font-size: 12px; margin: 16px 0 8px; }
-    .foot { text-align: center; margin-top: 24px; }
-    .foot p { margin: 4px 0; font-size: 11px; }
-    .foot .date { font-weight: 600; }
-    .seal-wrap { display: inline-block; margin-left: 10px; vertical-align: middle; }
-    .seal-wrap svg { width: 48px; height: 48px; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #fff; }
+    .cert-page {
+      font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      color: #1a1a2e;
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 18mm 25mm 20mm;
+      width: 210mm;
+      min-height: 297mm;
+      background: #fff;
+    }
+    .doc-id {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 10mm;
+      letter-spacing: 0.03em;
+    }
+    h1 {
+      text-align: center;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      margin: 0 0 14mm;
+      color: #0f172a;
+    }
+    .section {
+      margin-bottom: 8mm;
+    }
+    .section-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #0f172a;
+      padding-bottom: 3px;
+      border-bottom: 1.5px solid #0f172a;
+      margin-bottom: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    tr {
+      border-bottom: 1px solid #e2e8f0;
+    }
+    th {
+      width: 130px;
+      padding: 7px 14px 7px 16px;
+      font-weight: 500;
+      color: #475569;
+      font-size: 12px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    td {
+      padding: 7px 14px;
+      font-size: 12px;
+      color: #1e293b;
+      vertical-align: middle;
+    }
+    .foot {
+      text-align: center;
+      margin-top: 16mm;
+      line-height: 2;
+    }
+    .foot .statement {
+      font-size: 12px;
+      color: #334155;
+      margin-bottom: 3mm;
+    }
+    .foot .date {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4mm;
+    }
+    .foot .signline {
+      font-size: 12px;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .seal-wrap { display: inline-block; margin-left: 8px; vertical-align: middle; }
+    .seal-wrap svg { width: 52px; height: 52px; }
   </style>
 </head>
-<body style="margin:0;padding:0;background:#fff;">
+<body>
   <div class="cert-page">
-  <div class="doc-id">${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}</div>
-  <h1>경력증명서</h1>
-  <div class="section-title">인적사항</div>
-  <table>
-    <tr><th>성명</th><td>${escapeHtml(personal.name)}</td></tr>
-    <tr><th>생년월일</th><td>${escapeHtml(personal.birthDate)}</td></tr>
-  </table>
-  <div class="section-title">경력사항</div>
-  <table>
-    <tr><th>회사명</th><td>${escapeHtml(COMPANY.name)}</td></tr>
-    <tr><th>재직기간</th><td>${escapeHtml(employment.joinDate)} ~ 현재</td></tr>
-    <tr><th>부서</th><td>${escapeHtml(organization.department)}</td></tr>
-    <tr><th>직위/직급</th><td>${escapeHtml(organization.position)}</td></tr>
-  </table>
-  <div class="section-title">발급용도</div>
-  <table>
-    <tr><th>용도</th><td>${escapeHtml(purposeLabel)}</td></tr>
-    ${memoRow}
-  </table>
-  <div class="foot">
-    <p>위와 같이 경력 사항을 증명합니다.</p>
-    <p class="date">${dateStr}</p>
-    <p>${escapeHtml(COMPANY.nameShort)} 대표이사 ${escapeHtml(COMPANY.repName)} ${sealHtml}</p>
+    <div class="doc-id">${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}</div>
+    <h1>경 력 증 명 서</h1>
+
+    <div class="section">
+      <div class="section-title">인적사항</div>
+      <table>
+        <tr><th>성명</th><td>${escapeHtml(personal.name)}</td></tr>
+        <tr><th>생년월일</th><td>${escapeHtml(personal.birthDate)}</td></tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-title">경력사항</div>
+      <table>
+        <tr><th>회사명</th><td>${escapeHtml(COMPANY.name)}</td></tr>
+        <tr><th>재직기간</th><td>${escapeHtml(employment.joinDate)} ~ 현재</td></tr>
+        <tr><th>부서</th><td>${escapeHtml(organization.department)}</td></tr>
+        <tr><th>직위/직급</th><td>${escapeHtml(organization.position)}</td></tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-title">발급용도</div>
+      <table>
+        <tr><th>용도</th><td>${escapeHtml(purposeLabel)}</td></tr>
+        ${memoRow}
+      </table>
+    </div>
+
+    <div class="foot">
+      <div class="statement">위와 같이 경력 사항을 증명합니다.</div>
+      <div class="date">${dateStr}</div>
+      <div class="signline">${escapeHtml(COMPANY.nameShort)} 대표이사 ${escapeHtml(COMPANY.repName)} ${sealHtml}</div>
+    </div>
   </div>
-  </div>${printScript}
+  ${printScript}
 </body>
 </html>`;
 }
