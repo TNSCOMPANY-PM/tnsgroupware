@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Plus, Search, ChevronLeft, ImagePlus, X } from "lucide-react";
+import { Plus, Search, ChevronLeft, ImagePlus, X, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DashboardAnnouncement } from "@/lib/dashboardAnnouncementStorage";
 import { usePermission } from "@/contexts/PermissionContext";
