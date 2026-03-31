@@ -273,6 +273,10 @@ export default function FinancePage() {
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, string>>({});
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+  type ForecastData = { currentTotal: number; projected: number; pastAvg: number; progress: number; elapsedDays: number; totalDays: number };
+  const [forecast, setForecast] = useState<ForecastData | null>(null);
+  type AnomalyRow = { id: string; type: string; amount: number; client_name: string | null; date: string; z_score: number; reason: string };
+  const [anomalies, setAnomalies] = useState<AnomalyRow[]>([]);
   const [receiptTarget, setReceiptTarget] = useState<FinanceRow | null>(null);
   type AddFormType = "DEPOSIT" | "WITHDRAWAL" | "RECEIVABLE" | "PAYABLE";
   const [addForm, setAddForm] = useState({
@@ -1165,6 +1169,17 @@ export default function FinancePage() {
       ? (dbFinanceSummary.margin / summary.targetGrossProfit) * 100
       : 0;
 
+  // 매출 예측 + 이상거래 감지 로드 (이번 달에만)
+  useEffect(() => {
+    const isCurrentMonth = ledgerMonthKey === (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    })();
+    if (!isCurrentMonth) { setForecast(null); setAnomalies([]); return; }
+    fetch("/api/finance/forecast").then((r) => r.ok ? r.json() : null).then((d) => d && setForecast(d)).catch(() => {});
+    fetch(`/api/finance/anomalies?month=${ledgerMonthKey}`).then((r) => r.ok ? r.json() : []).then(setAnomalies).catch(() => {});
+  }, [ledgerMonthKey]);
+
   const fetchSyncPushbullet = useCallback(async () => {
     setSyncLoading(true);
     try {
@@ -1257,6 +1272,16 @@ export default function FinancePage() {
         </Card>
       </div>
 
+      {/* 매출 예측 배너 */}
+      {forecast && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-sm">
+          <TrendingUp className="size-4 shrink-0 text-blue-600" />
+          <span className="text-blue-800 font-semibold">이번 달 예측 마감 매출</span>
+          <span className="tabular-nums font-bold text-blue-900">{formatWonIntl(forecast.projected)}</span>
+          <span className="text-xs text-blue-500">{forecast.elapsedDays}/{forecast.totalDays}일 경과 · 현재 페이스 기반 · 과거 3개월 평균 {formatWonIntl(forecast.pastAvg)}</span>
+        </div>
+      )}
+
       {viewMode === "ledger" && (
       <div className="grid grid-cols-12 gap-6 min-h-0" style={{ height: "calc(100vh - 220px)", minHeight: "600px" }}>
         {/* [좌측 col-span-8] 통합 입출금 원장 */}
@@ -1298,6 +1323,13 @@ export default function FinancePage() {
                 <h2 className="flex items-center gap-2 font-semibold text-slate-800">
                   <Receipt className="size-4 text-[var(--primary)]" />
                   통합 입출금 원장
+                  {anomalies.length > 0 && (
+                    <span title={anomalies.map((a) => `${a.client_name ?? ""} ${(a.amount/10000).toFixed(0)}만원 (${a.reason})`).join(", ")}
+                      className="flex cursor-help items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                      <AlertTriangle className="size-3" />
+                      이상거래 {anomalies.length}건
+                    </span>
+                  )}
                 </h2>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {/* 상태 필터 */}
@@ -1443,6 +1475,8 @@ export default function FinancePage() {
                     <LedgerRowComponent
                       key={row.id}
                       row={row}
+                      isAnomaly={anomalies.some((a) => a.id === row.id)}
+                      anomalyReason={anomalies.find((a) => a.id === row.id)?.reason}
                       suggestedClassification={aiSuggestions[row.id]}
                       approvingId={approvingId}
                       justApprovedId={justApprovedId}
@@ -2674,6 +2708,8 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
   onReceipt?: () => void;
   clients?: { id: string; name: string; aliases: string[]; representative?: string | null }[];
   suggestedClassification?: string;
+  isAnomaly?: boolean;
+  anomalyReason?: string;
 }) {
   const isPending = row.status === "UNMAPPED";
   const isApproving = approvingId === row.id;
@@ -2702,8 +2738,9 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
 
   return (
     <tr
+      title={isAnomaly ? `⚠️ ${anomalyReason}` : undefined}
       className={`border-b border-slate-100 align-middle transition-all duration-300 ${
-        justApproved ? "bg-white" : isPending ? "bg-amber-50/50" : "bg-transparent hover:bg-blue-50/40"
+        justApproved ? "bg-white" : isAnomaly ? "bg-orange-50/60" : isPending ? "bg-amber-50/50" : "bg-transparent hover:bg-blue-50/40"
       }`}
     >
       <td className="w-20 px-2 py-2 text-slate-700 whitespace-nowrap text-xs">{row.date}</td>

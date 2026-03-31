@@ -72,7 +72,14 @@
       "Bash(tasklist /FI 'IMAGENAME eq node.exe')",
       "Bash(powershell -Command \"Start-Process -FilePath ''cmd.exe'' -ArgumentList ''/c \"\"c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\start-pushbullet-only.bat\"\"'' -WindowStyle Normal\")",
       "Bash(powershell -Command \"Start-Process -FilePath ''c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\start-pushbullet-only.bat'' -WorkingDirectory ''c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware'' -WindowStyle Normal\")",
-      "Bash(powershell -Command \"[System.IO.File]::WriteAllText\\(''c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\run-pb.bat'', \"\"@echo off\\\\`r\\\\`ncd /d \\\\\"\"%~dp0\\\\\"\"\\\\`r\\\\`n:loop\\\\`r\\\\`nnode scripts\\\\pushbullet-stream.js\\\\`r\\\\`ntimeout /t 5 /nobreak >nul\\\\`r\\\\`ngoto loop\\\\`r\\\\`n\"\", [System.Text.Encoding]::Default\\)\")"
+      "Bash(powershell -Command \"[System.IO.File]::WriteAllText\\(''c:\\\\Users\\\\user1\\\\Dropbox\\\\Vibe coding project\\\\groupware\\\\run-pb.bat'', \"\"@echo off\\\\`r\\\\`ncd /d \\\\\"\"%~dp0\\\\\"\"\\\\`r\\\\`n:loop\\\\`r\\\\`nnode scripts\\\\pushbullet-stream.js\\\\`r\\\\`ntimeout /t 5 /nobreak >nul\\\\`r\\\\`ngoto loop\\\\`r\\\\`n\"\", [System.Text.Encoding]::Default\\)\")",
+      "Bash(npm run:*)",
+      "Bash(netstat -ano)",
+      "Bash(npx supabase:*)",
+      "WebSearch",
+      "WebFetch(domain:ceo.baemin.com)",
+      "WebFetch(domain:m.ddaily.co.kr)",
+      "WebFetch(domain:www.meatlovernews.co.kr)"
     ],
     "additionalDirectories": [
       "c:\\Users\\user1\\Dropbox\\Vibe coding project\\groupware\\app\\print\\contract"

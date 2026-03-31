@@ -161,6 +161,8 @@ function CrmPageInner() {
   const [unmatched, setUnmatched] = useState<UnmatchedRow[]>([]);
   const [unmatchedLoading, setUnmatchedLoading] = useState(false);
   const aliasInputRef = useRef<HTMLInputElement>(null);
+  // 이탈 위험 스코어
+  const [churnRisks, setChurnRisks] = useState<Record<string, number>>({});
   // 댓글
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -169,14 +171,21 @@ function CrmPageInner() {
 
   async function load() {
     setLoading(true);
-    const [clientsRes, depositsRes] = await Promise.all([
+    const [clientsRes, depositsRes, churnRes] = await Promise.all([
       fetch("/api/clients"),
       fetch("/api/clients/last-deposits"),
+      fetch("/api/clients/churn-risk"),
     ]);
     const data = clientsRes.ok ? await clientsRes.json() : [];
     const deposits = depositsRes.ok ? await depositsRes.json() : {};
+    const churn = churnRes.ok ? await churnRes.json() : [];
     setClients(data);
     setLastDeposits(deposits);
+    const riskMap: Record<string, number> = {};
+    for (const r of Array.isArray(churn) ? churn : []) {
+      riskMap[r.id] = r.score;
+    }
+    setChurnRisks(riskMap);
     setLoading(false);
   }
 
@@ -692,7 +701,15 @@ function CrmPageInner() {
               >
                 <td className="px-3 py-2.5 text-center text-xs text-slate-300">{i + 1}</td>
                 <td className="px-3 py-2.5">
-                  <span className="block truncate font-medium text-slate-800">{c.name}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="truncate font-medium text-slate-800">{c.name}</span>
+                    {churnRisks[c.id] !== undefined && churnRisks[c.id] >= 60 && (
+                      <span title={`이탈 위험 스코어 ${churnRisks[c.id]}`} className="shrink-0 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">위험</span>
+                    )}
+                    {churnRisks[c.id] !== undefined && churnRisks[c.id] >= 30 && churnRisks[c.id] < 60 && (
+                      <span title={`이탈 위험 스코어 ${churnRisks[c.id]}`} className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-600">주의</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-2.5">
                   {c.category
