@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       is_important: body.isImportant ?? false,
       author_id: body.authorId || null,
       author_name: body.authorName || null,
+      images: body.images ?? [],
     })
     .select()
     .single();
