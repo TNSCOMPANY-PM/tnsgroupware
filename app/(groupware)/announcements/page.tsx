@@ -31,7 +31,8 @@ function sortAnnouncements(list: DashboardAnnouncement[]): DashboardAnnouncement
 }
 
 export default function AnnouncementsPage() {
-  const { isCLevel, currentUserName, currentUserId } = usePermission();
+  const { canManage, isTeamLead, currentUserName, currentUserId } = usePermission();
+  const canManage = canManage || isTeamLead;
   const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>([]);
   const [selected, setSelected] = useState<DashboardAnnouncement | null>(null);
   const [tab, setTab] = useState<"all" | "important">("all");
@@ -177,7 +178,7 @@ export default function AnnouncementsPage() {
                 {selected.authorName && ` · ${selected.authorName}`}
               </p>
             </div>
-            {isCLevel && (
+            {canManage && (
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   onClick={() => handleToggleImportant(selected)}
@@ -235,7 +236,7 @@ export default function AnnouncementsPage() {
       {/* 헤더 */}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">공지사항</h1>
-        {isCLevel && (
+        {canManage && (
           <button
             onClick={openNew}
             className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
