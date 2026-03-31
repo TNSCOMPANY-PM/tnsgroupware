@@ -2696,6 +2696,8 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
   onReceipt,
   clients,
   suggestedClassification,
+  isAnomaly,
+  anomalyReason,
 }: {
   row: LedgerRow;
   approvingId: string | null;
