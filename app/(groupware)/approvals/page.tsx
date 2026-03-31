@@ -200,6 +200,7 @@ export default function ApprovalsPage() {
 
   useEffect(() => { fetchApprovals(); }, [fetchApprovals]);
 
+
   const submitForm = async () => {
     if (!form.title.trim()) return;
     setUploading(true);
@@ -943,6 +944,7 @@ export default function ApprovalsPage() {
                   </div>
                 </>
               )}
+
             </div>
             <div className="shrink-0 border-t border-slate-100 px-6 py-4 flex justify-end gap-2">
               <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">취소</button>
