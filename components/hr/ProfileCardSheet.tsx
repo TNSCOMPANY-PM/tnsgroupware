@@ -896,11 +896,13 @@ function HrInfoTab({
         {/* 경력증명서 발급 — C레벨만 */}
         {isCLevel && (
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <h3 className="mb-1 text-sm font-semibold text-slate-700">경력증명서 발급</h3>
-            <p className="mb-3 text-xs text-slate-400">직원에게 경력증명서를 발급합니다.</p>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700">경력증명서 발급</h3>
+            <p className="text-xs text-slate-400 -mt-1">발급 받은 증명서는 최대 1회 다운로드 가능해요.</p>
             <div className="space-y-4">
               <div className="space-y-1">
-                <Label className="text-sm font-medium text-slate-700">발급 사유 <span className="text-red-500">*</span></Label>
+                <Label className="text-sm font-medium text-slate-700">
+                  발급 사유 <span className="text-red-500">*</span>
+                </Label>
                 <Select value={careerPurpose} onValueChange={(v) => { setCareerPurpose(v); setCareerPurposeError(false); }}>
                   <SelectTrigger className={cn("w-full", careerPurposeError && "border-red-400 ring-1 ring-red-400")}>
                     <SelectValue placeholder="발급 사유 선택" />
@@ -933,7 +935,7 @@ function HrInfoTab({
                   value={careerMemo}
                   onChange={(e) => setCareerMemo(e.target.value.slice(0, 60))}
                   rows={2}
-                  placeholder="증명서에 추가 정보를 입력하세요"
+                  placeholder="증명서에 추가 정보를 작성하여 발급할 수 있어요."
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none resize-none"
                 />
               </div>
@@ -945,7 +947,7 @@ function HrInfoTab({
                 {isCareerDownloading ? (
                   <><Loader2 className="mr-2 size-4 animate-spin" />PDF 생성 중…</>
                 ) : (
-                  <><FileDown className="mr-2 size-4" />경력증명서 발급</>
+                  <><FileDown className="mr-2 size-4" />발급 받기</>
                 )}
               </Button>
             </div>
