@@ -31,8 +31,8 @@ function sortAnnouncements(list: DashboardAnnouncement[]): DashboardAnnouncement
 }
 
 export default function AnnouncementsPage() {
-  const { canManage, isTeamLead, currentUserName, currentUserId } = usePermission();
-  const canManage = canManage || isTeamLead;
+  const { isCLevel, isTeamLead, currentUserName, currentUserId } = usePermission();
+  const canManage = isCLevel || isTeamLead;
   const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>([]);
   const [selected, setSelected] = useState<DashboardAnnouncement | null>(null);
   const [tab, setTab] = useState<"all" | "important">("all");
