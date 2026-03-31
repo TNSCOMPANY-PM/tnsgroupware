@@ -36,13 +36,24 @@ function maskResidentId(id: string): string {
 
 export function buildCertificateHTML(
   profile: EmployeeDetailProfile,
-  options: { purposeKey: string; maskResidentId: boolean; skipPrintScript?: boolean }
+  options: {
+    purposeKey: string;
+    maskResidentId: boolean;
+    includeJoinDate?: boolean;
+    sealType?: "digital" | "physical";
+    language?: "ko" | "en";
+    memo?: string;
+    skipPrintScript?: boolean;
+  }
 ): string {
   const { personal, employment, organization } = profile;
-  const purposeLabel =
-    PURPOSE_LABELS[options.purposeKey] || options.purposeKey || "기타";
+  const lang = options.language ?? "ko";
+  const isEn = lang === "en";
+  const purposeLabel = PURPOSE_LABELS[options.purposeKey] || options.purposeKey || "기타";
   const issueDate = new Date();
-  const dateStr = `${issueDate.getFullYear()}년 ${issueDate.getMonth() + 1}월 ${issueDate.getDate()}일`;
+  const dateStr = isEn
+    ? `${issueDate.toLocaleString("en-US", { month: "long" })} ${issueDate.getDate()}, ${issueDate.getFullYear()}`
+    : `${issueDate.getFullYear()}년 ${issueDate.getMonth() + 1}월 ${issueDate.getDate()}일`;
 
   const printScript = options.skipPrintScript
     ? ""
@@ -51,12 +62,28 @@ export function buildCertificateHTML(
     window.onload = function() { window.print(); };
   <\/script>`;
 
+  const sealHtml = options.sealType === "physical"
+    ? `<span style="display:inline-block;width:48px;height:48px;border:2px dashed #cbd5e1;border-radius:50%;vertical-align:middle;margin-left:10px;"></span>`
+    : SEAL_SVG;
+
+  const memoRow = options.memo
+    ? `<tr><th>${isEn ? "Note" : "비고"}</th><td>${escapeHtml(options.memo)}</td></tr>`
+    : "";
+
+  const residentRow = options.maskResidentId
+    ? ""
+    : `<tr><th>${isEn ? "ID Number" : "주민등록번호"}</th><td>${escapeHtml(personal.residentId ? maskResidentId(personal.residentId) : "-")}</td></tr>`;
+
+  const joinDateRow = options.includeJoinDate
+    ? `<tr><th>${isEn ? "Group Join Date" : "그룹 입사일"}</th><td>${escapeHtml(employment.joinDate)}</td></tr>`
+    : "";
+
   return `<!DOCTYPE html>
-<html lang="ko">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>재직증명서</title>
+  <title>${isEn ? "Certificate of Employment" : "재직증명서"}</title>
   <style>
     * { box-sizing: border-box; }
     .cert-page {
@@ -74,7 +101,7 @@ export function buildCertificateHTML(
     h1 { text-align: center; font-size: 20px; font-weight: 700; margin: 0 0 20px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 12px; vertical-align: top; }
-    th { width: 120px; font-weight: 600; color: #475569; background: #f8fafc; font-size: 11px; }
+    th { width: 140px; font-weight: 600; color: #475569; background: #f8fafc; font-size: 11px; }
     td { font-size: 11px; }
     .section-title { font-weight: 700; font-size: 12px; margin: 16px 0 8px; padding-bottom: 2px; }
     .foot { text-align: center; margin-top: 24px; }
@@ -87,34 +114,37 @@ export function buildCertificateHTML(
 <body style="margin:0;padding:0;background:#fff;">
   <div class="cert-page">
   <div class="doc-id">${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}</div>
-  <h1>재직증명서</h1>
-  <div class="section-title">기본정보</div>
+  <h1>${isEn ? "Certificate of Employment" : "재직증명서"}</h1>
+  <div class="section-title">${isEn ? "Personal Information" : "기본정보"}</div>
   <table>
-    <tr><th>이름</th><td>${escapeHtml(personal.name)}</td></tr>
-    <tr><th>생년월일</th><td>${escapeHtml(personal.birthDate)}</td></tr>
-    <tr><th>주소</th><td>${escapeHtml(personal.address)}</td></tr>
+    <tr><th>${isEn ? "Name" : "이름"}</th><td>${escapeHtml(personal.name)}</td></tr>
+    <tr><th>${isEn ? "Date of Birth" : "생년월일"}</th><td>${escapeHtml(personal.birthDate)}</td></tr>
+    ${residentRow}
+    <tr><th>${isEn ? "Address" : "주소"}</th><td>${escapeHtml(personal.address)}</td></tr>
   </table>
-  <div class="section-title">재직정보</div>
+  <div class="section-title">${isEn ? "Employment Information" : "재직정보"}</div>
   <table>
-    <tr><th>재직기간</th><td>${escapeHtml(employment.joinDate)} - 현재</td></tr>
-    <tr><th>조직·직책</th><td>${escapeHtml(organization.department)}</td></tr>
-    <tr><th>직무</th><td>${escapeHtml(organization.position)}</td></tr>
+    <tr><th>${isEn ? "Employment Period" : "재직기간"}</th><td>${escapeHtml(employment.joinDate)} - ${isEn ? "Present" : "현재"}</td></tr>
+    ${joinDateRow}
+    <tr><th>${isEn ? "Department" : "조직·직책"}</th><td>${escapeHtml(organization.department)}</td></tr>
+    <tr><th>${isEn ? "Position" : "직무"}</th><td>${escapeHtml(organization.position)}</td></tr>
   </table>
-  <div class="section-title">회사정보</div>
+  <div class="section-title">${isEn ? "Company Information" : "회사정보"}</div>
   <table>
-    <tr><th>회사명</th><td>${escapeHtml(COMPANY.name)}</td></tr>
-    <tr><th>사업자등록번호</th><td>${escapeHtml(COMPANY.bizNo)}</td></tr>
-    <tr><th>회사 주소</th><td>${escapeHtml(COMPANY.address)}</td></tr>
-    <tr><th>대표 전화번호</th><td>${escapeHtml(COMPANY.repPhone)}</td></tr>
+    <tr><th>${isEn ? "Company" : "회사명"}</th><td>${escapeHtml(isEn ? COMPANY.nameEn : COMPANY.name)}</td></tr>
+    <tr><th>${isEn ? "Business Registration No." : "사업자등록번호"}</th><td>${escapeHtml(COMPANY.bizNo)}</td></tr>
+    <tr><th>${isEn ? "Address" : "회사 주소"}</th><td>${escapeHtml(COMPANY.address)}</td></tr>
+    <tr><th>${isEn ? "Phone" : "대표 전화번호"}</th><td>${escapeHtml(COMPANY.repPhone)}</td></tr>
   </table>
-  <div class="section-title">발급용도</div>
+  <div class="section-title">${isEn ? "Purpose of Issue" : "발급용도"}</div>
   <table>
-    <tr><th>용도</th><td>${escapeHtml(purposeLabel)}</td></tr>
+    <tr><th>${isEn ? "Purpose" : "용도"}</th><td>${escapeHtml(purposeLabel)}</td></tr>
+    ${memoRow}
   </table>
   <div class="foot">
-    <p>위와 같이 재직 중임을 증명합니다.</p>
+    <p>${isEn ? "This is to certify that the above-named person is currently employed at our company." : "위와 같이 재직 중임을 증명합니다."}</p>
     <p class="date">${dateStr}</p>
-    <p>${escapeHtml(COMPANY.nameShort)} 대표이사 ${escapeHtml(COMPANY.repName)} ${SEAL_SVG}</p>
+    <p>${escapeHtml(isEn ? COMPANY.nameEn : COMPANY.nameShort)} ${isEn ? "CEO" : "대표이사"} ${escapeHtml(COMPANY.repName)} ${sealHtml}</p>
   </div>
   </div>${printScript}
 </body>
@@ -127,7 +157,7 @@ export function buildCertificateHTML(
  */
 export async function downloadEmploymentCertificateAsPDF(
   profile: EmployeeDetailProfile,
-  options: { purposeKey: string; maskResidentId: boolean }
+  options: { purposeKey: string; maskResidentId: boolean; includeJoinDate?: boolean; sealType?: "digital" | "physical"; language?: "ko" | "en"; memo?: string }
 ): Promise<void> {
   const html = buildCertificateHTML(profile, { ...options, skipPrintScript: true });
   const container = document.createElement("div");

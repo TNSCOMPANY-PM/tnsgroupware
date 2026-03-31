@@ -715,20 +715,29 @@ function HrInfoTab({
 }) {
   const { organization, personal, employment, payroll, leave } = profile;
   const [issuePurpose, setIssuePurpose] = useState<string>("");
-  const [maskResidentId, setMaskResidentId] = useState(true);
+  const [purposeError, setPurposeError] = useState(false);
+  const [includeResidentId, setIncludeResidentId] = useState(false);
+  const [includeJoinDate, setIncludeJoinDate] = useState(false);
+  const [sealType, setSealType] = useState<"digital" | "physical">("digital");
+  const [language, setLanguage] = useState<"ko" | "en">("ko");
+  const [memo, setMemo] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
 
-  const opts = {
-    purposeKey: issuePurpose || "personal",
-    maskResidentId,
-  };
-
   const handleDownload = async () => {
+    if (!issuePurpose) { setPurposeError(true); return; }
+    setPurposeError(false);
     setIsDownloading(true);
     setToastVisible(false);
     try {
-      await downloadEmploymentCertificate(profile, opts);
+      await downloadEmploymentCertificate(profile, {
+        purposeKey: issuePurpose,
+        maskResidentId: !includeResidentId,
+        includeJoinDate,
+        sealType,
+        language,
+        memo: memo.trim(),
+      });
       setToastVisible(true);
       setTimeout(() => setToastVisible(false), 4000);
     } finally {
@@ -873,63 +882,91 @@ function HrInfoTab({
             <h3 className="mb-3 text-sm font-semibold text-slate-700">
               문서 발급 (Documents)
             </h3>
+            <p className="text-xs text-slate-400 -mt-1">발급 받은 증명서는 최대 1회 다운로드 가능해요.</p>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="issue-purpose" className="text-sm text-slate-600">
-                  발급 용도
+              {/* 발급 사유 */}
+              <div className="space-y-1">
+                <Label htmlFor="issue-purpose" className="text-sm font-medium text-slate-700">
+                  발급 사유 <span className="text-red-500">*</span>
                 </Label>
-                <Select value={issuePurpose} onValueChange={setIssuePurpose}>
-                  <SelectTrigger id="issue-purpose" className="w-full max-w-xs">
-                    <SelectValue placeholder="용도 선택" />
+                <Select value={issuePurpose} onValueChange={(v) => { setIssuePurpose(v); setPurposeError(false); }}>
+                  <SelectTrigger id="issue-purpose" className={cn("w-full", purposeError && "border-red-400 ring-1 ring-red-400")}>
+                    <SelectValue placeholder="발급 사유 선택" />
                   </SelectTrigger>
                   <SelectContent className="bg-white shadow-lg">
                     {ISSUE_PURPOSES.map(({ value, label }) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {purposeError && <p className="text-xs text-red-500">발급 사유를 선택해 주세요.</p>}
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="mask-rrn" className="text-sm text-slate-600">
-                  주민등록번호 마스킹
-                </Label>
-                <button
-                  id="mask-rrn"
-                  type="button"
-                  role="switch"
-                  aria-checked={maskResidentId}
-                  onClick={() => setMaskResidentId((v) => !v)}
-                  className={cn(
-                    "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",
-                    maskResidentId ? "bg-blue-600" : "bg-slate-200"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-                      maskResidentId ? "translate-x-[22px]" : "translate-x-0.5"
-                    )}
-                    style={{ marginTop: 2 }}
-                  />
-                </button>
+
+              {/* 추가 정보 */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">추가 정보</p>
+                <div className="flex gap-6">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                    <input type="checkbox" checked={includeResidentId} onChange={(e) => setIncludeResidentId(e.target.checked)} className="size-4 rounded" />
+                    주민등록번호
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                    <input type="checkbox" checked={includeJoinDate} onChange={(e) => setIncludeJoinDate(e.target.checked)} className="size-4 rounded" />
+                    그룹 입사일
+                  </label>
+                </div>
               </div>
+
+              {/* 직인 설정 */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">직인 설정</p>
+                <div className="flex gap-6">
+                  {(["digital", "physical"] as const).map((v) => (
+                    <label key={v} className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                      <input type="radio" name="seal" value={v} checked={sealType === v} onChange={() => setSealType(v)} className="size-4" />
+                      {v === "digital" ? "전자 직인 사용" : "실물 직인 사용"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 언어 설정 */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">언어 설정</p>
+                <div className="flex gap-6">
+                  {(["ko", "en"] as const).map((v) => (
+                    <label key={v} className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                      <input type="radio" name="lang" value={v} checked={language === v} onChange={() => setLanguage(v)} className="size-4" />
+                      {v === "ko" ? "한국어" : "영어"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 비고 */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-700">비고</p>
+                  <span className="text-xs text-slate-400">{memo.length}/60</span>
+                </div>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value.slice(0, 60))}
+                  rows={2}
+                  placeholder="증명서에 추가 정보를 작성하여 발급할 수 있어요."
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none resize-none"
+                />
+              </div>
+
               <Button
-                className="w-full bg-blue-600 font-semibold text-white hover:bg-blue-700"
+                className="w-full bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
                 onClick={handleDownload}
                 disabled={isDownloading}
               >
                 {isDownloading ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    PDF 생성 중…
-                  </>
+                  <><Loader2 className="mr-2 size-4 animate-spin" />PDF 생성 중…</>
                 ) : (
-                  <>
-                    <FileDown className="mr-2 size-4" />
-                    재직증명서 PDF 다운로드
-                  </>
+                  <><FileDown className="mr-2 size-4" />발급 받기</>
                 )}
               </Button>
             </div>
