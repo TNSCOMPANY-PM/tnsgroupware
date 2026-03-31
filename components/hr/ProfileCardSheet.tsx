@@ -45,7 +45,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { downloadEmploymentCertificate } from "@/utils/employmentCertificate";
+import { downloadEmploymentCertificate, downloadCareerCertificate } from "@/utils/employmentCertificate";
 
 const PROFILE_TABS = [
   { value: "hr", label: "인사 정보", icon: User },
@@ -714,8 +714,15 @@ function HrInfoTab({
   onRequestLeaveTab?: () => void;
 }) {
   const { organization, personal, employment, payroll, leave } = profile;
+  // 재직증명서
   const [issuePurpose, setIssuePurpose] = useState<string>("");
   const [purposeError, setPurposeError] = useState(false);
+  // 경력증명서
+  const [careerPurpose, setCareerPurpose] = useState<string>("");
+  const [careerPurposeError, setCareerPurposeError] = useState(false);
+  const [careerSealType, setCareerSealType] = useState<"digital" | "physical">("digital");
+  const [careerMemo, setCareerMemo] = useState("");
+  const [isCareerDownloading, setIsCareerDownloading] = useState(false);
   const [includeResidentId, setIncludeResidentId] = useState(false);
   const [includeJoinDate, setIncludeJoinDate] = useState(false);
   const [sealType, setSealType] = useState<"digital" | "physical">("digital");
@@ -742,6 +749,19 @@ function HrInfoTab({
       setTimeout(() => setToastVisible(false), 4000);
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleCareerDownload = async () => {
+    if (!careerPurpose) { setCareerPurposeError(true); return; }
+    setCareerPurposeError(false);
+    setIsCareerDownloading(true);
+    try {
+      await downloadCareerCertificate(profile, { purposeKey: careerPurpose, sealType: careerSealType, memo: careerMemo.trim() });
+      setToastVisible(true);
+      setTimeout(() => setToastVisible(false), 4000);
+    } finally {
+      setIsCareerDownloading(false);
     }
   };
 
@@ -871,6 +891,65 @@ function HrInfoTab({
             </Button>
           </div>
         </Section>
+        )}
+
+        {/* 경력증명서 발급 — C레벨만 */}
+        {isCLevel && (
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <h3 className="mb-1 text-sm font-semibold text-slate-700">경력증명서 발급</h3>
+            <p className="mb-3 text-xs text-slate-400">직원에게 경력증명서를 발급합니다.</p>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-slate-700">발급 사유 <span className="text-red-500">*</span></Label>
+                <Select value={careerPurpose} onValueChange={(v) => { setCareerPurpose(v); setCareerPurposeError(false); }}>
+                  <SelectTrigger className={cn("w-full", careerPurposeError && "border-red-400 ring-1 ring-red-400")}>
+                    <SelectValue placeholder="발급 사유 선택" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white shadow-lg">
+                    {ISSUE_PURPOSES.map(({ value, label }) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {careerPurposeError && <p className="text-xs text-red-500">발급 사유를 선택해 주세요.</p>}
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">직인 설정</p>
+                <div className="flex gap-6">
+                  {(["digital", "physical"] as const).map((v) => (
+                    <label key={v} className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                      <input type="radio" name="career-seal" value={v} checked={careerSealType === v} onChange={() => setCareerSealType(v)} className="size-4" />
+                      {v === "digital" ? "전자 직인 사용" : "실물 직인 사용"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-700">비고</p>
+                  <span className="text-xs text-slate-400">{careerMemo.length}/60</span>
+                </div>
+                <textarea
+                  value={careerMemo}
+                  onChange={(e) => setCareerMemo(e.target.value.slice(0, 60))}
+                  rows={2}
+                  placeholder="증명서에 추가 정보를 입력하세요"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none resize-none"
+                />
+              </div>
+              <Button
+                className="w-full bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
+                onClick={handleCareerDownload}
+                disabled={isCareerDownloading}
+              >
+                {isCareerDownloading ? (
+                  <><Loader2 className="mr-2 size-4 animate-spin" />PDF 생성 중…</>
+                ) : (
+                  <><FileDown className="mr-2 size-4" />경력증명서 발급</>
+                )}
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* 문서 발급 (Documents) — 본인만 */}

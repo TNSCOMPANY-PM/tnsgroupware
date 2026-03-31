@@ -202,6 +202,97 @@ export async function downloadEmploymentCertificateAsPDF(
 /** 재직증명서 PDF 다운로드 (downloadEmploymentCertificateAsPDF 별칭) */
 export const downloadEmploymentCertificate = downloadEmploymentCertificateAsPDF;
 
+/** 경력증명서 HTML 생성 */
+export function buildCareerCertificateHTML(
+  profile: EmployeeDetailProfile,
+  options: { purposeKey: string; sealType?: "digital" | "physical"; memo?: string; skipPrintScript?: boolean }
+): string {
+  const { personal, employment, organization } = profile;
+  const purposeLabel = PURPOSE_LABELS[options.purposeKey] || options.purposeKey || "기타";
+  const issueDate = new Date();
+  const dateStr = `${issueDate.getFullYear()}년 ${issueDate.getMonth() + 1}월 ${issueDate.getDate()}일`;
+  const sealHtml = options.sealType === "physical"
+    ? `<span style="display:inline-block;width:48px;height:48px;border:2px dashed #cbd5e1;border-radius:50%;vertical-align:middle;margin-left:10px;"></span>`
+    : SEAL_SVG;
+  const memoRow = options.memo ? `<tr><th>비고</th><td>${escapeHtml(options.memo)}</td></tr>` : "";
+  const printScript = options.skipPrintScript ? "" : `<script>window.onload=function(){window.print();}<\/script>`;
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>경력증명서</title>
+  <style>
+    * { box-sizing: border-box; }
+    .cert-page { font-family: 'Pretendard','Malgun Gothic',sans-serif; color: #1e293b; font-size: 11px; line-height: 1.5; padding: 20mm 22mm; width: 100%; background: #fff; margin: 0; }
+    .doc-id { font-size: 10px; color: #64748b; margin-bottom: 6px; }
+    h1 { text-align: center; font-size: 20px; font-weight: 700; margin: 0 0 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 12px; vertical-align: top; }
+    th { width: 140px; font-weight: 600; color: #475569; background: #f8fafc; font-size: 11px; }
+    td { font-size: 11px; }
+    .section-title { font-weight: 700; font-size: 12px; margin: 16px 0 8px; }
+    .foot { text-align: center; margin-top: 24px; }
+    .foot p { margin: 4px 0; font-size: 11px; }
+    .foot .date { font-weight: 600; }
+    .seal-wrap { display: inline-block; margin-left: 10px; vertical-align: middle; }
+    .seal-wrap svg { width: 48px; height: 48px; }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#fff;">
+  <div class="cert-page">
+  <div class="doc-id">${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}</div>
+  <h1>경력증명서</h1>
+  <div class="section-title">인적사항</div>
+  <table>
+    <tr><th>성명</th><td>${escapeHtml(personal.name)}</td></tr>
+    <tr><th>생년월일</th><td>${escapeHtml(personal.birthDate)}</td></tr>
+  </table>
+  <div class="section-title">경력사항</div>
+  <table>
+    <tr><th>회사명</th><td>${escapeHtml(COMPANY.name)}</td></tr>
+    <tr><th>재직기간</th><td>${escapeHtml(employment.joinDate)} ~ 현재</td></tr>
+    <tr><th>부서</th><td>${escapeHtml(organization.department)}</td></tr>
+    <tr><th>직위/직급</th><td>${escapeHtml(organization.position)}</td></tr>
+  </table>
+  <div class="section-title">발급용도</div>
+  <table>
+    <tr><th>용도</th><td>${escapeHtml(purposeLabel)}</td></tr>
+    ${memoRow}
+  </table>
+  <div class="foot">
+    <p>위와 같이 경력 사항을 증명합니다.</p>
+    <p class="date">${dateStr}</p>
+    <p>${escapeHtml(COMPANY.nameShort)} 대표이사 ${escapeHtml(COMPANY.repName)} ${sealHtml}</p>
+  </div>
+  </div>${printScript}
+</body>
+</html>`;
+}
+
+/** 경력증명서 PDF 다운로드 */
+export async function downloadCareerCertificate(
+  profile: EmployeeDetailProfile,
+  options: { purposeKey: string; sealType?: "digital" | "physical"; memo?: string }
+): Promise<void> {
+  const html = buildCareerCertificateHTML(profile, { ...options, skipPrintScript: true });
+  const container = document.createElement("div");
+  container.style.cssText = "position:fixed;left:-9999px;top:0;width:210mm;height:297mm;background:#fff;padding:0;margin:0;pointer-events:none;overflow:hidden;";
+  container.setAttribute("data-certificate", "true");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+  const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+  document.body.removeChild(container);
+  const imgData = canvas.toDataURL("image/png");
+  const doc = new jsPDF("p", "mm", "a4");
+  doc.addImage(imgData, "PNG", 0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight());
+  const d = new Date();
+  const datePart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const safeName = profile.personal.name.replace(/[/\\?*:"]/g, "_");
+  doc.save(`티앤에스컴퍼니_경력증명서_${safeName}_${datePart}.pdf`);
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
