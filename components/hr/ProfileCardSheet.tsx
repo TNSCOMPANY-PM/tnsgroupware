@@ -960,9 +960,7 @@ function HrInfoTab({
             ref={documentsSectionRef}
             className="rounded-xl border border-slate-100 bg-slate-50 p-4"
           >
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">
-              문서 발급 (Documents)
-            </h3>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700">재직증명서 발급</h3>
             <p className="text-xs text-slate-400 -mt-1">발급 받은 증명서는 최대 1회 다운로드 가능해요.</p>
             <div className="space-y-4">
               {/* 발급 사유 */}
