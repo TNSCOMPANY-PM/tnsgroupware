@@ -14,6 +14,7 @@ export async function PATCH(
       ...(body.title !== undefined && { title: body.title }),
       ...(body.body !== undefined && { body: body.body }),
       ...(body.isImportant !== undefined && { is_important: body.isImportant }),
+      ...(body.images !== undefined && { images: body.images }),
     })
     .eq("id", id)
     .select()

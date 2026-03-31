@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Plus, Search, ChevronLeft, Pencil, Trash2, Pin } from "lucide-react";
+import { Plus, Search, ChevronLeft, ImagePlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DashboardAnnouncement } from "@/lib/dashboardAnnouncementStorage";
 import { usePermission } from "@/contexts/PermissionContext";
+import { uploadAnnouncementImage } from "@/utils/supabase/storage";
 
 function mapRow(row: Record<string, unknown>): DashboardAnnouncement {
   return {
@@ -17,6 +18,7 @@ function mapRow(row: Record<string, unknown>): DashboardAnnouncement {
     isImportant: !!(row.is_important),
     authorId: (row.author_id as string) ?? undefined,
     authorName: (row.author_name as string) ?? undefined,
+    images: (row.images as string[]) ?? [],
   };
 }
 
@@ -43,6 +45,9 @@ export default function AnnouncementsPage() {
   const [formBody, setFormBody] = useState("");
   const [formImportant, setFormImportant] = useState(false);
   const [formSaving, setFormSaving] = useState(false);
+  const [formImages, setFormImages] = useState<string[]>([]); // 업로드 완료된 URL 목록
+  const [imageUploading, setImageUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function reload() {
     const rows = await fetch("/api/announcements").then((r) => r.ok ? r.json() : []).catch(() => []);
@@ -69,6 +74,7 @@ export default function AnnouncementsPage() {
     setFormTitle("");
     setFormBody("");
     setFormImportant(false);
+    setFormImages([]);
     setFormOpen(true);
   }
 
@@ -78,7 +84,22 @@ export default function AnnouncementsPage() {
     setFormTitle(ann.title);
     setFormBody(ann.body ?? "");
     setFormImportant(!!ann.isImportant);
+    setFormImages(ann.images ?? []);
     setFormOpen(true);
+  }
+
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setImageUploading(true);
+    const urls: string[] = [];
+    for (const file of files) {
+      const result = await uploadAnnouncementImage(file);
+      if ("url" in result) urls.push(result.url);
+    }
+    setFormImages((prev) => [...prev, ...urls]);
+    setImageUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleSave() {
@@ -95,13 +116,14 @@ export default function AnnouncementsPage() {
           isImportant: formImportant,
           authorId: currentUserId || null,
           authorName: currentUserName || null,
+          images: formImages,
         }),
       });
     } else {
       await fetch(`/api/announcements/${formId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: formTitle.trim(), body: formBody.trim() || null, isImportant: formImportant }),
+        body: JSON.stringify({ title: formTitle.trim(), body: formBody.trim() || null, isImportant: formImportant, images: formImages }),
       });
       if (selected?.id === formId) setSelected(null);
     }
@@ -188,6 +210,19 @@ export default function AnnouncementsPage() {
             <p className="text-sm text-slate-700 whitespace-pre-wrap leading-7">{selected.body}</p>
           ) : (
             <p className="text-sm text-slate-400">내용이 없습니다.</p>
+          )}
+          {selected.images && selected.images.length > 0 && (
+            <div className="mt-6 grid gap-3 grid-cols-1 sm:grid-cols-2">
+              {selected.images.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={url}
+                    alt={`첨부 이미지 ${i + 1}`}
+                    className="w-full rounded-xl border border-slate-100 object-cover hover:opacity-90 transition-opacity cursor-zoom-in"
+                  />
+                </a>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -317,6 +352,42 @@ export default function AnnouncementsPage() {
                   placeholder="내용을 입력하세요"
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none resize-none leading-relaxed"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600">이미지 첨부</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageSelect}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imageUploading}
+                  className="mt-1 flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <ImagePlus className="size-4" />
+                  {imageUploading ? "업로드 중…" : "이미지 추가"}
+                </button>
+                {formImages.length > 0 && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {formImages.map((url, i) => (
+                      <div key={i} className="relative group">
+                        <img src={url} alt="" className="h-20 w-full rounded-lg object-cover border border-slate-100" />
+                        <button
+                          type="button"
+                          onClick={() => setFormImages((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <label className="flex cursor-pointer items-center gap-2">
                 <input

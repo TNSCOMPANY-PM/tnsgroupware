@@ -60,6 +60,23 @@ export async function uploadApprovalAttachment(userId: string, file: File): Prom
 }
 
 /**
+ * 공지사항 이미지 업로드. 경로: documents/announcements/{timestamp}_{name}
+ */
+export async function uploadAnnouncementImage(file: File): Promise<UploadResult> {
+  const supabase = createClient();
+  if (!supabase.storage) return { error: "Storage not configured" };
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `announcements/${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage.from(DOCUMENTS_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (error) return { error: error.message };
+  const { data: urlData } = supabase.storage.from(DOCUMENTS_BUCKET).getPublicUrl(path);
+  return { url: urlData.publicUrl, path };
+}
+
+/**
  * 버킷 내 파일의 공개 URL 반환 (다운로드/링크용).
  */
 export function getPublicUrl(bucket: string, path: string): string {

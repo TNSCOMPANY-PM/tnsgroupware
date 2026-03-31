@@ -10,6 +10,7 @@ export interface DashboardAnnouncement {
   isImportant: boolean;
   authorId?: string;
   authorName?: string;
+  images?: string[];
 }
 
 function dbRowToAnnouncement(row: Record<string, unknown>): DashboardAnnouncement {
