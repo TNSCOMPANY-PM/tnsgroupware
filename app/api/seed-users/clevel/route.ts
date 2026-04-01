@@ -23,6 +23,9 @@ const CLEVEL_USERS = [
 ];
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   let admin: ReturnType<typeof createAdminClient>;
   try {
     admin = createAdminClient();

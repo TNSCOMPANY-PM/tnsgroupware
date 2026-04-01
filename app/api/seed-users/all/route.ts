@@ -18,6 +18,9 @@ function isValidEmail(email: string): boolean {
  * 주의: 비밀번호를 응답으로 반환하지 않습니다.
  */
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   let supabase;
   try {
     supabase = await createClient();
