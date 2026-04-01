@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized, forbidden, isTeamLeadOrAbove } from "@/utils/apiAuth";
 
 async function notifyPushbullet(title: string, body: string) {
   const apiKey = process.env.PUSHBULLET_API_KEY?.trim();
@@ -17,9 +18,18 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const body = await req.json();
   const { id } = await params;
+
+  // 승인/반려는 팀장 이상만 가능 (본인 취소는 누구나)
+  const isStatusChange = body.status && !["CANCELED", "취소_요청"].includes(body.status);
+  if (isStatusChange && !isTeamLeadOrAbove(session.role)) {
+    return forbidden();
+  }
 
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -72,8 +82,17 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
+
+  // 본인 휴가 또는 팀장 이상만 삭제 가능
+  const { data: leave } = await supabase.from("leave_requests").select("employee_id").eq("id", id).single();
+  if (leave && String(leave.employee_id) !== String(session.employeeId) && !isTeamLeadOrAbove(session.role)) {
+    return forbidden();
+  }
 
   const { error } = await supabase
     .from("leave_requests")

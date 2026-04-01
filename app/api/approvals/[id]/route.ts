@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/auditLog";
+import { getSessionEmployee, unauthorized, forbidden, isTeamLeadOrAbove } from "@/utils/apiAuth";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -97,9 +98,17 @@ async function notifyApprovalResult(approval: Record<string, unknown>, status: "
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
   const body = await req.json();
+
+  // 승인/반려는 팀장 이상만 가능
+  if ((body.status === "approved" || body.status === "rejected") && !isTeamLeadOrAbove(session.role)) {
+    return forbidden();
+  }
 
   const { data: current, error: fetchErr } = await supabase
     .from("approvals")
@@ -170,8 +179,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
+
+  // 본인 결재 또는 팀장 이상만 삭제 가능
+  const { data: approval } = await supabase.from("approvals").select("requester_id").eq("id", id).single();
+  if (approval && String(approval.requester_id) !== String(session.employeeId) && !isTeamLeadOrAbove(session.role)) {
+    return forbidden();
+  }
 
   await supabase.from("finance").delete().eq("approval_id", id);
 
