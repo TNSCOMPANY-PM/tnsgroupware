@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
 import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
 
 /**
  * 신한은행 입금 SMS 웹훅.
  * POST body: { sms_text: string }
+ * Header: Authorization: Bearer {WEBHOOK_SECRET}
  */
 export async function POST(request: Request) {
   try {
+    const webhookSecret = process.env.WEBHOOK_SECRET?.trim();
+    if (webhookSecret) {
+      const auth = request.headers.get("authorization") ?? "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      if (token !== webhookSecret) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
     const body = await request.json().catch(() => ({}));
     const sms_text = typeof body.sms_text === "string" ? body.sms_text : body.smsText ?? "";
     const iden: string | undefined = typeof body.iden === "string" ? body.iden : undefined;
@@ -27,7 +37,7 @@ export async function POST(request: Request) {
       ? `입금자: ${parsed.client_name || ""}${timeTag} pb:${iden}`
       : parsed.time ? `입금자: ${parsed.client_name || ""}${timeTag}` : null;
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // iden 중복 체크: 이미 같은 iden으로 등록된 행이 있으면 스킵
     if (iden) {
