@@ -7,9 +7,13 @@ const fs = require("fs");
 const path = require("path");
 const https = require("https");
 
-const SUPABASE_URL = "https://REDACTED_PROJECT_REF.supabase.co";
-const SUPABASE_ANON_KEY =
-  "REDACTED_ANON_KEY";
+require("dotenv").config({ path: require("path").join(__dirname, "../.env.local") });
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error("❌ .env.local에서 NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 찾을 수 없습니다.");
+  process.exit(1);
+}
 
 const data = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../transactions_2026.json"), "utf8")

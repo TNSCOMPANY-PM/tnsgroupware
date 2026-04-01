@@ -5,10 +5,10 @@ import {
   getMasterCookieName,
 } from "./utils/masterAuth";
 
-const PROTECTED_PATHS = ["/dashboard", "/hr", "/finance", "/goals", "/reports"];
+const PUBLIC_PATHS = ["/login"];
 
-function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PATHS.some(
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );
 }
@@ -19,6 +19,11 @@ export async function proxy(request: NextRequest) {
       request: { headers: request.headers },
     });
 
+    const { pathname } = request.nextUrl;
+
+    // 공개 경로는 통과
+    if (isPublicPath(pathname)) return response;
+
     const masterCookie = request.cookies.get(getMasterCookieName())?.value;
     let isMasterSession = false;
     try {
@@ -27,7 +32,7 @@ export async function proxy(request: NextRequest) {
       // 토큰 검증 실패 시 비마스터로 처리
     }
 
-    if (isProtectedPath(request.nextUrl.pathname) && !isMasterSession) {
+    if (!isMasterSession) {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       if (!url || !key) {
