@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** 당월 YYYY-MM 키 (매출/매입 페이지와 동일한 월 기준) */
 function getCurrentMonthKey(): string {
@@ -51,6 +52,9 @@ function parseMonthParam(value: string | null): string | null {
  */
 export async function GET(request: Request) {
   try {
+    const session = await getSessionEmployee();
+    if (!session) return unauthorized();
+
     const { searchParams } = new URL(request.url);
     const monthParam = parseMonthParam(searchParams.get("month"));
     const monthKey = monthParam ?? getCurrentMonthKey();
@@ -86,10 +90,18 @@ export async function GET(request: Request) {
 
     const margin = revenue - purchase;
 
+    // 이월잔고 가져오기
+    const { data: carryoverSetting } = await supabase
+      .from("finance_settings")
+      .select("value")
+      .eq("key", "survival_carryover")
+      .maybeSingle();
+    const carryover = Number(carryoverSetting?.value ?? 0) || 0;
+
     return NextResponse.json({
       monthlyRevenue: revenue,
       monthlyGrossProfit: margin,
-      survivalBalance: margin,
+      survivalBalance: carryover + margin,
       monthKey,
     });
   } catch (e) {
