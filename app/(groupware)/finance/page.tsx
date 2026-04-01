@@ -66,11 +66,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 
-const SHEET_LABELS = [
-  "26년 3월", "26년 2월", "26년 1월", "25년12월", "25년 11월",
-  "25년 10월", "25년 9월", "25년 8월", "25년 7월", "25년 6월",
-  "25년 5월", "25년 4월", "25년 3월", "25년2월", "25년1월",
-];
+function generateSheetLabels(): string[] {
+  const labels: string[] = [];
+  const now = new Date();
+  // 2025년 1월부터 현재 월까지 생성
+  const start = new Date(2025, 0, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+  for (let d = new Date(end); d >= start; d.setMonth(d.getMonth() - 1)) {
+    labels.push(`${String(d.getFullYear()).slice(2)}년 ${d.getMonth() + 1}월`);
+  }
+  return labels;
+}
+const SHEET_LABELS = generateSheetLabels();
 
 /** "26년 3월" → "2026-03" */
 function sheetLabelToMonthKey(label: string): string {
@@ -253,7 +260,10 @@ export default function FinancePage() {
     return supabaseRef.current;
   }, []);
 
-  const [selectedMonth, setSelectedMonth] = useState("26년 3월");
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${String(now.getFullYear()).slice(2)}년 ${now.getMonth() + 1}월`;
+  });
   const [viewMode, setViewMode] = useState<ViewMode>("ledger");
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [ledgerFilter, setLedgerFilter] = useState<"all" | "pending" | "approved">("all");
@@ -1774,11 +1784,14 @@ export default function FinancePage() {
                       setCarryOverBalance(v);
                     }
                   }}
-                  onBlur={() => {
+                  onBlur={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, "");
+                    const v = raw === "" ? 0 : parseInt(raw, 10);
+                    const val = Number.isFinite(v) ? v : carryOverBalance;
                     fetch("/api/finance/settings", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ key: "survival_carryover", value: String(carryOverBalance) }),
+                      body: JSON.stringify({ key: "survival_carryover", value: String(val) }),
                     }).catch(() => {});
                   }}
                   className="h-8 w-28 text-right text-sm tabular-nums"
