@@ -1,7 +1,11 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
   const body = await req.json() as Record<string, unknown>;
@@ -27,6 +31,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
   const { error } = await supabase

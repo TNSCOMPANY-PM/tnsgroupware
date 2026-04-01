@@ -1,10 +1,15 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized, forbidden, isTeamLeadOrAbove } from "@/utils/apiAuth";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+  if (!isTeamLeadOrAbove(session.role)) return forbidden();
+
   const supabase = createAdminClient();
   const body = await req.json();
   const { id } = await params;
@@ -27,6 +32,10 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+  if (!isTeamLeadOrAbove(session.role)) return forbidden();
+
   const supabase = createAdminClient();
   const { id } = await params;
   const { error } = await supabase.from("announcements").delete().eq("id", id);

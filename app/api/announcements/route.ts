@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized, forbidden, isTeamLeadOrAbove } from "@/utils/apiAuth";
 
 export async function GET() {
   const supabase = createAdminClient();
@@ -12,6 +13,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+  if (!isTeamLeadOrAbove(session.role)) return forbidden();
+
   const supabase = createAdminClient();
   const body = await req.json();
   const id = body.id ?? `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
