@@ -9,7 +9,16 @@ const ALERT_CONFIG: Record<string, { threshold: number; userIds: string[] }> = {
   "티제이웹": { threshold: 365, userIds: ["3"] },
 };
 
-export async function POST() {
+export async function POST(request: Request) {
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  if (cronSecret) {
+    const auth = request.headers.get("authorization") ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (token !== cronSecret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const supabase = await createClient();
 
   const today = new Date();
