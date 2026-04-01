@@ -325,8 +325,11 @@ export default function ApprovalsPage() {
 
   const pendingCount = approvals.filter((a) => a.status === "pending").length;
 
-  // 월 목록 생성 (승인 데이터 기준)
-  const availableMonths = Array.from(new Set(approvals.map((a) => a.created_at.slice(0, 7)))).sort().reverse();
+  // 월 목록 생성 (승인 데이터 기준 + 현재 월 항상 포함)
+  const availableMonths = Array.from(new Set([
+    format(new Date(), "yyyy-MM"),
+    ...approvals.map((a) => a.created_at.slice(0, 7)),
+  ])).sort().reverse();
 
   const openNormalForm = async () => {
     await fetchTemplates();

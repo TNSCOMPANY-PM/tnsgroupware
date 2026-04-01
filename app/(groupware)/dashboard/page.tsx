@@ -173,8 +173,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!currentEmpNumber) return;
     Promise.all([
-      fetch(`/api/bonus/quarterly?empNumber=${currentEmpNumber}`).then((r) => r.ok ? r.json() : null).catch(() => null),
-      isCLevel ? fetch("/api/bonus/quarterly/team").then((r) => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
+      fetch(`/api/bonus/quarterly?empNumber=${currentEmpNumber}`, { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
+      isCLevel ? fetch("/api/bonus/quarterly/team", { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null),
     ]).then(([quarterly, team]) => {
       if (quarterly?.bonusKey) setQuarterlyBonus(quarterly);
       if (team) setTeamBonus(team);

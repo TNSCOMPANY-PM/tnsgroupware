@@ -285,7 +285,7 @@ export function StrategicRoadmapSection({
   const { isCLevel, isTeamLead, currentUserId } = usePermission();
   // 내부에서 독립적으로 월 관리 (prop은 초기값으로만 사용)
   const [activeMonthKey, setActiveMonthKey] = useState(roadmapMonthKey);
-  const [roadmap, setRoadmap] = useState<RoadmapBlock[]>(() => getDefaultRoadmap(activeMonthKey));
+  const [roadmap, setRoadmap] = useState<RoadmapBlock[]>([]);
   const [editingDept, setEditingDept] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -301,7 +301,13 @@ export function StrategicRoadmapSection({
         if (stored && stored.length > 0) {
           setRoadmap(stored);
         } else {
-          setRoadmap(getDefaultRoadmap(activeMonthKey));
+          // 저장된 데이터 없으면 빈 블록으로 초기화
+          setRoadmap([
+            { dept: "쇼핑/플레이스", items: [] },
+            { dept: "쿠팡 & CPC", items: [] },
+            { dept: "티제이웹", items: [] },
+            { dept: "경영지원", items: [] },
+          ]);
         }
       }
     }).finally(() => setLoading(false));
