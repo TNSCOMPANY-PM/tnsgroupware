@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { parseShinhanDepositSms } from "@/lib/shinhanDepositParser";
 import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
 
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // 중복 체크: Pushbullet iden 기준 (description의 pb:XXX 태그)
     // iden이 DB에 없으면 무조건 신규 추가 — 날짜/금액 중복 여부 무관
