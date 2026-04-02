@@ -136,9 +136,49 @@ export async function POST(request: Request) {
       );
     }
 
+    const financeId = data?.id;
+
+    // 청구발행 결재 자동 승인: 입금자명 + 금액이 pending invoice와 매칭되면 자동 승인
+    try {
+      const { data: invoiceApprovals } = await supabase
+        .from("approvals")
+        .select("id, title, amount, account_holder_name, requester_id, requester_name")
+        .eq("type", "invoice")
+        .eq("status", "pending");
+
+      if (invoiceApprovals && invoiceApprovals.length > 0 && parsed.amount > 0) {
+        const depositorName = (mappedClientName ?? parsed.client_name ?? "").toLowerCase();
+        const matched = invoiceApprovals.find((inv: Record<string, unknown>) => {
+          const invAmount = Number(inv.amount);
+          if (invAmount !== parsed.amount) return false;
+          const invDepositor = String(inv.account_holder_name ?? "").toLowerCase();
+          return invDepositor && (depositorName.includes(invDepositor) || invDepositor.includes(depositorName));
+        });
+        if (matched) {
+          // 결재 자동 승인
+          await supabase.from("approvals").update({
+            status: "approved",
+            approver_name: "시스템(자동)",
+            reviewed_at: new Date().toISOString(),
+          }).eq("id", (matched as Record<string, unknown>).id);
+          // finance 행 상태를 completed/매출로 업데이트
+          if (financeId) {
+            await supabase.from("finance").update({
+              status: "completed",
+              category: mappedCategory ?? null,
+              client_name: mappedClientName,
+              approval_id: String((matched as Record<string, unknown>).id),
+            }).eq("id", financeId);
+          }
+        }
+      }
+    } catch {
+      // 자동 승인 실패해도 입금 등록은 유지
+    }
+
     return NextResponse.json({
       ok: true,
-      id: data?.id,
+      id: financeId,
       date: parsed.date,
       amount: parsed.amount,
       client_name: mappedClientName,

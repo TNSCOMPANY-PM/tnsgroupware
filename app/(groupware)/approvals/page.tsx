@@ -48,6 +48,7 @@ type Approval = {
 const APPROVAL_TYPES = [
   { value: "expense",  label: "정산요청",   icon: "💳" },
   { value: "purchase", label: "비품구입",   icon: "🛒" },
+  { value: "invoice",  label: "청구발행",   icon: "🧾" },
   { value: "etc",      label: "기타",       icon: "📄" },
 ];
 
@@ -89,10 +90,11 @@ const TABS = [
 
 /** 탭 내 결재 유형 필터 */
 const TYPE_FILTERS = [
-  { value: "",        label: "전체 유형" },
-  { value: "expense", label: "💳 정산요청" },
+  { value: "",         label: "전체 유형" },
+  { value: "expense",  label: "💳 정산요청" },
   { value: "purchase", label: "🛒 비품구입" },
-  { value: "etc",     label: "📄 기타" },
+  { value: "invoice",  label: "🧾 청구발행" },
+  { value: "etc",      label: "📄 기타" },
 ];
 
 /** 간단 정산 템플릿 (전체 공유, API 저장) */
@@ -139,7 +141,7 @@ export default function ApprovalsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
 
-  // 폼 (정산요청 / 비품구입 / 기타)
+  // 폼 (정산요청 / 비품구입 / 청구발행 / 기타)
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const [form, setForm] = useState({
     type: "expense",
@@ -159,7 +161,22 @@ export default function ApprovalsPage() {
     item_name: "",
     purpose: "",
     ledger_category: "",
+    // 청구발행 전용
+    invoice_company: "",
+    invoice_representative: "",
+    invoice_business_number: "",
+    invoice_address: "",
+    invoice_business_type: "",
+    invoice_business_item: "",
+    invoice_depositor: "",
+    invoice_tax_email: "",
+    invoice_item: "",
   });
+
+  // 청구발행 CRM 클라이언트 검색
+  type InvoiceClient = { id: string; name: string; representative?: string | null; business_number?: string | null; address?: string | null; business_type?: string | null; business_item?: string | null; aliases?: string[] | null; email?: string | null };
+  const [invoiceClients, setInvoiceClients] = useState<InvoiceClient[]>([]);
+  const [showInvoiceClientDrop, setShowInvoiceClientDrop] = useState(false);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -214,7 +231,7 @@ export default function ApprovalsPage() {
     const typeObj = APPROVAL_TYPES.find((t) => t.value === form.type);
     const payload: Record<string, unknown> = {
       type: form.type,
-      title: form.type === "expense" ? form.title.trim() : `${typeObj?.icon ?? ""} ${form.title}`,
+      title: form.type === "expense" ? form.title.trim() : form.type === "invoice" ? `🧾 ${form.invoice_company.trim() || "청구발행"}` : `${typeObj?.icon ?? ""} ${form.title}`,
       content: form.content,
       requester_name: currentUserName,
       requester_id: currentUserId,
@@ -238,6 +255,22 @@ export default function ApprovalsPage() {
       payload.purchase_password = form.purchase_password.trim() || null;
       payload.item_name = form.item_name.trim() || null;
       payload.purpose = form.purpose.trim() || null;
+    }
+    if (form.type === "invoice") {
+      const invoiceData = {
+        company_name: form.invoice_company.trim(),
+        representative: form.invoice_representative.trim(),
+        business_number: form.invoice_business_number.trim(),
+        address: form.invoice_address.trim(),
+        business_type: form.invoice_business_type.trim(),
+        business_item: form.invoice_business_item.trim(),
+        depositor_name: form.invoice_depositor.trim(),
+        tax_email: form.invoice_tax_email.trim(),
+        item_name: form.invoice_item.trim(),
+      };
+      payload.content = JSON.stringify(invoiceData);
+      payload.title = `🧾 ${form.invoice_company.trim() || "청구발행"}`;
+      payload.account_holder_name = form.invoice_depositor.trim() || null;
     }
     const res = await fetch("/api/approvals", {
       method: "POST",
@@ -267,6 +300,15 @@ export default function ApprovalsPage() {
         item_name: "",
         purpose: "",
         ledger_category: "",
+        invoice_company: "",
+        invoice_representative: "",
+        invoice_business_number: "",
+        invoice_address: "",
+        invoice_business_type: "",
+        invoice_business_item: "",
+        invoice_depositor: "",
+        invoice_tax_email: "",
+        invoice_item: "",
       });
       setAttachmentFiles([]);
       if (created?._warning) {
@@ -334,6 +376,10 @@ export default function ApprovalsPage() {
   const openNormalForm = async () => {
     await fetchTemplates();
     await fetchPurchaseTemplates();
+    // CRM 클라이언트 목록 로드 (청구발행 자동완성용)
+    fetch("/api/clients").then((r) => r.json()).then((d) => {
+      if (Array.isArray(d)) setInvoiceClients(d);
+    }).catch(() => {});
     setForm({
       type: "expense",
       title: "",
@@ -352,6 +398,15 @@ export default function ApprovalsPage() {
       item_name: "",
       purpose: "",
       ledger_category: "",
+      invoice_company: "",
+      invoice_representative: "",
+      invoice_business_number: "",
+      invoice_address: "",
+      invoice_business_type: "",
+      invoice_business_item: "",
+      invoice_depositor: "",
+      invoice_tax_email: "",
+      invoice_item: "",
     });
     setAttachmentFiles([]);
     setShowForm(true);
@@ -360,6 +415,13 @@ export default function ApprovalsPage() {
   const openReapplyForm = async (a: Approval) => {
     await fetchTemplates();
     await fetchPurchaseTemplates();
+    fetch("/api/clients").then((r) => r.json()).then((d) => {
+      if (Array.isArray(d)) setInvoiceClients(d);
+    }).catch(() => {});
+    let inv = { company_name: "", representative: "", business_number: "", address: "", business_type: "", business_item: "", depositor_name: "", tax_email: "", item_name: "" };
+    if (a.type === "invoice" && a.content) {
+      try { inv = { ...inv, ...JSON.parse(a.content) }; } catch { /* ignore */ }
+    }
     setForm({
       type: a.type,
       title: a.title,
@@ -378,6 +440,15 @@ export default function ApprovalsPage() {
       purpose: a.purpose ?? "",
       ledger_category: a.ledger_category ?? "",
       date: format(new Date(), "yyyy-MM-dd"),
+      invoice_company: inv.company_name,
+      invoice_representative: inv.representative,
+      invoice_business_number: inv.business_number,
+      invoice_address: inv.address,
+      invoice_business_type: inv.business_type,
+      invoice_business_item: inv.business_item,
+      invoice_depositor: inv.depositor_name,
+      invoice_tax_email: inv.tax_email,
+      invoice_item: inv.item_name,
     });
     setAttachmentFiles([]);
     setDetailItem(null);
@@ -933,6 +1004,113 @@ export default function ApprovalsPage() {
                 </>
               )}
 
+              {form.type === "invoice" && (
+                <>
+                  <div className="relative">
+                    <label className="text-xs font-medium text-slate-600">상호명 *</label>
+                    <input
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                      value={form.invoice_company}
+                      onChange={(e) => {
+                        setForm({ ...form, invoice_company: e.target.value });
+                        setShowInvoiceClientDrop(e.target.value.length > 0);
+                      }}
+                      onBlur={() => setTimeout(() => setShowInvoiceClientDrop(false), 150)}
+                      placeholder="상호명 입력 또는 검색"
+                    />
+                    {showInvoiceClientDrop && (() => {
+                      const q = form.invoice_company.trim().toLowerCase();
+                      const matches = invoiceClients.filter((c) =>
+                        c.name.toLowerCase().includes(q) || (c.aliases ?? []).some((a) => a.toLowerCase().includes(q))
+                      ).slice(0, 8);
+                      return matches.length > 0 ? (
+                        <ul className="absolute left-0 top-full z-30 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+                          {matches.map((c) => (
+                            <li key={c.id}>
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                                onMouseDown={() => {
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    invoice_company: c.name,
+                                    invoice_representative: c.representative ?? "",
+                                    invoice_business_number: c.business_number ?? "",
+                                    invoice_address: c.address ?? "",
+                                    invoice_business_type: c.business_type ?? "",
+                                    invoice_business_item: c.business_item ?? "",
+                                    invoice_depositor: (c.aliases ?? [])[0] ?? c.name,
+                                    invoice_tax_email: c.email ?? "",
+                                  }));
+                                  setShowInvoiceClientDrop(false);
+                                }}
+                              >
+                                <span className="font-medium">{c.name}</span>
+                                {c.business_number && <span className="ml-2 text-xs text-slate-400">{c.business_number}</span>}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null;
+                    })()}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">대표명</label>
+                      <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.invoice_representative} onChange={(e) => setForm({ ...form, invoice_representative: e.target.value })} placeholder="대표자명" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">사업자등록번호</label>
+                      <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.invoice_business_number} onChange={(e) => setForm({ ...form, invoice_business_number: e.target.value })} placeholder="000-00-00000" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">주소</label>
+                    <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                      value={form.invoice_address} onChange={(e) => setForm({ ...form, invoice_address: e.target.value })} placeholder="사업장 주소" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">업태</label>
+                      <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.invoice_business_type} onChange={(e) => setForm({ ...form, invoice_business_type: e.target.value })} placeholder="서비스업" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">종목</label>
+                      <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.invoice_business_item} onChange={(e) => setForm({ ...form, invoice_business_item: e.target.value })} placeholder="IT서비스" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">입금자명</label>
+                      <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.invoice_depositor} onChange={(e) => setForm({ ...form, invoice_depositor: e.target.value })} placeholder="입금자명 (SMS 매칭용)" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">세금계산서 이메일</label>
+                      <input type="email" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.invoice_tax_email} onChange={(e) => setForm({ ...form, invoice_tax_email: e.target.value })} placeholder="tax@example.com" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">품목</label>
+                    <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                      value={form.invoice_item} onChange={(e) => setForm({ ...form, invoice_item: e.target.value })} placeholder="청구 품목명" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">금액 (원) *</label>
+                    <input type="text" inputMode="numeric" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none tabular-nums"
+                      value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, "") })} placeholder="0" />
+                  </div>
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    💡 신청 시 박재민님께 알림이 발송됩니다. 입금 확인 시 원장에 자동 등록됩니다.
+                  </div>
+                </>
+              )}
+
               {form.type === "etc" && (
                 <>
                   <div>
@@ -951,7 +1129,7 @@ export default function ApprovalsPage() {
             </div>
             <div className="shrink-0 border-t border-slate-100 px-6 py-4 flex justify-end gap-2">
               <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">취소</button>
-              <button type="button" onClick={submitForm} disabled={!form.title.trim() || uploading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
+              <button type="button" onClick={submitForm} disabled={(form.type === "invoice" ? !form.invoice_company.trim() || !form.amount : !form.title.trim()) || uploading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
                 {uploading ? "업로드 중…" : "신청"}
               </button>
             </div>
@@ -1118,6 +1296,24 @@ export default function ApprovalsPage() {
                   {detailItem.amount != null && <div className="flex justify-between"><span className="text-slate-500">금액</span><span className="font-semibold">{Number(detailItem.amount).toLocaleString()}원</span></div>}
                 </>
               )}
+              {detailItem.type === "invoice" && (() => {
+                let inv: Record<string, string> = {};
+                try { inv = detailItem.content ? JSON.parse(detailItem.content) : {}; } catch { /* ignore */ }
+                return (
+                  <>
+                    {detailItem.amount != null && <div className="flex justify-between"><span className="text-slate-500">금액</span><span className="font-semibold">{Number(detailItem.amount).toLocaleString()}원</span></div>}
+                    {inv.company_name && <div className="flex justify-between"><span className="text-slate-500">상호명</span><span>{inv.company_name}</span></div>}
+                    {inv.representative && <div className="flex justify-between"><span className="text-slate-500">대표명</span><span>{inv.representative}</span></div>}
+                    {inv.business_number && <div className="flex justify-between"><span className="text-slate-500">사업자번호</span><span>{inv.business_number}</span></div>}
+                    {inv.address && <div className="flex justify-between"><span className="text-slate-500">주소</span><span className="text-right max-w-[60%]">{inv.address}</span></div>}
+                    {inv.business_type && <div className="flex justify-between"><span className="text-slate-500">업태</span><span>{inv.business_type}</span></div>}
+                    {inv.business_item && <div className="flex justify-between"><span className="text-slate-500">종목</span><span>{inv.business_item}</span></div>}
+                    {inv.depositor_name && <div className="flex justify-between"><span className="text-slate-500">입금자명</span><span>{inv.depositor_name}</span></div>}
+                    {inv.tax_email && <div className="flex justify-between"><span className="text-slate-500">세금계산서 이메일</span><span>{inv.tax_email}</span></div>}
+                    {inv.item_name && <div className="flex justify-between"><span className="text-slate-500">품목</span><span>{inv.item_name}</span></div>}
+                  </>
+                );
+              })()}
               {detailItem.type === "etc" && (
                 <>
                   {detailItem.amount != null && <div className="flex justify-between"><span className="text-slate-500">금액</span><span className="font-semibold">{Number(detailItem.amount).toLocaleString()}원</span></div>}
