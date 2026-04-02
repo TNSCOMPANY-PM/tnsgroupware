@@ -190,11 +190,12 @@ export default function CoworkDetailPage() {
     const idx = cols.indexOf(task.status);
     const newStatus = dir === "next" ? cols[idx + 1] : cols[idx - 1];
     if (!newStatus) return;
-    await fetch(`/api/cowork/${id}/tasks/${task.id}`, {
+    const res = await fetch(`/api/cowork/${id}/tasks/${task.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus as Task["status"] } : t));
+    if (res.ok) setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus as Task["status"] } : t));
+    else alert("이동 실패");
   };
 
   const addTask = async (status: string) => {
@@ -859,9 +860,9 @@ function TaskDetailModal({ task, tasks, members, comments, coworkId, isMember, c
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, assignee_id: assignee?.employee_id, depends_on: deps }),
     });
-    if (res.ok) { const updated = await res.json(); onUpdate({ ...task, ...updated, depends_on: deps }); }
+    if (res.ok) { const updated = await res.json(); onUpdate({ ...task, ...updated, depends_on: deps }); onClose(); }
+    else { const err = await res.json().catch(() => ({})); alert(err.error || "저장 실패"); }
     setSaving(false);
-    onClose();
   };
 
   const sendComment = async () => {
