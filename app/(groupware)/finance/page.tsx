@@ -1603,7 +1603,7 @@ export default function FinancePage() {
             open={!!receiptTarget}
             onOpenChange={(o) => { if (!o) setReceiptTarget(null); }}
             financeId={receiptTarget.id}
-            amount={Number(receiptTarget.amount)}
+            amount={receiptTarget.type === "매입" || receiptTarget.type === "WITHDRAWAL" ? -Number(receiptTarget.amount) : Number(receiptTarget.amount)}
             clientName={receiptTarget.client_name ?? ""}
             date={receiptTarget.date ?? receiptTarget.month}
             initialData={receiptTarget.receipt_data}
