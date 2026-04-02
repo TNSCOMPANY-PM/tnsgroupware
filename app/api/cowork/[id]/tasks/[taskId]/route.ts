@@ -53,16 +53,30 @@ export async function PATCH(
     priority?: "low" | "normal" | "high";
     due_date?: string;
     order_index?: number;
+    depends_on?: string[];
   };
+
+  // depends_on은 별도 테이블이므로 분리
+  const { depends_on, ...updateFields } = body;
 
   const { data: task, error } = await supabase
     .from("cowork_tasks")
-    .update(body)
+    .update(updateFields)
     .eq("id", taskId)
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // 의존성 업데이트
+  if (depends_on !== undefined) {
+    await supabase.from("cowork_task_deps").delete().eq("task_id", taskId);
+    if (depends_on.length > 0) {
+      await supabase.from("cowork_task_deps").insert(
+        depends_on.map((depId: string) => ({ task_id: taskId, depends_on_id: depId }))
+      );
+    }
+  }
 
   if (body.status && existingTask && body.status !== existingTask.status) {
     await logActivity(supabase, id, String(session.employeeId), session.name, "task_moved", task.title);
