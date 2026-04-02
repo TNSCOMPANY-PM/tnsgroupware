@@ -854,10 +854,26 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     const url = args.url as string;
     if (!url) return "URL이 필요합니다.";
     try {
-      const res = await fetch(url, { headers: { Accept: "text/plain,text/html,*/*" } });
+      const res = await fetch(url);
       if (!res.ok) return `문서를 가져올 수 없습니다 (${res.status}).`;
       const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("pdf")) return "PDF 파일은 텍스트 추출이 지원되지 않습니다. 파일명과 URL만 참고하세요.";
+      const lowerUrl = url.toLowerCase();
+
+      // .docx 파일 처리
+      if (lowerUrl.includes(".docx") || contentType.includes("openxmlformats-officedocument")) {
+        const mammoth = await import("mammoth");
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const result = await mammoth.extractRawText({ buffer });
+        const text = result.value.slice(0, 8000);
+        return text.length < result.value.length ? text + "\n\n...(이하 생략)" : text;
+      }
+
+      // .xlsx/.pptx 등 바이너리
+      if (contentType.includes("pdf") || contentType.includes("octet-stream") || lowerUrl.match(/\.(pdf|xlsx|pptx|zip|png|jpg|gif)$/)) {
+        return `바이너리 파일이라 텍스트 추출이 불가합니다. 파일명: ${url.split("/").pop()}`;
+      }
+
+      // 텍스트 기반
       const text = await res.text();
       const trimmed = text.slice(0, 8000);
       return trimmed.length < text.length ? trimmed + "\n\n...(이하 생략)" : trimmed;
