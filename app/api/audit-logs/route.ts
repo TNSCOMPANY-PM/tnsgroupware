@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   const session = await getSessionEmployee();
   if (!session) return unauthorized();
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { searchParams } = new URL(req.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 200);
   const targetType = searchParams.get("target_type");

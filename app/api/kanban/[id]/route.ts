@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 function isTableMissing(e: unknown): boolean {
@@ -8,7 +8,7 @@ function isTableMissing(e: unknown): boolean {
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { id } = await params;
     const body = await req.json();
     const { data, error } = await supabase
@@ -41,7 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { id } = await params;
     const { error } = await supabase.from("kanban_cards").delete().eq("id", id);
     if (error) {

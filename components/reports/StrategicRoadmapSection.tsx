@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label";
 import { usePermission } from "@/contexts/PermissionContext";
 import { Pencil, Check, X, Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 
-/** 팀장 userId → 담당 로드맵 부서 (김동균 3, 김정섭 5, 박재민 6) */
-const TEAM_LEAD_TO_ROADMAP_DEPT: Record<string, string> = {
-  "3": "티제이웹",
-  "5": "쇼핑/플레이스",
-  "6": "경영지원",
+/** 팀장 userId → 수정 가능한 로드맵 부서 목록 */
+const TEAM_LEAD_TO_ROADMAP_DEPT: Record<string, string[]> = {
+  "d02fd372-5869-4b17-afc6-a7b19e687621": ["티제이웹"],                       // 김동균
+  "5e9b0118-b22f-4255-80db-00d2ef6cf327": ["쇼핑/플레이스", "쿠팡 & CPC"],    // 김정섭
+  "26324355-dd18-438c-9e92-6f9fd66a9b45": ["경영지원"],                        // 박재민
 };
 
 const ROADMAP_STORAGE_KEY = "groupware-reports-roadmap";
@@ -316,7 +316,7 @@ export function StrategicRoadmapSection({
   const canEditDept = (dept: string) => {
     if (isCLevel) return true;
     if (!isTeamLead) return false;
-    return TEAM_LEAD_TO_ROADMAP_DEPT[currentUserId] === dept;
+    return TEAM_LEAD_TO_ROADMAP_DEPT[currentUserId]?.includes(dept) ?? false;
   };
 
   const handleSave = (dept: string, items: RoadmapItem[]) => {

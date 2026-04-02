@@ -1,9 +1,9 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 /** 템플릿 수정 (이름 등) */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { id } = await params;
   const body = await req.json();
   const allowed = [
@@ -33,7 +33,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 /** 템플릿 삭제 */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { id } = await params;
   const { error } = await supabase.from("approval_settlement_templates").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

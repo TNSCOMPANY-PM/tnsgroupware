@@ -171,9 +171,7 @@ function roadmapBlocksToEpics(
         progress: o?.progress !== undefined ? Math.min(100, Math.max(0, o.progress)) : 0,
       });
     }
-    if (subTasks.length > 0) {
-      epics.push({ id: `roadmap-epic-${dept}`, name: dept, team, subTasks });
-    }
+    epics.push({ id: `roadmap-epic-${dept}`, name: dept, team, subTasks });
   }
   return epics;
 }

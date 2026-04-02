@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "id가 없습니다." }, { status: 400 });
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("finance")
     .select("receipt_data")
@@ -22,10 +26,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSessionEmployee();
+    if (!session) return unauthorized();
+
     const { id } = await params;
     if (!id) return NextResponse.json({ ok: false, error: "id가 없습니다." }, { status: 400 });
     const body = await request.json().catch(() => ({}));
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { error } = await supabase.from("finance").update(body).eq("id", id);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
@@ -40,12 +47,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSessionEmployee();
+    if (!session) return unauthorized();
+
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ ok: false, error: "id가 없습니다." }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { error } = await supabase.from("finance").delete().eq("id", id);
 
     if (error) {
