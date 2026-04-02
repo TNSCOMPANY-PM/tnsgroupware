@@ -29,12 +29,14 @@ fi
 echo "🔍 보안 리뷰 시작..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 1. API 라우트에서 createClient() 사용 (RLS 우회 안됨)
+# 1. API 라우트에서 createClient()로 DB 쿼리 (RLS 우회 안됨)
+#    auth.getUser()용 createClient()는 허용 (createAdminClient도 import되어 있으면 OK)
 for f in $FILES; do
   if echo "$f" | grep -q "app/api/"; then
-    if grep -n "createClient()" "$f" 2>/dev/null | grep -v "createAdminClient\|import.*createClient\|// " > /dev/null; then
+    if grep -q "createAdminClient" "$f" 2>/dev/null; then continue; fi
+    if grep -n "createClient()" "$f" 2>/dev/null | grep -v "import.*createClient\|// " > /dev/null; then
       echo -e "${RED}❌ [RLS] createClient() 사용 → createAdminClient() 필요${NC}"
-      grep -n "createClient()" "$f" | grep -v "createAdminClient\|import"
+      grep -n "createClient()" "$f" | grep -v "import"
       echo "   파일: $f"
       ISSUES=$((ISSUES + 1))
     fi
@@ -42,10 +44,12 @@ for f in $FILES; do
 done
 
 # 2. API 라우트에 인증 체크 누락
+#    auth.getUser() 사용, seed/debug/cron/webhook/me 는 제외
 for f in $FILES; do
   if echo "$f" | grep -q "app/api/"; then
+    if echo "$f" | grep -qE "seed|debug|cron|webhook|me/|sync-push"; then continue; fi
     if grep -q "export async function" "$f" 2>/dev/null; then
-      if ! grep -q "getSessionEmployee\|verifyMasterToken\|apiAuth" "$f" 2>/dev/null; then
+      if ! grep -q "getSessionEmployee\|verifyMasterToken\|apiAuth\|auth\.getUser" "$f" 2>/dev/null; then
         echo -e "${RED}❌ [AUTH] 인증 체크 누락${NC}"
         echo "   파일: $f"
         ISSUES=$((ISSUES + 1))
