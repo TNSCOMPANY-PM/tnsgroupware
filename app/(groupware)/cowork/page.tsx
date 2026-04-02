@@ -25,6 +25,7 @@ type CoworkCard = {
   title: string;
   description?: string;
   creator_name: string;
+  created_by?: string;
   created_at: string;
   member_count: number;
   members: CoworkMember[];
@@ -492,12 +493,15 @@ export default function CoworkPage() {
                 key={cw.id}
                 cowork={cw}
                 onClick={() => router.push(`/cowork/${cw.id}`)}
-                isOwner={cw.members?.some(m => m.employee_id === currentUserId && m.role === "owner") ?? false}
+                isOwner={
+                  (cw.members?.some(m => m.employee_id === currentUserId && m.role === "owner") ?? false)
+                  || cw.created_by === currentUserId
+                }
                 onDelete={async () => {
                   if (!confirm(`"${cw.title}" 코워크를 삭제하시겠습니까?`)) return;
                   const res = await fetch(`/api/cowork/${cw.id}`, { method: "DELETE" });
                   if (res.ok) fetchCoworks();
-                  else alert("삭제 실패");
+                  else { const err = await res.json().catch(() => ({})); alert(err.error || "삭제 실패"); }
                 }}
               />
             ))}

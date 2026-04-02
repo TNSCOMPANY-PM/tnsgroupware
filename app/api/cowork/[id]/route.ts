@@ -91,7 +91,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     .eq("employee_id", session.userId)
     .single();
 
-  if (!member || member.role !== "owner") return forbidden();
+  const { data: cowork } = await supabase
+    .from("coworks")
+    .select("created_by")
+    .eq("id", id)
+    .single();
+
+  const isOwner = member?.role === "owner" || cowork?.created_by === session.userId;
+  if (!isOwner) return forbidden();
 
   const { error } = await supabase.from("coworks").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
