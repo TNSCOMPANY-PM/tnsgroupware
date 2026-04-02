@@ -384,6 +384,15 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
       }, required: ["client_id"]},
     },
   },
+  {
+    type: "function", function: {
+      name: "fetch_document_content",
+      description: "URL에서 문서 내용(텍스트)을 가져옵니다. 코워크 문서 파일이나 외부 링크의 내용을 읽어 분석할 때 사용합니다.",
+      parameters: { type: "object", properties: {
+        url: { type: "string", description: "문서 URL" },
+      }, required: ["url"]},
+    },
+  },
 ];
 
 // ── 툴 실행 ───────────────────────────────────────────────────────────────────
@@ -839,6 +848,22 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     const { error } = await supabase.from("clients").delete().eq("id", args.client_id as string);
     if (error) return `삭제 실패: ${error.message}`;
     return `✅ 고객사가 삭제되었습니다.`;
+  }
+
+  if (name === "fetch_document_content") {
+    const url = args.url as string;
+    if (!url) return "URL이 필요합니다.";
+    try {
+      const res = await fetch(url, { headers: { Accept: "text/plain,text/html,*/*" } });
+      if (!res.ok) return `문서를 가져올 수 없습니다 (${res.status}).`;
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("pdf")) return "PDF 파일은 텍스트 추출이 지원되지 않습니다. 파일명과 URL만 참고하세요.";
+      const text = await res.text();
+      const trimmed = text.slice(0, 8000);
+      return trimmed.length < text.length ? trimmed + "\n\n...(이하 생략)" : trimmed;
+    } catch (e) {
+      return `문서 접근 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`;
+    }
   }
 
   return "알 수 없는 툴입니다.";
