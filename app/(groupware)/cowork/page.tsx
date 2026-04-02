@@ -30,6 +30,7 @@ type CoworkCard = {
   member_count: number;
   members: CoworkMember[];
   task_counts: { todo: number; in_progress: number; done: number };
+  my_pending_requests?: number;
 };
 
 type Employee = { id: string; name: string };
@@ -163,8 +164,13 @@ function CoworkCardItem({ cowork, onClick, onDelete, isOwner }: { cowork: Cowork
   return (
     <div
       onClick={onClick}
-      className="group text-left bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-md hover:border-blue-200 transition-all duration-200 flex flex-col gap-4 cursor-pointer"
+      className="group relative text-left bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-md hover:border-blue-200 transition-all duration-200 flex flex-col gap-4 cursor-pointer"
     >
+      {(cowork.my_pending_requests ?? 0) > 0 && (
+        <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold shadow-sm">
+          {cowork.my_pending_requests}
+        </span>
+      )}
       {/* Title + arrow */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
