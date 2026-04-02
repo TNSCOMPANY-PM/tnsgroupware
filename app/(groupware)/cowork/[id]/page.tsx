@@ -946,6 +946,7 @@ function AddMemberModal({ open, onClose, employees, members, coworkId, onAdded, 
               <button key={e.id} onClick={async () => {
                 const res = await fetch(`/api/cowork/${coworkId}/members`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({employee_id:e.id,employee_name:e.name}) });
                 if (res.ok) { const m = await res.json(); onAdded(m); }
+                else { const err = await res.json().catch(() => ({})); alert(err.error || `추가 실패 (${res.status})`); }
               }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 text-sm text-left">
                 <Avatar name={e.name} />{e.name}
               </button>
