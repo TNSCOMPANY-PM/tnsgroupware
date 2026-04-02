@@ -11,6 +11,8 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 import { uploadDocument } from "@/utils/supabase/storage";
+import { type CalendarLeaveEvent } from "@/constants/leaveSchedule";
+import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -126,6 +128,10 @@ export default function CoworkDetailPage() {
   const [addingTaskCol, setAddingTaskCol] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
 
+  // 연차
+  const [leaveEvents, setLeaveEvents] = useState<CalendarLeaveEvent[]>([]);
+  const [showLeave, setShowLeave] = useState(false);
+
   // AI chat
   type AiMsg = { role: "user" | "assistant"; content: string };
   const [aiMessages, setAiMessages] = useState<AiMsg[]>([]);
@@ -176,6 +182,7 @@ export default function CoworkDetailPage() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
     fetch("/api/employees").then(r => r.ok ? r.json() : []).then(d => setEmployees(Array.isArray(d) ? d : []));
+    fetch("/api/leave-events").then(r => r.ok ? r.json() : []).then(d => setLeaveEvents(Array.isArray(d) ? d : []));
   }, []);
 
   // Fetch comments for task modal
@@ -466,7 +473,17 @@ export default function CoworkDetailPage() {
               <span className="text-base font-semibold text-slate-800">{format(calMonth,"yyyy년 M월",{locale:ko})}</span>
               <button onClick={() => setCalMonth(m => addMonths(m,1))} className="p-1.5 rounded-md hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
             </div>
-            {isMember && <Button size="sm" onClick={() => setAddScheduleOpen(true)}><Plus className="h-4 w-4 mr-1"/>일정추가</Button>}
+            <div className="flex items-center gap-2">
+              <button
+                onMouseDown={() => setShowLeave(true)} onMouseUp={() => setShowLeave(false)}
+                onMouseLeave={() => setShowLeave(false)} onTouchStart={() => setShowLeave(true)} onTouchEnd={() => setShowLeave(false)}
+                className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all select-none",
+                  showLeave ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                )}>
+                <Eye className="h-4 w-4" /> 연차보기
+              </button>
+              {isMember && <Button size="sm" onClick={() => setAddScheduleOpen(true)}><Plus className="h-4 w-4 mr-1"/>일정추가</Button>}
+            </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
             <div className="grid grid-cols-7 border-b border-slate-200">
@@ -499,6 +516,18 @@ export default function CoworkDetailPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />{t.title}
                         </div>
                       ))}
+                      {showLeave && isCurrentMonth && (() => {
+                        const lvs = leaveEvents.filter(e => {
+                          const d = new Date(dayStr);
+                          return d >= new Date(e.startDate) && d <= new Date(e.endDate);
+                        });
+                        if (!lvs.length) return null;
+                        return lvs.map(lv => (
+                          <div key={lv.id} className="truncate rounded px-1 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border-l-2 border-emerald-500">
+                            {lv.userName} {lv.leaveType === "annual" ? "연차" : lv.leaveType === "half_am" ? "오전반차" : lv.leaveType === "half_pm" ? "오후반차" : "휴가"}
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
                 );
