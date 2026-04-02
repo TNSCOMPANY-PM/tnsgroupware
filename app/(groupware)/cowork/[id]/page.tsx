@@ -6,10 +6,11 @@ import {
   ArrowLeft, Bell, Plus, X, ChevronLeft, ChevronRight,
   FileText, Link as LinkIcon, Trash2, AlertTriangle,
   CheckCircle2, Clock, Users, MessageCircle, Send,
-  ArrowRight, Pencil, Check
+  ArrowRight, Pencil, Check, Upload, Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
+import { uploadDocument } from "@/utils/supabase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -543,11 +544,54 @@ export default function CoworkDetailPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-slate-700">파일</h2>
+              {isMember && (
+                <label className="cursor-pointer">
+                  <input type="file" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const result = await uploadDocument(currentUserId ?? "", file);
+                    if ("error" in result) { alert(result.error); return; }
+                    const res = await fetch(`/api/cowork/${id}/documents`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: "file", file_name: file.name, file_url: result.url }),
+                    });
+                    if (res.ok) { const doc = await res.json(); setDocuments(prev => [doc, ...prev]); }
+                    e.target.value = "";
+                  }} />
+                  <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">
+                    <Upload className="h-4 w-4" />파일 업로드
+                  </span>
+                </label>
+              )}
             </div>
-            <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
-              <FileText className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">파일 업로드 준비 중입니다</p>
-            </div>
+            {documents.filter(d => d.type === "file").length === 0
+              ? <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
+                  <Upload className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">파일을 업로드하세요</p>
+                </div>
+              : <div className="space-y-2">
+                  {documents.filter(d => d.type === "file").map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 group">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <FileText className="h-4 w-4 text-slate-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{doc.file_name}</p>
+                          <p className="text-xs text-slate-400">{doc.uploader_name} · {format(parseISO(doc.created_at), "MM.dd", { locale: ko })}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <a href={doc.file_url ?? ""} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-600">
+                          <Download className="h-4 w-4" />
+                        </a>
+                        {isMember && <button onClick={async () => {
+                          await fetch(`/api/cowork/${id}/documents?doc_id=${doc.id}`, { method: "DELETE" });
+                          setDocuments(prev => prev.filter(d => d.id !== doc.id));
+                        }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            }
           </div>
         </div>
       )}
@@ -678,6 +722,7 @@ export default function CoworkDetailPage() {
               setAiLoading(true);
               setTimeout(() => aiScrollRef.current?.scrollTo({ top: aiScrollRef.current.scrollHeight, behavior: "smooth" }), 50);
               try {
+                const docList = documents.map(d => d.type === "file" ? `[파일] ${d.file_name} (${d.file_url})` : `[링크] ${d.link_title ?? d.link_url} (${d.link_url})`).join("\n");
                 const coworkContext = `[코워크 프로젝트 컨텍스트]
 프로젝트명: ${cowork?.title ?? ""}
 설명: ${cowork?.description ?? ""}
@@ -685,6 +730,7 @@ export default function CoworkDetailPage() {
 태스크 현황: 할일 ${tasks.filter(t=>t.status==="todo").length}개, 진행중 ${tasks.filter(t=>t.status==="in_progress").length}개, 완료 ${tasks.filter(t=>t.status==="done").length}개
 태스크 목록: ${tasks.map(t => `[${STATUS_LABEL[t.status]}] ${t.title}${t.assignee_name ? ` (${t.assignee_name})` : ""}${t.due_date ? ` 마감:${t.due_date}` : ""}`).join(" / ")}
 업무요청: ${requests.filter(r=>r.status==="pending").length}개 대기중
+문서: ${docList || "없음"}
 메모: ${memo}`;
                 const res = await fetch("/api/chat", {
                   method: "POST",
