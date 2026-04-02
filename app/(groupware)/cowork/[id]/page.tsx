@@ -97,7 +97,7 @@ export default function CoworkDetailPage() {
   const router = useRouter();
   const { currentUserId, currentUserName } = usePermission();
 
-  const [tab, setTab] = useState<"overview" | "kanban" | "calendar" | "docs" | "requests">("overview");
+  const [tab, setTab] = useState<"overview" | "kanban" | "calendar" | "docs" | "requests" | "ai">("overview");
   const [loading, setLoading] = useState(true);
 
   const [cowork, setCowork] = useState<Cowork | null>(null);
@@ -124,6 +124,13 @@ export default function CoworkDetailPage() {
   // Inline add task
   const [addingTaskCol, setAddingTaskCol] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+
+  // AI chat
+  type AiMsg = { role: "user" | "assistant"; content: string };
+  const [aiMessages, setAiMessages] = useState<AiMsg[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiScrollRef = useRef<HTMLDivElement>(null);
 
   // Memo
   const [memo, setMemo] = useState("");
@@ -285,12 +292,12 @@ export default function CoworkDetailPage() {
 
       {/* ── Tabs ── */}
       <div className="mb-6 border-b border-slate-200 flex gap-1">
-        {(["overview","kanban","calendar","docs","requests"] as const).map(t => (
+        {(["overview","kanban","calendar","docs","requests","ai"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               tab === t ? "border-blue-500 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
             )}>
-            {{ overview:"개요", kanban:"칸반", calendar:"캘린더", docs:"문서", requests:"업무요청" }[t]}
+            {{ overview:"개요", kanban:"칸반", calendar:"캘린더", docs:"문서", requests:"업무요청", ai:"AI 어시스턴트" }[t]}
           </button>
         ))}
       </div>
@@ -606,6 +613,101 @@ export default function CoworkDetailPage() {
             {requests.filter(r => requestTab==="received" ? r.to_id===currentUserId : r.from_id===currentUserId).length === 0 && (
               <div className="text-center py-12 text-slate-400 text-sm">요청이 없습니다.</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab: AI 어시스턴트 ── */}
+      {tab === "ai" && (
+        <div className="rounded-xl border border-slate-200 bg-white flex flex-col" style={{ height: "calc(100vh - 280px)" }}>
+          <div className="px-5 py-3 border-b border-slate-200 flex items-center gap-2">
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">AI</div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">코워크 AI 어시스턴트</p>
+              <p className="text-[10px] text-slate-400">프로젝트 맥락을 이해하고 도와줍니다</p>
+            </div>
+          </div>
+          <div ref={aiScrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+            {aiMessages.length === 0 && (
+              <div className="text-center py-12">
+                <div className="h-14 w-14 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🤖</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">AI와 함께 코워크하세요</p>
+                <p className="text-xs text-slate-400 mb-6">프로젝트 현황, 태스크 분석, 아이디어 정리 등</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[
+                    "현재 진행 상황 요약해줘",
+                    "마감 임박 태스크 알려줘",
+                    "이 프로젝트에서 우선순위 정리해줘",
+                    "회의 안건 정리해줘",
+                  ].map(s => (
+                    <button key={s} onClick={() => { setAiInput(s); }} className="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full transition-colors">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiMessages.map((msg, i) => (
+              <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                <div className={cn("max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap",
+                  msg.role === "user" ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-800"
+                )}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {aiLoading && (
+              <div className="flex justify-start">
+                <div className="bg-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-500">
+                  <span className="animate-pulse">생각하는 중...</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="p-3 border-t border-slate-200">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const text = aiInput.trim();
+              if (!text || aiLoading) return;
+              setAiInput("");
+              const userMsg: AiMsg = { role: "user", content: text };
+              const next = [...aiMessages, userMsg];
+              setAiMessages(next);
+              setAiLoading(true);
+              setTimeout(() => aiScrollRef.current?.scrollTo({ top: aiScrollRef.current.scrollHeight, behavior: "smooth" }), 50);
+              try {
+                const coworkContext = `[코워크 프로젝트 컨텍스트]
+프로젝트명: ${cowork?.title ?? ""}
+설명: ${cowork?.description ?? ""}
+멤버: ${members.map(m => m.employee_name).join(", ")}
+태스크 현황: 할일 ${tasks.filter(t=>t.status==="todo").length}개, 진행중 ${tasks.filter(t=>t.status==="in_progress").length}개, 완료 ${tasks.filter(t=>t.status==="done").length}개
+태스크 목록: ${tasks.map(t => `[${STATUS_LABEL[t.status]}] ${t.title}${t.assignee_name ? ` (${t.assignee_name})` : ""}${t.due_date ? ` 마감:${t.due_date}` : ""}`).join(" / ")}
+업무요청: ${requests.filter(r=>r.status==="pending").length}개 대기중
+메모: ${memo}`;
+                const res = await fetch("/api/chat", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    messages: next.map(m => ({
+                      role: m.role,
+                      content: m.role === "user" && m === userMsg ? `${coworkContext}\n\n사용자 질문: ${m.content}` : m.content,
+                    })),
+                    user: { userId: currentUserId, name: currentUserName, role: "코워크" },
+                  }),
+                });
+                const data = await res.json() as { reply?: string };
+                setAiMessages([...next, { role: "assistant", content: data.reply ?? "응답을 받지 못했습니다." }]);
+              } catch {
+                setAiMessages([...next, { role: "assistant", content: "오류가 발생했습니다." }]);
+              }
+              setAiLoading(false);
+              setTimeout(() => aiScrollRef.current?.scrollTo({ top: aiScrollRef.current.scrollHeight, behavior: "smooth" }), 100);
+            }} className="flex gap-2">
+              <Input value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="AI에게 질문하세요..." className="text-sm" disabled={aiLoading} />
+              <Button type="submit" size="sm" disabled={aiLoading || !aiInput.trim()}><Send className="h-4 w-4" /></Button>
+            </form>
           </div>
         </div>
       )}
