@@ -16,11 +16,13 @@ export async function GET() {
 async function notifyApprovalToTeamLead(approval: { title?: string; requester_name?: string; type?: string; amount?: number }) {
   const apiKey = process.env.PUSHBULLET_API_KEY?.trim();
   if (!apiKey) return;
-  const title = "전자결재 새 건";
+  const isInvoice = approval.type === "invoice";
+  const title = isInvoice ? "🧾 청구발행 요청" : "전자결재 새 건";
   const body = [
     approval.requester_name && `요청자: ${approval.requester_name}`,
     approval.title && `제목: ${approval.title}`,
     approval.amount != null && `금액: ${Number(approval.amount).toLocaleString()}원`,
+    isInvoice ? "→ 발행 후 입금 시 원장 자동 등록" : null,
   ].filter(Boolean).join("\n");
   try {
     await fetch("https://api.pushbullet.com/v2/pushes", {
@@ -45,6 +47,7 @@ async function createPendingFinanceFromApproval(
     const amount = Number(approval.amount) || 0;
     if (amount <= 0) return;
     const type = String(approval.type ?? "");
+    // invoice는 매출(수금)이므로 여기서 생성하지 않음 — 입금 시 자동 생성
     if (type !== "expense" && type !== "purchase") return;
 
     const today = new Date().toISOString().slice(0, 10);
@@ -97,6 +100,14 @@ async function insertApprovalAlerts(
 
     if (dongId) {
       rows.push({ target_user_id: dongId, approval_id: approvalId, approval_title: approvalTitle, requester_name: requesterName });
+    }
+    // 청구발행: 박재민에게도 알림
+    if (String(approval.type ?? "") === "invoice") {
+      const { data: jaeminRow } = await supabase.from("employees").select("id").eq("name", "박재민").maybeSingle();
+      const jaeminId = jaeminRow?.id ? String(jaeminRow.id) : null;
+      if (jaeminId && jaeminId !== dongId && jaeminId !== requesterId) {
+        rows.push({ target_user_id: jaeminId, approval_id: approvalId, approval_title: approvalTitle, requester_name: requesterName });
+      }
     }
     // 신청자가 김동균 본인이 아닌 경우에만 추가
     if (requesterId && requesterId !== dongId) {
