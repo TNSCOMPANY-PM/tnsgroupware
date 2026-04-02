@@ -134,8 +134,13 @@ export default function CoworkDetailPage() {
 
   // AI chat
   type AiMsg = { role: "user" | "assistant"; content: string };
-  const [aiMessages, setAiMessages] = useState<AiMsg[]>([]);
+  const aiStorageKey = `cowork-ai-${id}`;
+  const [aiMessages, setAiMessages] = useState<AiMsg[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { const raw = localStorage.getItem(aiStorageKey); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
   const [aiInput, setAiInput] = useState("");
+  useEffect(() => { try { localStorage.setItem(aiStorageKey, JSON.stringify(aiMessages.slice(-60))); } catch {} }, [aiMessages, aiStorageKey]);
   const [aiLoading, setAiLoading] = useState(false);
   const aiScrollRef = useRef<HTMLDivElement>(null);
 
