@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReceiptModal, type ReceiptData } from "@/components/finance/ReceiptModal";
+import { usePermission } from "@/contexts/PermissionContext";
 import {
   Wallet,
   Target,
@@ -254,6 +255,7 @@ interface LedgerRow {
 type ViewMode = "ledger" | "analytics";
 
 export default function FinancePage() {
+  const { currentUserName } = usePermission();
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const getSupabase = useCallback(() => {
     if (!supabaseRef.current) supabaseRef.current = createClient();
@@ -688,15 +690,20 @@ export default function FinancePage() {
         continue;
       }
 
-      // 규칙 ①: finance PAID가 있으면 finance UNMAPPED 제거 (cross-senderName 포함)
+      // 규칙 ①: iden(pb:식별자)이 같은 PAID가 있는 UNMAPPED만 제거
+      //         (날짜·금액이 우연히 동일한 다른 거래는 보호)
       const financePaid = group.filter((r) => r.source === "finance" && r.status === "PAID");
       const financeUnmapped = group.filter((r) => r.source === "finance" && r.status !== "PAID");
       const nonFinance = group.filter((r) => r.source !== "finance");
 
-      // finance PAID가 존재 → finance UNMAPPED 전부 버리고 PAID + non-finance만 남김
-      const candidates = financePaid.length > 0
-        ? [...financePaid, ...nonFinance]
-        : group;
+      const paidIdens = new Set(financePaid.map((r) => extractIden(r)).filter(Boolean));
+      const filteredUnmapped = financeUnmapped.filter((r) => {
+        const iden = extractIden(r);
+        if (!iden) return true; // iden 없으면 다른 거래 — 유지
+        return !paidIdens.has(iden); // iden이 PAID와 다르면 유지
+      });
+
+      const candidates = [...financePaid, ...filteredUnmapped, ...nonFinance];
 
       // 규칙 ②: 남은 항목을 senderName으로 그룹핑 → 다른 입금자는 각각 유지
       const nameGroups = new Map<string, LedgerRow[]>();
@@ -719,9 +726,6 @@ export default function FinancePage() {
         dedupedMonthRows.push(withIden ?? ng[0]);
       }
 
-      // finance PAID가 있었고 finance UNMAPPED가 있었는데 nonFinance가 없으면
-      // financeUnmapped는 이미 제외됨 — 명시적 확인용 (lint 경고 방지)
-      void financeUnmapped;
     }
 
     return [...out, ...dedupedMonthRows].sort((a, b) => {
@@ -997,7 +1001,11 @@ export default function FinancePage() {
     if (row.source === "finance") {
       const body: Record<string, unknown> = {};
       if (patch.amount != null) body.amount = patch.amount;
-      if (patch.date != null) body.date = patch.date;
+      if (patch.date != null) {
+        body.date = patch.date;
+        // date 변경 시 month 컬럼도 동기화 (예: "2026-04-15" → "2026-04")
+        body.month = patch.date.slice(0, 7);
+      }
       if (patch.classification != null) body.category = patch.classification;
       if (patch.clientName != null) body.client_name = patch.clientName;
       if (patch.status != null) body.status = patch.status === "PAID" ? "completed" : "pending";
@@ -1599,6 +1607,7 @@ export default function FinancePage() {
             clientName={receiptTarget.client_name ?? ""}
             date={receiptTarget.date ?? receiptTarget.month}
             initialData={receiptTarget.receipt_data}
+            currentUserName={currentUserName ?? undefined}
             onSaved={(data: ReceiptData) => {
               setFinanceRows((prev) =>
                 prev.map((r) => r.id === receiptTarget.id ? { ...r, receipt_data: data } : r)
@@ -2919,7 +2928,7 @@ const LedgerRowComponent = React.memo(function LedgerRowComponent({
       </td>
       <td className="w-24 px-2 py-2 text-right text-xs tabular-nums text-slate-600 whitespace-nowrap">
         {row.amount ? (
-          <span>{formatWonIntl(amountToSupplyVat(row.amount).supply)}</span>
+          <span>{row.type === "WITHDRAWAL" ? "-" : ""}{formatWonIntl(amountToSupplyVat(row.amount).supply)}</span>
         ) : (
           "-"
         )}
