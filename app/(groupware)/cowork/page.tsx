@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users, CheckSquare, Clock, ChevronRight, Search, X } from "lucide-react";
+import { Plus, Users, CheckSquare, Clock, ChevronRight, Search, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
 import { Button } from "@/components/ui/button";
@@ -157,12 +157,12 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 // ─── Cowork Card ──────────────────────────────────────────────────────────────
 
-function CoworkCardItem({ cowork, onClick }: { cowork: CoworkCard; onClick: () => void }) {
+function CoworkCardItem({ cowork, onClick, onDelete, isOwner }: { cowork: CoworkCard; onClick: () => void; onDelete: () => void; isOwner: boolean }) {
   const { todo, in_progress, done } = cowork.task_counts;
   return (
-    <button
+    <div
       onClick={onClick}
-      className="group text-left bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-md hover:border-blue-200 transition-all duration-200 flex flex-col gap-4"
+      className="group text-left bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-md hover:border-blue-200 transition-all duration-200 flex flex-col gap-4 cursor-pointer"
     >
       {/* Title + arrow */}
       <div className="flex items-start justify-between gap-2">
@@ -174,7 +174,14 @@ function CoworkCardItem({ cowork, onClick }: { cowork: CoworkCard; onClick: () =
             <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{cowork.description}</p>
           )}
         </div>
-        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 shrink-0 mt-0.5 transition-colors" />
+        <div className="flex items-center gap-1 shrink-0">
+          {isOwner && (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 mt-0.5 transition-colors" />
+        </div>
       </div>
 
       {/* Members */}
@@ -207,7 +214,7 @@ function CoworkCardItem({ cowork, onClick }: { cowork: CoworkCard; onClick: () =
         <span>{cowork.creator_name} 생성</span>
         <span>{formatDate(cowork.created_at)}</span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -485,6 +492,13 @@ export default function CoworkPage() {
                 key={cw.id}
                 cowork={cw}
                 onClick={() => router.push(`/cowork/${cw.id}`)}
+                isOwner={cw.members?.some(m => m.employee_id === currentUserId && m.role === "owner") ?? false}
+                onDelete={async () => {
+                  if (!confirm(`"${cw.title}" 코워크를 삭제하시겠습니까?`)) return;
+                  const res = await fetch(`/api/cowork/${cw.id}`, { method: "DELETE" });
+                  if (res.ok) fetchCoworks();
+                  else alert("삭제 실패");
+                }}
               />
             ))}
           </div>

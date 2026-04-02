@@ -23,12 +23,12 @@ import { useSidebar } from "@/contexts/SidebarContext";
 const navItems = [
   { href: "/dashboard",  label: "대시보드", icon: LayoutDashboard },
   { href: "/chat",    label: "AI 채팅",   icon: MessageCircle },
+  { href: "/cowork",     label: "코워크",    icon: FolderKanban },
   { href: "/finance", label: "매출/매입", icon: Wallet },
   { href: "/crm",        label: "고객사 CRM", icon: Building2 },
   { href: "/goals",      label: "목표",      icon: Target },
   { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
   { href: "/approvals",  label: "전자결재",  icon: ClipboardCheck },
-  { href: "/cowork",     label: "코워크",    icon: FolderKanban },
   { href: "/reports",    label: "보고서",    icon: FileBarChart },
   { href: "/hr",         label: "HR",        icon: Users },
 ] as const;
