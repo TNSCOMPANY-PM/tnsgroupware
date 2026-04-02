@@ -27,8 +27,8 @@ export async function GET(
 
   const supabase = createAdminClient();
   let query = supabase.from("cowork_requests").select("*").eq("cowork_id", id).order("created_at", { ascending: false });
-  if (type === "sent") query = query.eq("from_id", session.userId);
-  else if (type === "received") query = query.eq("to_id", session.userId);
+  if (type === "sent") query = query.eq("from_id", String(session.employeeId));
+  else if (type === "received") query = query.eq("to_id", String(session.employeeId));
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,7 +45,7 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", session.userId).single();
+  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", String(session.employeeId)).single();
   if (!member) return forbidden();
 
   const body = await request.json() as { to_id: string; to_name: string; title: string; content?: string; due_date?: string };
@@ -54,7 +54,7 @@ export async function POST(
 
   const { data, error } = await supabase.from("cowork_requests").insert({
     cowork_id: id,
-    from_id: session.userId,
+    from_id: String(session.employeeId),
     from_name: session.name,
     to_id,
     to_name,
@@ -66,7 +66,7 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await supabase.from("cowork_activities").insert({ cowork_id: id, actor_id: session.userId, actor_name: session.name, action: "request_sent", target_title: title });
+  await supabase.from("cowork_activities").insert({ cowork_id: id, actor_id: String(session.employeeId), actor_name: session.name, action: "request_sent", target_title: title });
   await notifyPushbullet(`📋 업무요청: ${title}`, `${session.name}님이 요청을 보냈습니다.\n${content ?? ""}`);
 
   return NextResponse.json(data, { status: 201 });

@@ -26,7 +26,7 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", session.userId).single();
+  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", String(session.employeeId)).single();
   if (!member) return forbidden();
 
   const body = await request.json() as { type: "file" | "link"; file_name?: string; file_url?: string; link_url?: string; link_title?: string };
@@ -37,13 +37,13 @@ export async function POST(
     file_url: body.file_url,
     link_url: body.link_url,
     link_title: body.link_title,
-    uploaded_by: session.userId,
+    uploaded_by: String(session.employeeId),
     uploader_name: session.name,
   }).select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await supabase.from("cowork_activities").insert({ cowork_id: id, actor_id: session.userId, actor_name: session.name, action: "document_uploaded", target_title: body.file_name ?? body.link_title ?? "" });
+  await supabase.from("cowork_activities").insert({ cowork_id: id, actor_id: String(session.employeeId), actor_name: session.name, action: "document_uploaded", target_title: body.file_name ?? body.link_title ?? "" });
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -60,7 +60,7 @@ export async function DELETE(
   if (!docId) return NextResponse.json({ error: "doc_id required" }, { status: 400 });
 
   const supabase = createAdminClient();
-  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", session.userId).single();
+  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", String(session.employeeId)).single();
   if (!member) return forbidden();
 
   const { error } = await supabase.from("cowork_documents").delete().eq("id", docId).eq("cowork_id", id);

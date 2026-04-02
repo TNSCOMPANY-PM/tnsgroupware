@@ -69,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .insert({
       cowork_id: id,
       task_id,
-      author_id: session.userId,
+      author_id: String(session.employeeId),
       author_name: session.name,
       content,
     })
@@ -80,7 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const mentions = parseMentions(content);
   if (mentions.length > 0) {
-    await logActivity(supabase, id, session.userId, session.name, "comment_mention", mentions.join(", "));
+    await logActivity(supabase, id, String(session.employeeId), session.name, "comment_mention", mentions.join(", "));
   }
 
   return NextResponse.json(data, { status: 201 });

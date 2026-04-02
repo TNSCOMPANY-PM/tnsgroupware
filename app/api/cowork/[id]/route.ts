@@ -56,7 +56,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!member) return forbidden();
@@ -72,7 +72,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { data, error } = await supabase.from("coworks").update(updates).eq("id", id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logActivity(supabase, id, session.userId, session.name, "cowork_updated", data.title);
+  await logActivity(supabase, id, String(session.employeeId), session.name, "cowork_updated", data.title);
 
   return NextResponse.json(data);
 }
@@ -88,7 +88,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   const { data: cowork } = await supabase
@@ -97,7 +97,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     .eq("id", id)
     .single();
 
-  const isOwner = member?.role === "owner" || cowork?.created_by === session.userId;
+  const isOwner = member?.role === "owner" || cowork?.created_by === String(session.employeeId);
   if (!isOwner) return forbidden();
 
   const { error } = await supabase.from("coworks").delete().eq("id", id);

@@ -33,7 +33,7 @@ export async function PATCH(
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!member) return forbidden();
@@ -65,9 +65,9 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   if (body.status && existingTask && body.status !== existingTask.status) {
-    await logActivity(supabase, id, session.userId, session.name, "task_moved", task.title);
+    await logActivity(supabase, id, String(session.employeeId), session.name, "task_moved", task.title);
   } else {
-    await logActivity(supabase, id, session.userId, session.name, "task_updated", task.title);
+    await logActivity(supabase, id, String(session.employeeId), session.name, "task_updated", task.title);
   }
 
   return NextResponse.json(task);
@@ -87,7 +87,7 @@ export async function DELETE(
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!member) return forbidden();
@@ -104,7 +104,7 @@ export async function DELETE(
   const { error } = await supabase.from("cowork_tasks").delete().eq("id", taskId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logActivity(supabase, id, session.userId, session.name, "task_deleted", task?.title);
+  await logActivity(supabase, id, String(session.employeeId), session.name, "task_deleted", task?.title);
 
   return NextResponse.json({ ok: true });
 }

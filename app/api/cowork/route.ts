@@ -70,14 +70,14 @@ export async function POST(req: Request) {
 
   const { data: cowork, error } = await supabase
     .from("coworks")
-    .insert({ title, description, created_by: session.userId, creator_name: session.name })
+    .insert({ title, description, created_by: String(session.employeeId), creator_name: session.name })
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const memberInserts = [
-    { cowork_id: cowork.id, employee_id: session.userId, employee_name: session.name, role: "owner" },
+    { cowork_id: cowork.id, employee_id: String(session.employeeId), employee_name: session.name, role: "owner" },
     ...(memberIds ?? []).map((id, i) => ({
       cowork_id: cowork.id,
       employee_id: id,
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
   const { error: memberError } = await supabase.from("cowork_members").insert(memberInserts);
   if (memberError) return NextResponse.json({ error: memberError.message }, { status: 500 });
 
-  await logActivity(supabase, cowork.id, session.userId, session.name, "cowork_created", title);
+  await logActivity(supabase, cowork.id, String(session.employeeId), session.name, "cowork_created", title);
 
   return NextResponse.json(cowork, { status: 201 });
 }
