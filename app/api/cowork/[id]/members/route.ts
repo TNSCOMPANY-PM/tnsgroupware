@@ -44,14 +44,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: ownerCheck } = await supabase
+  const { data: memberCheck } = await supabase
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
     .eq("employee_id", session.userId)
     .single();
 
-  if (!ownerCheck || ownerCheck.role !== "owner") return forbidden();
+  if (!memberCheck) return forbidden();
 
   const body = await req.json() as { employee_id: string; employee_name: string };
   const { employee_id, employee_name } = body;
