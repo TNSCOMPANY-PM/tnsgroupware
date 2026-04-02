@@ -34,14 +34,18 @@ export async function GET() {
 
   const ids = (coworks ?? []).map((c) => c.id);
 
-  const [{ data: members }, { data: tasks }] = await Promise.all([
+  const empId = String(session.employeeId);
+
+  const [{ data: members }, { data: tasks }, { data: requests }] = await Promise.all([
     supabase.from("cowork_members").select("cowork_id, employee_id, employee_name, role").in("cowork_id", ids),
     supabase.from("cowork_tasks").select("cowork_id, status").in("cowork_id", ids),
+    supabase.from("cowork_requests").select("cowork_id, to_id, status").in("cowork_id", ids).eq("to_id", empId).eq("status", "pending"),
   ]);
 
   const result = (coworks ?? []).map((cowork) => {
     const coworkMembers = (members ?? []).filter((m) => m.cowork_id === cowork.id);
     const coworkTasks = (tasks ?? []).filter((t) => t.cowork_id === cowork.id);
+    const pendingRequests = (requests ?? []).filter((r) => r.cowork_id === cowork.id);
     return {
       ...cowork,
       member_count: coworkMembers.length,
@@ -51,6 +55,7 @@ export async function GET() {
         in_progress: coworkTasks.filter((t) => t.status === "in_progress").length,
         done: coworkTasks.filter((t) => t.status === "done").length,
       },
+      my_pending_requests: pendingRequests.length,
     };
   });
 
