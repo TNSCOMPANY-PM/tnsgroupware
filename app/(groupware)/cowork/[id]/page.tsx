@@ -273,7 +273,7 @@ export default function CoworkDetailPage() {
                 {members.slice(0, 5).map(m => <Avatar key={m.id} name={m.employee_name} />)}
                 {members.length > 5 && <span className="text-xs text-slate-500">+{members.length - 5}</span>}
               </div>
-              {isOwner && (
+              {isMember && (
                 <button onClick={() => setAddMemberOpen(true)} className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
                   <Plus className="h-3 w-3" />멤버추가
                 </button>
@@ -754,7 +754,7 @@ export default function CoworkDetailPage() {
       )}
 
       {/* ── Add Member Modal ── */}
-      {isOwner && <AddMemberModal open={addMemberOpen} onClose={() => setAddMemberOpen(false)}
+      {isMember && <AddMemberModal open={addMemberOpen} onClose={() => setAddMemberOpen(false)}
         employees={employees} members={members} coworkId={id}
         onAdded={(m) => setMembers(prev => [...prev, m])}
         onRemoved={(empId) => setMembers(prev => prev.filter(m => m.employee_id !== empId))}
