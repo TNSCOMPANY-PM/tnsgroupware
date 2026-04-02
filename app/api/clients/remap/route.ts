@@ -1,9 +1,9 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
 
 export async function POST() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // 모든 clients 가져오기
   const { data: clients, error: clientsErr } = await supabase

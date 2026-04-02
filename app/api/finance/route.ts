@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 /** 통합 입출금 원장용 finance 목록 (서버에서 Supabase 조회) */
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const allRows: unknown[] = [];
     const PAGE = 1000;
     let from = 0;

@@ -1,8 +1,8 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // finance 테이블에서 client_name별 최신 입금일 직접 집계
   const { data, error } = await supabase

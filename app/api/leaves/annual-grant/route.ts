@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 /**
  * GET /api/leaves/annual-grant
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   if (!joinDate) {
     const userId = searchParams.get("user_id");
     if (userId) {
-      const supabase = await createClient();
+      const supabase = createAdminClient();
       const { data: empData } = await supabase
         .from("employees")
         .select("hire_date")

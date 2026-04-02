@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 type Params = { params: Promise<{ monthKey: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
   try {
     const { monthKey } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("roadmap_data")
       .select("blocks")
@@ -23,7 +23,7 @@ export async function PUT(req: Request, { params }: Params) {
   try {
     const { monthKey } = await params;
     const { blocks } = await req.json();
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { error } = await supabase
       .from("roadmap_data")
       .upsert({ month_key: monthKey, blocks, updated_at: new Date().toISOString() }, { onConflict: "month_key" });

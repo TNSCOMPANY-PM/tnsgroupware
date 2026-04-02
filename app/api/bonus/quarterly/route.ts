@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 // ── 성과급 계산 상수 (reports/page.tsx 와 동일) ──────────────────
@@ -95,7 +95,7 @@ export async function GET(req: Request) {
     monthsInQuarter.push(`${year}-${String(m).padStart(2, "0")}`);
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const monthBonuses: { month: string; bonus: number; grossTotal: number }[] = [];
   let total = 0;
 

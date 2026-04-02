@@ -1,8 +1,8 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("planned_leaves")
     .select("*")
@@ -12,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const body = await req.json();
   const { data, error } = await supabase
     .from("planned_leaves")

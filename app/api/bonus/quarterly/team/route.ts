@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 const BONUS_TARGET_GP = 50_000_000;
@@ -74,7 +74,7 @@ export async function GET() {
     monthsInQuarter.push(`${year}-${String(m).padStart(2, "0")}`);
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // 멤버별 누적 합산
   const memberTotals: Record<BonusKey, number> = { jeongseop: 0, yongjun: 0, gyuseong: 0, donggyun: 0, jaemin: 0 };

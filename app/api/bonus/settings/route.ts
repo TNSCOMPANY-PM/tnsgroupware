@@ -1,9 +1,10 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/auditLog";
+import { getSessionEmployee, unauthorized, forbidden, isCLevel } from "@/utils/apiAuth";
 
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("bonus_settings")
     .select("key, value, label")
@@ -16,7 +17,11 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
-  const supabase = await createClient();
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+  if (!isCLevel(session.role)) return forbidden();
+
+  const supabase = createAdminClient();
   const body = await req.json() as Record<string, number>;
   const errors: string[] = [];
   for (const [key, value] of Object.entries(body)) {

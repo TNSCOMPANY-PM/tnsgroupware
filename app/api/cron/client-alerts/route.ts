@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 // 카테고리별 알림 기준 설정
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);

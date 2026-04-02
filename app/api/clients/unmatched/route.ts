@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 /**
@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
  * client_name별로 집계해 반환합니다.
  */
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("finance")

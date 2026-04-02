@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** 당월 YYYY-MM 키 (매출/매입 페이지와 동일한 월 기준) */
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     const monthParam = parseMonthParam(searchParams.get("month"));
     const monthKey = monthParam ?? getCurrentMonthKey();
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data: rows, error } = await supabase
       .from("finance")
       .select("id, date, month, type, amount, status")

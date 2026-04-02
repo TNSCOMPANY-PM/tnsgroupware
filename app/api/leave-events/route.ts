@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 /**
@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
  * (전사 캘린더, 번아웃 리스크 계산용)
  */
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("leave_requests")
     .select("id, applicant_id, applicant_name, leave_type, start_date, end_date")

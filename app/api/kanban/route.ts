@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 function isTableMissing(e: unknown): boolean {
@@ -8,7 +8,7 @@ function isTableMissing(e: unknown): boolean {
 
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("kanban_cards")
       .select("*")
@@ -37,7 +37,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const body = await req.json();
     const { data, error } = await supabase
       .from("kanban_cards")

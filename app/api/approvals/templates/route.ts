@@ -1,9 +1,9 @@
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 
 /** 전체 공유 간단 정산 템플릿 목록 */
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("approval_settlement_templates")
     .select("*")
@@ -14,7 +14,7 @@ export async function GET() {
 
 /** 새 템플릿 추가 (전체 공유) */
 export async function POST(req: Request) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const body = await req.json();
   const {
     name,
