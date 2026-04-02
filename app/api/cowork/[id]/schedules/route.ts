@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!member) return forbidden();
@@ -76,7 +76,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logActivity(supabase, id, session.userId, session.name, "schedule_created", title);
+  await logActivity(supabase, id, String(session.employeeId), session.name, "schedule_created", title);
 
   return NextResponse.json(data, { status: 201 });
 }

@@ -60,7 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!member) return forbidden();
@@ -101,7 +101,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       status: status ?? "todo",
       priority: priority ?? "normal",
       due_date,
-      created_by: session.userId,
+      created_by: String(session.employeeId),
       creator_name: session.name,
       order_index: orderIndex,
     })
@@ -115,7 +115,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await supabase.from("cowork_task_deps").insert(depInserts);
   }
 
-  await logActivity(supabase, id, session.userId, session.name, "task_created", title);
+  await logActivity(supabase, id, String(session.employeeId), session.name, "task_created", title);
 
   return NextResponse.json({ ...task, depends_on: depends_on ?? [] }, { status: 201 });
 }

@@ -48,13 +48,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!memberCheck) {
     // 생성자인 경우에도 허용
     const { data: cw } = await supabase.from("coworks").select("created_by").eq("id", id).single();
-    if (!cw || cw.created_by !== session.userId) return forbidden();
+    if (!cw || cw.created_by !== String(session.employeeId)) return forbidden();
   }
 
   const body = await req.json() as { employee_id: string; employee_name: string };
@@ -72,7 +72,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logActivity(supabase, id, session.userId, session.name, "member_added", employee_name);
+  await logActivity(supabase, id, String(session.employeeId), session.name, "member_added", employee_name);
 
   return NextResponse.json(data, { status: 201 });
 }
@@ -88,7 +88,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     .from("cowork_members")
     .select("role")
     .eq("cowork_id", id)
-    .eq("employee_id", session.userId)
+    .eq("employee_id", String(session.employeeId))
     .single();
 
   if (!ownerCheck || ownerCheck.role !== "owner") return forbidden();
@@ -113,7 +113,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logActivity(supabase, id, session.userId, session.name, "member_removed", target?.employee_name);
+  await logActivity(supabase, id, String(session.employeeId), session.name, "member_removed", target?.employee_name);
 
   return NextResponse.json({ ok: true });
 }

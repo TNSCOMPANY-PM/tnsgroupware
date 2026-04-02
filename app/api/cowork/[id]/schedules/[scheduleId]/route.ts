@@ -12,7 +12,7 @@ export async function PATCH(
   const { id, scheduleId } = await params;
   const supabase = createAdminClient();
 
-  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", session.userId).single();
+  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", String(session.employeeId)).single();
   if (!member) return forbidden();
 
   const body = await request.json();
@@ -31,7 +31,7 @@ export async function DELETE(
   const { id, scheduleId } = await params;
   const supabase = createAdminClient();
 
-  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", session.userId).single();
+  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", String(session.employeeId)).single();
   if (!member) return forbidden();
 
   const { error } = await supabase.from("cowork_schedules").delete().eq("id", scheduleId).eq("cowork_id", id);
