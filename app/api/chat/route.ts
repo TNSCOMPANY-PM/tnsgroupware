@@ -960,7 +960,7 @@ export async function POST(req: Request) {
 
   for (let i = 0; i < 6; i++) {
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       messages: allMessages,
       tools,
       tool_choice: "auto",
