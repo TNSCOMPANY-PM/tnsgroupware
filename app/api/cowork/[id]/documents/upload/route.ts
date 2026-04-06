@@ -2,6 +2,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized, forbidden } from "@/utils/apiAuth";
 
+// Vercel body 제한 우회: presigned URL로 클라이언트가 직접 Storage에 업로드
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -21,33 +22,31 @@ export async function POST(
 
   if (!member) return forbidden();
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "file required" }, { status: 400 });
+  const body = await request.json() as { file_name: string };
+  const { file_name } = body;
+  if (!file_name) return NextResponse.json({ error: "file_name required" }, { status: 400 });
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `cowork/${id}/${Date.now()}_${safeName}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `cowork/${id}/${Date.now()}_${safeName}`;
 
-  const { error: uploadErr } = await supabase.storage
+  // presigned upload URL 생성 (클라이언트가 이 URL로 직접 PUT)
+  const { data: signedData, error: signErr } = await supabase.storage
     .from("documents")
-    .upload(path, buffer, {
-      contentType: file.type || "application/octet-stream",
-      cacheControl: "3600",
-      upsert: false,
-    });
+    .createSignedUploadUrl(storagePath);
 
-  if (uploadErr) return NextResponse.json({ error: uploadErr.message }, { status: 500 });
+  if (signErr || !signedData) {
+    return NextResponse.json({ error: signErr?.message || "서명 URL 생성 실패" }, { status: 500 });
+  }
 
-  const { data: urlData } = supabase.storage.from("documents").getPublicUrl(path);
+  const { data: urlData } = supabase.storage.from("documents").getPublicUrl(storagePath);
 
-  // DB에 문서 레코드 추가
+  // DB에 문서 레코드 미리 추가
   const { data: doc, error: dbErr } = await supabase
     .from("cowork_documents")
     .insert({
       cowork_id: id,
       type: "file",
-      file_name: file.name,
+      file_name,
       file_url: urlData.publicUrl,
       uploaded_by: String(session.employeeId),
       uploader_name: session.name,
@@ -62,8 +61,13 @@ export async function POST(
     actor_id: String(session.employeeId),
     actor_name: session.name,
     action: "document_uploaded",
-    target_title: file.name,
+    target_title: file_name,
   });
 
-  return NextResponse.json(doc, { status: 201 });
+  return NextResponse.json({
+    ...doc,
+    signed_url: signedData.signedUrl,
+    token: signedData.token,
+    storage_path: storagePath,
+  }, { status: 201 });
 }

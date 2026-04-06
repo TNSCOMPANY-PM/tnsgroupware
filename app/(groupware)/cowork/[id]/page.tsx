@@ -583,11 +583,21 @@ export default function CoworkDetailPage() {
                   <input type="file" className="hidden" onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const res = await fetch(`/api/cowork/${id}/documents/upload`, { method: "POST", body: fd });
-                    if (res.ok) { const doc = await res.json(); setDocuments(prev => [doc, ...prev]); }
-                    else { const err = await res.json().catch(() => ({})); alert(err.error || "업로드 실패"); }
+                    // 1. 서버에서 presigned URL + DB 레코드 생성
+                    const res = await fetch(`/api/cowork/${id}/documents/upload`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ file_name: file.name }),
+                    });
+                    if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || "업로드 준비 실패"); e.target.value = ""; return; }
+                    const doc = await res.json();
+                    // 2. presigned URL로 파일 직접 업로드 (용량 제한 없음)
+                    const uploadRes = await fetch(doc.signed_url, {
+                      method: "PUT",
+                      headers: { "Content-Type": file.type || "application/octet-stream" },
+                      body: file,
+                    });
+                    if (uploadRes.ok) { setDocuments(prev => [doc, ...prev]); }
+                    else { alert("파일 업로드 실패"); }
                     e.target.value = "";
                   }} />
                   <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">
