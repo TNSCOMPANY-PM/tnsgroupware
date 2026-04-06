@@ -289,45 +289,25 @@ export default function GeoPage() {
 
         {/* 우측: 추이 + 직접 확인 */}
         <div className="space-y-6">
-          {/* 추이 */}
+          {/* 추이 — 꺾은선 그래프 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">
               <TrendingUp className="h-4 w-4 inline mr-1" />추이
             </h2>
             {runs.length === 0
               ? <p className="text-xs text-slate-400">체크 기록이 없습니다.</p>
-              : <div className="space-y-3">
-                  <div>
-                    <p className="text-[10px] text-slate-400 mb-1">노출률 (D0~D2)</p>
-                    {[...runs].reverse().map((r) => {
-                      const st = getRunStats(r);
-                      return (
-                        <div key={r.id} className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] text-slate-400 w-12">{r.run_date.slice(5)}</span>
-                          <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                            <div className={cn("h-1.5 rounded-full", st.expScore >= 50 ? "bg-emerald-500" : st.expScore >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.expScore}%` }} />
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-600 w-8 text-right">{st.expScore}%</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 mb-1">정확도 (D3)</p>
-                    {[...runs].reverse().map((r) => {
-                      const st = getRunStats(r);
-                      return (
-                        <div key={r.id} className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] text-slate-400 w-12">{r.run_date.slice(5)}</span>
-                          <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                            <div className={cn("h-1.5 rounded-full", st.avgAcc >= 50 ? "bg-blue-500" : st.avgAcc >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.avgAcc}%` }} />
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-600 w-8 text-right">{st.avgAcc}%</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              : (() => {
+                  const sorted = [...runs].reverse();
+                  const expData = sorted.map(r => getRunStats(r).expScore);
+                  const accData = sorted.map(r => getRunStats(r).avgAcc);
+                  const labels = sorted.map(r => r.run_date.slice(5));
+                  return (
+                    <div className="space-y-4">
+                      <MiniLineChart data={expData} labels={labels} color="#10b981" label="노출률 (D0~D2)" />
+                      <MiniLineChart data={accData} labels={labels} color="#3b82f6" label="정확도 (D3)" />
+                    </div>
+                  );
+                })()
             }
           </div>
 
@@ -570,6 +550,64 @@ function ChatBubble({ item, type }: { item: CheckItem; type: "exposure" | "accur
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniLineChart({ data, labels, color, label }: { data: number[]; labels: string[]; color: string; label: string }) {
+  if (data.length === 0) return null;
+  const W = 280;
+  const H = 100;
+  const PAD_L = 28;
+  const PAD_R = 8;
+  const PAD_T = 8;
+  const PAD_B = 20;
+  const chartW = W - PAD_L - PAD_R;
+  const chartH = H - PAD_T - PAD_B;
+
+  const max = Math.max(...data, 100);
+  const xStep = data.length > 1 ? chartW / (data.length - 1) : 0;
+
+  const points = data.map((v, i) => ({
+    x: PAD_L + i * xStep,
+    y: PAD_T + chartH - (v / max) * chartH,
+    v,
+  }));
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1].x},${PAD_T + chartH} L${points[0].x},${PAD_T + chartH} Z`;
+
+  const latest = data[data.length - 1];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] text-slate-400">{label}</p>
+        <p className="text-xs font-bold" style={{ color }}>{latest}%</p>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+        {/* 가이드 라인 */}
+        {[0, 25, 50, 75, 100].map(v => {
+          const y = PAD_T + chartH - (v / max) * chartH;
+          return (
+            <g key={v}>
+              <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="#e2e8f0" strokeWidth={0.5} />
+              <text x={PAD_L - 4} y={y + 3} textAnchor="end" className="text-[8px] fill-slate-400">{v}</text>
+            </g>
+          );
+        })}
+        {/* 영역 */}
+        <path d={areaPath} fill={color} opacity={0.08} />
+        {/* 선 */}
+        <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {/* 점 + 라벨 */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={3} fill="white" stroke={color} strokeWidth={1.5} />
+            <text x={p.x} y={PAD_T + chartH + 14} textAnchor="middle" className="text-[8px] fill-slate-400">{labels[i]}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
