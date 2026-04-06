@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // 체크 실행 레코드 생성
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-mini" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o" })
     .select()
     .single();
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   for (const prompt of prompts) {
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [{ role: "user", content: prompt.prompt_text }],
         max_tokens: 1000,
         temperature: 0.7,
