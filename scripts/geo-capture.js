@@ -181,24 +181,35 @@ async function saveResults(brandId, brandName, prompts, results) {
   return { exposureScore, mentionedCount };
 }
 
+// ── 사용자 입력 대기 ─────────────────────────────────────────────────────
+const readline = require("readline");
+function ask(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans.trim()); }));
+}
+
 // ── 메인 ─────────────────────────────────────────────────────────────────
 async function main() {
   // 스크린샷 폴더 생성
   if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
-  console.log("🔍 GEO 캡처 시작...");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🔍 GEO 캡처 — 실제 ChatGPT 웹 자동화");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`📅 날짜: ${TODAY}`);
-  console.log(`📂 스크린샷: ${SCREENSHOT_DIR}`);
+  console.log(`📂 저장: ${SCREENSHOT_DIR}\n`);
 
   // 프롬프트 가져오기
   const { brandId, prompts } = await getPrompts();
-  console.log(`📋 프롬프트: ${prompts.length}개\n`);
+  console.log(`📋 프롬프트 ${prompts.length}개 로드 완료`);
+  prompts.forEach((p, i) => console.log(`   ${i + 1}. [${p.category || ""}] ${p.prompt_text}`));
 
-  // 브라우저 실행 (기존 Chrome 프로필 사용)
+  // 브라우저 실행
+  console.log("\n🌐 Chrome 실행 중...");
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     userDataDir: USER_DATA_DIR,
-    headless: false, // ChatGPT 봇 차단 우회를 위해 헤드풀
+    headless: false,
     args: [
       "--no-first-run",
       "--disable-blink-features=AutomationControlled",
@@ -207,7 +218,49 @@ async function main() {
     defaultViewport: null,
   });
 
-  console.log("🌐 Chrome 실행됨 (ChatGPT 로그인 상태 사용)\n");
+  // ChatGPT 로그인 확인
+  const checkPage = await browser.newPage();
+  await checkPage.goto(CHATGPT_URL, { waitUntil: "networkidle2", timeout: 30000 });
+  await checkPage.waitForTimeout(3000);
+
+  const isLoggedIn = await checkPage.evaluate(() => {
+    return !!document.querySelector('[data-testid="send-button"], #prompt-textarea, div[contenteditable="true"]');
+  });
+
+  if (!isLoggedIn) {
+    console.log("\n⚠️  ChatGPT 로그인이 필요합니다!");
+    console.log("   열린 Chrome 창에서 ChatGPT에 로그인해주세요.");
+    await ask("\n   로그인 완료 후 Enter를 눌러주세요... ");
+
+    // 재확인
+    await checkPage.reload({ waitUntil: "networkidle2" });
+    await checkPage.waitForTimeout(3000);
+    const loggedIn2 = await checkPage.evaluate(() => {
+      return !!document.querySelector('[data-testid="send-button"], #prompt-textarea, div[contenteditable="true"]');
+    });
+    if (!loggedIn2) {
+      console.log("❌ 로그인이 확인되지 않습니다. 종료합니다.");
+      await browser.close();
+      process.exit(1);
+    }
+  }
+  await checkPage.close();
+  console.log("✅ ChatGPT 로그인 확인됨\n");
+
+  // 실행 확인
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(`📋 ${prompts.length}개 질문을 ${CONCURRENT}개씩 병렬 실행합니다.`);
+  console.log(`⏱️  예상 소요: 약 ${Math.ceil(prompts.length / CONCURRENT) * 2}분`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  const confirm = await ask("\n시작하시겠습니까? (y/n): ");
+  if (confirm.toLowerCase() !== "y") {
+    console.log("취소되었습니다.");
+    await browser.close();
+    process.exit(0);
+  }
+
+  console.log("\n🚀 캡처 시작!\n");
+  const startTime = Date.now();
 
   try {
     const results = await runBatch(browser, prompts);
@@ -216,9 +269,22 @@ async function main() {
     await saveResults(brandId, "오공김밥", prompts, results);
 
     // 요약
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
     const successCount = results.filter(r => r?.success).length;
-    console.log(`\n✅ 완료: ${successCount}/${prompts.length} 성공`);
+    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📊 GEO 캡처 결과");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`✅ 성공: ${successCount}/${prompts.length}`);
+    console.log(`⏱️  소요: ${Math.floor(elapsed / 60)}분 ${elapsed % 60}초`);
     console.log(`📂 스크린샷: ${SCREENSHOT_DIR}/${TODAY}_*.png`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // 실패 건 표시
+    results.forEach((r, i) => {
+      if (!r?.success) console.log(`   ❌ Q${i + 1}: ${prompts[i].prompt_text.slice(0, 40)}... — ${r?.response?.slice(0, 50)}`);
+    });
+
+    await ask("\nEnter를 누르면 Chrome이 닫힙니다... ");
   } finally {
     await browser.close();
   }
