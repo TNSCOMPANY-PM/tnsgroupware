@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Play, Trash2, ChevronRight, CheckCircle2, XCircle, TrendingUp, Bot, Search, MessageCircle } from "lucide-react";
+import { Plus, Play, Trash2, ChevronRight, CheckCircle2, XCircle, TrendingUp, Bot, Search, MessageCircle, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,95 @@ export default function GeoPage() {
   }, []);
 
   useEffect(() => { fetchBrands(); }, [fetchBrands]);
+
+  const downloadReport = (run: CheckRun) => {
+    const items = run.geo_check_items ?? [];
+    const expItems = items.filter(i => i.check_type !== "accuracy");
+    const accItems = items.filter(i => i.check_type === "accuracy");
+    const expMentioned = expItems.filter(i => i.mentioned).length;
+    const expScore = expItems.length > 0 ? Math.round((expMentioned / expItems.length) * 100) : 0;
+    const avgAcc = accItems.length > 0 ? Math.round(accItems.reduce((s, i) => s + i.accuracy_score, 0) / accItems.length) : 0;
+    const brandName = selectedBrand?.name ?? "";
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>GEO 체크 리포트 — ${brandName} ${run.run_date}</title>
+<style>
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; color: #1e293b; padding: 40px; max-width: 800px; margin: 0 auto; font-size: 13px; line-height: 1.6; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 12px; margin-bottom: 24px; }
+  .summary { display: flex; gap: 16px; margin-bottom: 24px; }
+  .summary-card { flex: 1; background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; }
+  .summary-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+  .summary-value { font-size: 28px; font-weight: 700; margin: 4px 0; }
+  .summary-detail { font-size: 11px; color: #64748b; }
+  .green { color: #16a34a; }
+  .blue { color: #2563eb; }
+  .red { color: #dc2626; }
+  .amber { color: #d97706; }
+  .section { margin-bottom: 20px; }
+  .section-title { font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }
+  .qa { margin-bottom: 16px; page-break-inside: avoid; }
+  .q { background: #eff6ff; border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; font-weight: 600; }
+  .a { background: #f8fafc; border-radius: 8px; padding: 10px 14px; white-space: pre-wrap; word-break: break-word; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-top: 6px; }
+  .tag-yes { background: #dcfce7; color: #16a34a; }
+  .tag-no { background: #fee2e2; color: #dc2626; }
+  .tag-acc { background: #dbeafe; color: #2563eb; }
+  .footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+</style></head><body>
+<h1>GEO 체크 리포트</h1>
+<p class="subtitle">${brandName} · ${run.run_date} · ${run.model}</p>
+
+<div class="summary">
+  <div class="summary-card">
+    <div class="summary-label">노출률 (D0~D2)</div>
+    <div class="summary-value ${expScore >= 50 ? 'green' : expScore >= 20 ? 'amber' : 'red'}">${expScore}%</div>
+    <div class="summary-detail">${expMentioned} / ${expItems.length} 프롬프트 노출</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">정확도 (D3)</div>
+    <div class="summary-value ${avgAcc >= 50 ? 'blue' : avgAcc >= 20 ? 'amber' : 'red'}">${avgAcc}%</div>
+    <div class="summary-detail">${accItems.length}개 질문 평균</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">총 질문</div>
+    <div class="summary-value" style="color:#334155">${items.length}</div>
+    <div class="summary-detail">D0~D2: ${expItems.length} · D3: ${accItems.length}</div>
+  </div>
+</div>
+
+${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고리", "D3 오공김밥 직접"].map(cat => {
+      const catItems = items.filter(i => (i.category ?? "") === cat);
+      if (catItems.length === 0) return "";
+      const isD3 = cat.startsWith("D3");
+      return `<div class="section">
+  <div class="section-title">${cat} — ${isD3 ? "정확도 체크" : "노출률 체크"}</div>
+  ${catItems.map((item, idx) => `<div class="qa">
+    <div class="q">Q${idx + 1}. ${item.prompt_text}</div>
+    <div class="a">${item.ai_response.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+    ${isD3
+      ? `<span class="tag tag-acc">정확도 ${item.accuracy_score}%</span>`
+      : item.mentioned
+        ? `<span class="tag tag-yes">브랜드 노출</span>`
+        : `<span class="tag tag-no">브랜드 미노출</span>`
+    }
+  </div>`).join("")}
+</div>`;
+    }).join("")}
+
+<div class="footer">
+  Frandoor GEO Checker · ${run.run_date} · Powered by ${run.model}
+</div>
+</body></html>`;
+
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => w.print(), 500);
+    }
+  };
 
   const selectBrand = async (brand: Brand) => {
     setSelectedBrand(brand);
@@ -384,15 +473,20 @@ export default function GeoPage() {
                   </DialogHeader>
                   <p className="text-xs text-slate-400 mt-0.5">{selectedRun.model} · 노출률 {selectedRun.score}% ({selectedRun.mentioned_count}/{selectedRun.total_prompts})</p>
                 </div>
-                <div className="flex items-center gap-1">
-                  {runs.map(r => (
-                    <button key={r.id} onClick={() => setSelectedRun(r)}
-                      className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                        r.id === selectedRun.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      )}>
-                      {r.run_date.slice(5)}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {runs.slice(0, 5).map(r => (
+                      <button key={r.id} onClick={() => setSelectedRun(r)}
+                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                          r.id === selectedRun.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                        )}>
+                        {r.run_date.slice(5)}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => downloadReport(selectedRun)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" title="리포트 다운로드">
+                    <Download className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
               {/* 요약 바 — 노출률 + 정확도 분리 */}
