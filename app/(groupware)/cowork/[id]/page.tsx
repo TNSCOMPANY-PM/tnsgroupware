@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
-import { uploadDocument } from "@/utils/supabase/storage";
 import { type CalendarLeaveEvent } from "@/constants/leaveSchedule";
 import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -584,13 +583,11 @@ export default function CoworkDetailPage() {
                   <input type="file" className="hidden" onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    const result = await uploadDocument(currentUserId ?? "", file);
-                    if ("error" in result) { alert(result.error); return; }
-                    const res = await fetch(`/api/cowork/${id}/documents`, {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ type: "file", file_name: file.name, file_url: result.url }),
-                    });
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const res = await fetch(`/api/cowork/${id}/documents/upload`, { method: "POST", body: fd });
                     if (res.ok) { const doc = await res.json(); setDocuments(prev => [doc, ...prev]); }
+                    else { const err = await res.json().catch(() => ({})); alert(err.error || "업로드 실패"); }
                     e.target.value = "";
                   }} />
                   <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">
