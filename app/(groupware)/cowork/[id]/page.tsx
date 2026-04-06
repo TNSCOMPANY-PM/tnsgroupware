@@ -171,7 +171,7 @@ export default function CoworkDetailPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cRes, mRes, tRes, sRes, dRes, rRes, aRes, pRes] = await Promise.all([
+      const [cRes, mRes, tRes, sRes, dRes, rRes, aRes, pRes, fRes] = await Promise.all([
         fetch(`/api/cowork/${id}`),
         fetch(`/api/cowork/${id}/members`),
         fetch(`/api/cowork/${id}/tasks`),
@@ -180,9 +180,10 @@ export default function CoworkDetailPage() {
         fetch(`/api/cowork/${id}/requests`),
         fetch(`/api/cowork/${id}/activities`),
         fetch(`/api/cowork/${id}/posts`),
+        fetch(`/api/cowork/${id}/folders`),
       ]);
-      const [cw, mb, tk, sc, dc, rq, ac, ps] = await Promise.all([
-        cRes.json(), mRes.json(), tRes.json(), sRes.json(), dRes.json(), rRes.json(), aRes.json(), pRes.json(),
+      const [cw, mb, tk, sc, dc, rq, ac, ps, fl] = await Promise.all([
+        cRes.json(), mRes.json(), tRes.json(), sRes.json(), dRes.json(), rRes.json(), aRes.json(), pRes.json(), fRes.json(),
       ]);
       setCowork(cw);
       setMembers(Array.isArray(mb) ? mb : []);
@@ -192,9 +193,7 @@ export default function CoworkDetailPage() {
       setRequests(Array.isArray(rq) ? rq : []);
       setActivities(Array.isArray(ac) ? ac : []);
       setPosts(Array.isArray(ps) ? ps : []);
-      const docs = Array.isArray(dc) ? dc : [];
-      const folders = [...new Set(docs.filter((d: Document) => d.folder).map((d: Document) => d.folder as string))];
-      setDocFolders(folders);
+      setDocFolders(Array.isArray(fl) ? fl.map((f: { name: string }) => f.name) : []);
       setMemo(cw?.memo ?? "");
       setTitleVal(cw?.title ?? "");
     } finally {
@@ -807,13 +806,23 @@ export default function CoworkDetailPage() {
                             <span className="text-xs text-slate-400">({folderFiles.length})</span>
                           </div>
                           {isMember && (
-                            <label className="cursor-pointer">
-                              <input type="file" multiple className="hidden" onChange={async e => {
-                                const f = e.target.files; if (!f) return;
-                                await uploadFiles(Array.from(f), folder); e.target.value = "";
-                              }} />
-                              <span className="text-xs text-blue-500 hover:underline">+ 파일추가</span>
-                            </label>
+                            <div className="flex items-center gap-2">
+                              <label className="cursor-pointer">
+                                <input type="file" multiple className="hidden" onChange={async e => {
+                                  const f = e.target.files; if (!f) return;
+                                  await uploadFiles(Array.from(f), folder); e.target.value = "";
+                                }} />
+                                <span className="text-xs text-blue-500 hover:underline">+ 파일추가</span>
+                              </label>
+                              <button onClick={async () => {
+                                if (!confirm(`"${folder}" 폴더를 삭제하시겠습니까? 안의 파일은 미분류로 이동됩니다.`)) return;
+                                const res = await fetch(`/api/cowork/${id}/folders?name=${encodeURIComponent(folder)}`, { method: "DELETE" });
+                                if (res.ok) {
+                                  setDocFolders(prev => prev.filter(f => f !== folder));
+                                  setDocuments(prev => prev.map(d => d.folder === folder ? { ...d, folder: "" } : d));
+                                }
+                              }} className="text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
                           )}
                         </div>
                         <div className="space-y-1">
@@ -851,8 +860,20 @@ export default function CoworkDetailPage() {
               <div className="mt-3 flex items-center gap-2">
                 <FolderPlus className="h-4 w-4 text-amber-500 shrink-0" />
                 <Input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="폴더 이름" className="h-8 text-sm flex-1"
-                  onKeyDown={e => { if (e.key === "Enter" && newFolderName.trim()) { setDocFolders(prev => [...prev, newFolderName.trim()]); setNewFolderName(""); setAddFolderOpen(false); } if (e.key === "Escape") setAddFolderOpen(false); }} autoFocus />
-                <Button size="sm" className="h-8" onClick={() => { if (newFolderName.trim()) { setDocFolders(prev => [...prev, newFolderName.trim()]); setNewFolderName(""); setAddFolderOpen(false); } }}>생성</Button>
+                  onKeyDown={async e => {
+                    if (e.key === "Enter" && newFolderName.trim()) {
+                      const res = await fetch(`/api/cowork/${id}/folders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newFolderName.trim() }) });
+                      if (res.ok) { setDocFolders(prev => [...prev, newFolderName.trim()]); setNewFolderName(""); setAddFolderOpen(false); }
+                      else { const err = await res.json().catch(() => ({})); alert(err.error || "생성 실패"); }
+                    }
+                    if (e.key === "Escape") setAddFolderOpen(false);
+                  }} autoFocus />
+                <Button size="sm" className="h-8" onClick={async () => {
+                  if (!newFolderName.trim()) return;
+                  const res = await fetch(`/api/cowork/${id}/folders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newFolderName.trim() }) });
+                  if (res.ok) { setDocFolders(prev => [...prev, newFolderName.trim()]); setNewFolderName(""); setAddFolderOpen(false); }
+                  else { const err = await res.json().catch(() => ({})); alert(err.error || "생성 실패"); }
+                }}>생성</Button>
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setAddFolderOpen(false)}>취소</Button>
               </div>
             )}
