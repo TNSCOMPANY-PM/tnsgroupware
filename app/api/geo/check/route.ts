@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // 체크 실행 레코드 생성
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-mini + web_search" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "o3 + web_search" })
     .select()
     .single();
 
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
   // ── 공통: Responses API + 웹 검색 (실제 ChatGPT 무료 유저 경험과 동일) ──
   async function askWithWebSearch(question: string): Promise<string> {
     const result = await openai.responses.create({
-      model: "gpt-4o-mini",
+      model: "o3",
       input: question,
       tools: [{ type: "web_search_preview" as const }],
     });
