@@ -1021,12 +1021,15 @@ export default function CoworkDetailPage() {
                 const coworkContext = `[코워크 프로젝트 컨텍스트]
 프로젝트명: ${cowork?.title ?? ""}
 설명: ${cowork?.description ?? ""}
-멤버: ${members.map(m => m.employee_name).join(", ")}
+멤버: ${members.map(m => `${m.employee_name}(${m.role})`).join(", ")}
 태스크 현황: 할일 ${tasks.filter(t=>t.status==="todo").length}개, 진행중 ${tasks.filter(t=>t.status==="in_progress").length}개, 완료 ${tasks.filter(t=>t.status==="done").length}개
-태스크 목록: ${tasks.map(t => `[${STATUS_LABEL[t.status]}] ${t.title}${t.assignee_name ? ` (${t.assignee_name})` : ""}${t.due_date ? ` 마감:${t.due_date}` : ""}`).join(" / ")}
-업무요청: ${requests.filter(r=>r.status==="pending").length}개 대기중
+태스크 목록:
+${tasks.map(t => `- [${STATUS_LABEL[t.status]}] ${t.title}${t.assignee_name ? ` 담당:${t.assignee_name}` : ""}${t.due_date ? ` 마감:${t.due_date}` : ""}${t.priority === "high" ? " 🔴높음" : ""}`).join("\n")}
+업무요청: 대기중 ${requests.filter(r=>r.status==="pending").length}개
 문서: ${docList || "없음"}
-메모: ${memo}`;
+메모: ${memo}
+
+[규칙] 태스크 상태 변경·수정·삭제는 할 수 없습니다. "칸반 탭에서 직접 변경해주세요"라고 안내하세요. 프로젝트 현황 분석, 우선순위 정리, 요약, 아이디어 정리 등은 자유롭게 도와주세요.`;
                 const res = await fetch("/api/chat", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },

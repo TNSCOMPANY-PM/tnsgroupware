@@ -48,7 +48,7 @@ export async function POST(
       type: "file",
       file_name,
       file_url: urlData.publicUrl,
-      folder: folder ?? "",
+      ...(folder ? { folder } : {}),
       uploaded_by: String(session.employeeId),
       uploader_name: session.name,
     })
