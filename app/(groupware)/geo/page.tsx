@@ -30,6 +30,7 @@ export default function GeoPage() {
   const [addPromptOpen, setAddPromptOpen] = useState(false);
   const [runningCheck, setRunningCheck] = useState(false);
   const [selectedRun, setSelectedRun] = useState<CheckRun | null>(null);
+  const [runPage, setRunPage] = useState(0);
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
@@ -171,56 +172,82 @@ export default function GeoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 좌측: 체크 기록 + 프롬프트 관리 */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 체크 기록 — 최신순, 날짜 클릭으로 상세 보기 */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-slate-700">체크 기록</h2>
-              <span className="text-xs text-slate-400">{runs.length}회 실행</span>
-            </div>
-            {runs.length === 0
-              ? <p className="text-sm text-slate-400 py-8 text-center">아직 체크 기록이 없습니다. GEO 체크를 실행하세요.</p>
-              : <div className="space-y-2">
-                  {runs.map(r => {
-                    const st = getRunStats(r);
-                    return (
-                      <button key={r.id} onClick={() => setSelectedRun(r)}
-                        className={cn("w-full flex items-center gap-4 p-3 rounded-lg text-left transition-colors",
-                          selectedRun?.id === r.id ? "bg-blue-50 border border-blue-200" : "hover:bg-slate-50 border border-transparent"
-                        )}>
-                        <div className="shrink-0 text-center">
-                          <p className="text-sm font-bold text-slate-700">{r.run_date.slice(5)}</p>
-                          <p className="text-[10px] text-slate-400">{r.run_date.slice(0, 4)}</p>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-slate-500">노출률</span>
-                              <span className={cn("text-sm font-bold", st.expScore >= 50 ? "text-emerald-600" : st.expScore >= 20 ? "text-amber-500" : "text-red-500")}>{st.expScore}%</span>
-                              <span className="text-[10px] text-slate-400">({st.expMentioned}/{st.expItems})</span>
-                            </div>
-                            <div className="w-px h-4 bg-slate-200" />
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-slate-500">정확도</span>
-                              <span className={cn("text-sm font-bold", st.avgAcc >= 50 ? "text-blue-600" : st.avgAcc >= 20 ? "text-amber-500" : "text-red-500")}>{st.avgAcc}%</span>
-                              <span className="text-[10px] text-slate-400">(D3 {st.accItems}개)</span>
-                            </div>
-                          </div>
-                          <div className="flex gap-1 mt-1.5">
-                            <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                              <div className={cn("h-1.5 rounded-full", st.expScore >= 50 ? "bg-emerald-500" : st.expScore >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.expScore}%` }} />
-                            </div>
-                            <div className="flex-1 bg-slate-100 rounded-full h-1.5">
-                              <div className={cn("h-1.5 rounded-full", st.avgAcc >= 50 ? "bg-blue-500" : st.avgAcc >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.avgAcc}%` }} />
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
-                      </button>
-                    );
-                  })}
+          {/* 체크 기록 — 최신순 10개 페이징 */}
+          {(() => {
+            const PAGE_SIZE = 10;
+            const [page, setPage] = [runPage, setRunPage];
+            const totalPages = Math.ceil(runs.length / PAGE_SIZE);
+            const pagedRuns = runs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+            return (
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-semibold text-slate-700">체크 기록</h2>
+                  <span className="text-xs text-slate-400">{runs.length}회 실행</span>
                 </div>
-            }
-          </div>
+                {runs.length === 0
+                  ? <p className="text-sm text-slate-400 py-8 text-center">아직 체크 기록이 없습니다. GEO 체크를 실행하세요.</p>
+                  : <>
+                      <div className="space-y-2">
+                        {pagedRuns.map(r => {
+                          const st = getRunStats(r);
+                          return (
+                            <div key={r.id} className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors group",
+                              selectedRun?.id === r.id ? "bg-blue-50 border border-blue-200" : "hover:bg-slate-50 border border-transparent"
+                            )}>
+                              <button onClick={() => setSelectedRun(r)} className="flex items-center gap-4 flex-1 min-w-0 text-left">
+                                <div className="shrink-0 text-center">
+                                  <p className="text-sm font-bold text-slate-700">{r.run_date.slice(5)}</p>
+                                  <p className="text-[10px] text-slate-400">{r.run_date.slice(0, 4)}</p>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-slate-500">노출률</span>
+                                      <span className={cn("text-sm font-bold", st.expScore >= 50 ? "text-emerald-600" : st.expScore >= 20 ? "text-amber-500" : "text-red-500")}>{st.expScore}%</span>
+                                      <span className="text-[10px] text-slate-400">({st.expMentioned}/{st.expItems})</span>
+                                    </div>
+                                    <div className="w-px h-4 bg-slate-200" />
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-slate-500">정확도</span>
+                                      <span className={cn("text-sm font-bold", st.avgAcc >= 50 ? "text-blue-600" : st.avgAcc >= 20 ? "text-amber-500" : "text-red-500")}>{st.avgAcc}%</span>
+                                      <span className="text-[10px] text-slate-400">(D3 {st.accItems}개)</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-1 mt-1.5">
+                                    <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                                      <div className={cn("h-1.5 rounded-full", st.expScore >= 50 ? "bg-emerald-500" : st.expScore >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.expScore}%` }} />
+                                    </div>
+                                    <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                                      <div className={cn("h-1.5 rounded-full", st.avgAcc >= 50 ? "bg-blue-500" : st.avgAcc >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.avgAcc}%` }} />
+                                    </div>
+                                  </div>
+                                </div>
+                                <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
+                              </button>
+                              <button onClick={async () => {
+                                if (!confirm(`${r.run_date} 체크 기록을 삭제하시겠습니까?`)) return;
+                                await fetch(`/api/geo/check?run_id=${r.id}`, { method: "DELETE" });
+                                setRuns(prev => prev.filter(x => x.id !== r.id));
+                                if (selectedRun?.id === r.id) setSelectedRun(null);
+                              }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 shrink-0 p-1">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                          <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="text-xs text-slate-500 hover:text-slate-700 disabled:opacity-30">이전</button>
+                          <span className="text-xs text-slate-400">{page + 1} / {totalPages}</span>
+                          <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="text-xs text-slate-500 hover:text-slate-700 disabled:opacity-30">다음</button>
+                        </div>
+                      )}
+                    </>
+                }
+              </div>
+            );
+          })()}
 
           {/* 프롬프트 관리 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">

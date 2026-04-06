@@ -199,3 +199,18 @@ export async function POST(request: Request) {
     items,
   });
 }
+
+export async function DELETE(request: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
+  const { searchParams } = new URL(request.url);
+  const runId = searchParams.get("run_id");
+  if (!runId) return NextResponse.json({ error: "run_id required" }, { status: 400 });
+
+  const supabase = createAdminClient();
+  await supabase.from("geo_check_items").delete().eq("run_id", runId);
+  const { error } = await supabase.from("geo_check_runs").delete().eq("id", runId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
