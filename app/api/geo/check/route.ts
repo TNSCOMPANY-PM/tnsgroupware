@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o + web_search" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-search-preview" })
     .select()
     .single();
 
@@ -126,16 +126,14 @@ export async function PUT(request: Request) {
   let accuracy_score = 0;
 
   try {
-    const result = await openai.responses.create({
-      model: "gpt-4o",
-      instructions: CHATGPT_SYSTEM_PROMPT,
-      input: prompt_text,
-      tools: [{ type: "web_search_preview" as const }],
+    const result = await openai.chat.completions.create({
+      model: "gpt-4o-search-preview",
+      messages: [
+        { role: "system", content: CHATGPT_SYSTEM_PROMPT },
+        { role: "user", content: prompt_text },
+      ],
     });
-    const msg = result.output.find((o: { type: string }) => o.type === "message");
-    if (msg && "content" in msg && Array.isArray(msg.content)) {
-      response = msg.content.map((c: { type: string; text?: string }) => c.type === "output_text" ? c.text ?? "" : "").join("");
-    }
+    response = result.choices[0]?.message?.content ?? "";
   } catch (e) {
     response = `[오류] ${e instanceof Error ? e.message : "알 수 없는 오류"}`;
   }
