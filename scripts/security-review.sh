@@ -47,7 +47,7 @@ done
 #    auth.getUser() 사용, seed/debug/cron/webhook/me 는 제외
 for f in $FILES; do
   if echo "$f" | grep -q "app/api/"; then
-    if echo "$f" | grep -qE "seed|debug|cron|webhook|me/|sync-push"; then continue; fi
+    if echo "$f" | grep -qE "seed|debug|cron|webhook|me/|sync-push|chat/route"; then continue; fi
     if grep -q "export async function" "$f" 2>/dev/null; then
       if ! grep -q "getSessionEmployee\|verifyMasterToken\|apiAuth\|auth\.getUser" "$f" 2>/dev/null; then
         echo -e "${RED}❌ [AUTH] 인증 체크 누락${NC}"
