@@ -141,6 +141,9 @@ export default function CoworkDetailPage() {
   // Inline add task
   const [addingTaskCol, setAddingTaskCol] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [kanbanFilter, setKanbanFilter] = useState<string>("all");
+  const [dragTask, setDragTask] = useState<Task | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
   // 연차
   const [leaveEvents, setLeaveEvents] = useState<CalendarLeaveEvent[]>([]);
@@ -306,7 +309,16 @@ export default function CoworkDetailPage() {
   );
 
   const tasksByStatus = (status: string) =>
-    tasks.filter(t => t.status === status).sort((a, b) => a.order_index - b.order_index);
+    tasks
+      .filter(t => t.status === status)
+      .filter(t => kanbanFilter === "all" || t.assignee_name === kanbanFilter || (!t.assignee_name && kanbanFilter === "미지정"))
+      .sort((a, b) => {
+        // 마감일 임박순 (없으면 뒤로)
+        const da = a.due_date ?? "9999-99-99";
+        const db = b.due_date ?? "9999-99-99";
+        if (da !== db) return da.localeCompare(db);
+        return a.order_index - b.order_index;
+      });
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter(t => t.status === "done").length;
   const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
@@ -470,70 +482,108 @@ export default function CoworkDetailPage() {
 
       {/* ── Tab: 칸반 ── */}
       {tab === "kanban" && (
-        <div className="grid grid-cols-3 gap-4 items-start">
-          {(["todo","in_progress","done"] as const).map(col => (
-            <div key={col} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={cn("text-sm font-semibold", col==="todo"?"text-slate-600":col==="in_progress"?"text-blue-600":"text-emerald-600")}>
-                  {STATUS_LABEL[col]} <span className="font-normal text-slate-400">({tasksByStatus(col).length})</span>
-                </h3>
-              </div>
-              <div className="space-y-2 min-h-[40px]">
-                {tasksByStatus(col).map(task => {
-                  const isBlocked = (task.depends_on ?? []).some(depId => {
-                    const dep = tasks.find(t => t.id === depId);
-                    return dep && dep.status !== "done";
+        <div>
+          {/* 멤버 필터 */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <button onClick={() => setKanbanFilter("all")}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                kanbanFilter === "all" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              )}>전체</button>
+            {members.map(m => (
+              <button key={m.id} onClick={() => setKanbanFilter(m.employee_name)}
+                className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  kanbanFilter === m.employee_name ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                )}>{m.employee_name}</button>
+            ))}
+            <button onClick={() => setKanbanFilter("미지정")}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                kanbanFilter === "미지정" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              )}>미지정</button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 items-start">
+            {(["todo","in_progress","done"] as const).map(col => (
+              <div key={col}
+                onDragOver={e => { e.preventDefault(); setDragOverCol(col); }}
+                onDragLeave={() => { if (dragOverCol === col) setDragOverCol(null); }}
+                onDrop={async e => {
+                  e.preventDefault(); setDragOverCol(null);
+                  if (!dragTask || dragTask.status === col || !isMember) return;
+                  const res = await fetch(`/api/cowork/${id}/tasks/${dragTask.id}`, {
+                    method: "PATCH", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: col }),
                   });
-                  const commentCount = comments.filter(c => c.task_id === task.id).length;
-                  return (
-                    <div key={task.id} className={cn("bg-white rounded-lg border p-3 cursor-pointer hover:shadow-sm transition-shadow", isBlocked && "opacity-60")}
-                      onClick={() => setTaskModal(task)}>
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-slate-800 leading-snug">{task.title}</p>
-                        {isBlocked && <span title="의존 태스크 미완료"><AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" /></span>}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-                        <span className={cn("text-xs", task.priority==="high"?"text-red-500":task.priority==="low"?"text-blue-400":"text-slate-400")}>{PRIORITY_LABEL[task.priority]}</span>
-                        {task.assignee_name && <span className="text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">{task.assignee_name}</span>}
-                        {task.due_date && <span className={cn("text-xs", getDueDateStyle(task.due_date))}>{task.due_date}</span>}
-                      </div>
-                      {isMember && (
-                        <div className="mt-2 flex items-center justify-between">
-                          <div className="flex items-center gap-1 text-slate-400">
-                            <MessageCircle className="h-3 w-3" /><span className="text-xs">{commentCount}</span>
-                          </div>
-                          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                            {col !== "todo" && <button onClick={() => moveTask(task,"prev")} className="p-0.5 rounded hover:bg-slate-100"><ChevronLeft className="h-3.5 w-3.5 text-slate-400" /></button>}
-                            {col !== "done" && <button onClick={() => moveTask(task,"next")} className="p-0.5 rounded hover:bg-slate-100"><ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {isMember && (
-                <div className="mt-2">
-                  {addingTaskCol === col ? (
-                    <div className="space-y-1">
-                      <Input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
-                        placeholder="태스크 제목..." className="h-8 text-sm"
-                        onKeyDown={e => { if (e.key === "Enter") addTask(col); if (e.key === "Escape") { setAddingTaskCol(null); setNewTaskTitle(""); } }}
-                        autoFocus />
-                      <div className="flex gap-1">
-                        <Button size="sm" className="h-7 text-xs flex-1" onClick={() => addTask(col)}>추가</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAddingTaskCol(null); setNewTaskTitle(""); }}>취소</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => setAddingTaskCol(col)} className="w-full text-xs text-slate-400 hover:text-slate-600 py-1.5 border border-dashed border-slate-200 rounded-lg hover:border-slate-300 flex items-center justify-center gap-1">
-                      <Plus className="h-3 w-3" />태스크 추가
-                    </button>
-                  )}
+                  if (res.ok) setTasks(prev => prev.map(t => t.id === dragTask.id ? { ...t, status: col } : t));
+                  setDragTask(null);
+                }}
+                className={cn("rounded-xl border bg-slate-50 p-3 transition-colors",
+                  dragOverCol === col && dragTask?.status !== col ? "border-blue-400 bg-blue-50" : "border-slate-200"
+                )}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={cn("text-sm font-semibold", col==="todo"?"text-slate-600":col==="in_progress"?"text-blue-600":"text-emerald-600")}>
+                    {STATUS_LABEL[col]} <span className="font-normal text-slate-400">({tasksByStatus(col).length})</span>
+                  </h3>
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="space-y-2 min-h-[40px]">
+                  {tasksByStatus(col).map(task => {
+                    const isBlocked = (task.depends_on ?? []).some(depId => {
+                      const dep = tasks.find(t => t.id === depId);
+                      return dep && dep.status !== "done";
+                    });
+                    return (
+                      <div key={task.id}
+                        draggable={isMember}
+                        onDragStart={() => setDragTask(task)}
+                        onDragEnd={() => { setDragTask(null); setDragOverCol(null); }}
+                        className={cn("bg-white rounded-lg border p-3 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all",
+                          isBlocked && "opacity-60",
+                          dragTask?.id === task.id && "opacity-40 ring-2 ring-blue-300"
+                        )}
+                        onClick={() => setTaskModal(task)}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-slate-800 leading-snug">{task.title}</p>
+                          {isBlocked && <span title="의존 태스크 미완료"><AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" /></span>}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className={cn("text-xs", task.priority==="high"?"text-red-500":task.priority==="low"?"text-blue-400":"text-slate-400")}>{PRIORITY_LABEL[task.priority]}</span>
+                          {task.assignee_name && <span className="text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">{task.assignee_name}</span>}
+                          {task.due_date && <span className={cn("text-xs", getDueDateStyle(task.due_date))}>{task.due_date}</span>}
+                        </div>
+                        {isMember && (
+                          <div className="mt-2 flex items-center justify-end">
+                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                              {col !== "todo" && <button onClick={() => moveTask(task,"prev")} className="p-0.5 rounded hover:bg-slate-100"><ChevronLeft className="h-3.5 w-3.5 text-slate-400" /></button>}
+                              {col !== "done" && <button onClick={() => moveTask(task,"next")} className="p-0.5 rounded hover:bg-slate-100"><ChevronRight className="h-3.5 w-3.5 text-slate-400" /></button>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {isMember && (
+                  <div className="mt-2">
+                    {addingTaskCol === col ? (
+                      <div className="space-y-1">
+                        <Input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
+                          placeholder="태스크 제목..." className="h-8 text-sm"
+                          onKeyDown={e => { if (e.key === "Enter") addTask(col); if (e.key === "Escape") { setAddingTaskCol(null); setNewTaskTitle(""); } }}
+                          autoFocus />
+                        <div className="flex gap-1">
+                          <Button size="sm" className="h-7 text-xs flex-1" onClick={() => addTask(col)}>추가</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAddingTaskCol(null); setNewTaskTitle(""); }}>취소</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setAddingTaskCol(col)} className="w-full text-xs text-slate-400 hover:text-slate-600 py-1.5 border border-dashed border-slate-200 rounded-lg hover:border-slate-300 flex items-center justify-center gap-1">
+                        <Plus className="h-3 w-3" />태스크 추가
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
