@@ -31,6 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const { searchParams } = new URL(req.url);
   const taskId = searchParams.get("task_id");
+  const postId = searchParams.get("post_id");
 
   const supabase = createAdminClient();
 
@@ -40,9 +41,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .eq("cowork_id", id)
     .order("created_at", { ascending: true });
 
-  if (taskId) {
-    query = query.eq("task_id", taskId);
-  }
+  if (taskId) query = query.eq("task_id", taskId);
+  if (postId) query = query.eq("post_id", postId);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -55,11 +55,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!session) return unauthorized();
 
   const { id } = await params;
-  const body = await req.json() as { task_id: string; content: string };
-  const { task_id, content } = body;
+  const body = await req.json() as { task_id?: string; post_id?: string; content: string };
+  const { task_id, post_id, content } = body;
 
-  if (!task_id || !content) {
-    return NextResponse.json({ error: "task_id and content are required" }, { status: 400 });
+  if ((!task_id && !post_id) || !content) {
+    return NextResponse.json({ error: "task_id or post_id, and content are required" }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -68,7 +68,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from("cowork_comments")
     .insert({
       cowork_id: id,
-      task_id,
+      task_id: task_id ?? null,
+      post_id: post_id ?? null,
       author_id: String(session.employeeId),
       author_name: session.name,
       content,

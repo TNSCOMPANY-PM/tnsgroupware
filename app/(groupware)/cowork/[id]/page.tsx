@@ -31,7 +31,8 @@ type Task = {
   due_date?: string; order_index: number; created_at: string;
   depends_on?: string[];
 };
-type Comment = { id: string; task_id: string; author_name: string; content: string; created_at: string };
+type Comment = { id: string; task_id?: string; post_id?: string; author_name: string; content: string; created_at: string };
+type Post = { id: string; cowork_id: string; title: string; content?: string; author_id: string; author_name: string; pinned: boolean; created_at: string };
 type Schedule = { id: string; title: string; start_date: string; end_date?: string; assignee_name?: string; color: string };
 type Document = {
   id: string; type: "file" | "link"; file_name?: string; file_url?: string;
@@ -99,7 +100,7 @@ export default function CoworkDetailPage() {
   const router = useRouter();
   const { currentUserId, currentUserName } = usePermission();
 
-  const [tab, setTab] = useState<"overview" | "kanban" | "calendar" | "docs" | "requests" | "ai">("overview");
+  const [tab, setTab] = useState<"overview" | "kanban" | "calendar" | "board" | "docs" | "requests" | "ai">("overview");
   const [loading, setLoading] = useState(true);
 
   const [cowork, setCowork] = useState<Cowork | null>(null);
@@ -107,6 +108,8 @@ export default function CoworkDetailPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postComments, setPostComments] = useState<Comment[]>([]);
   const [requests, setRequests] = useState<WorkRequest[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -120,6 +123,8 @@ export default function CoworkDetailPage() {
   const [addLinkOpen, setAddLinkOpen] = useState(false);
   const [addRequestOpen, setAddRequestOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [newPostOpen, setNewPostOpen] = useState(false);
   const [requestTab, setRequestTab] = useState<"received" | "sent">("received");
   const [calMonth, setCalMonth] = useState(new Date());
 
@@ -157,7 +162,7 @@ export default function CoworkDetailPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cRes, mRes, tRes, sRes, dRes, rRes, aRes] = await Promise.all([
+      const [cRes, mRes, tRes, sRes, dRes, rRes, aRes, pRes] = await Promise.all([
         fetch(`/api/cowork/${id}`),
         fetch(`/api/cowork/${id}/members`),
         fetch(`/api/cowork/${id}/tasks`),
@@ -165,9 +170,10 @@ export default function CoworkDetailPage() {
         fetch(`/api/cowork/${id}/documents`),
         fetch(`/api/cowork/${id}/requests`),
         fetch(`/api/cowork/${id}/activities`),
+        fetch(`/api/cowork/${id}/posts`),
       ]);
-      const [cw, mb, tk, sc, dc, rq, ac] = await Promise.all([
-        cRes.json(), mRes.json(), tRes.json(), sRes.json(), dRes.json(), rRes.json(), aRes.json(),
+      const [cw, mb, tk, sc, dc, rq, ac, ps] = await Promise.all([
+        cRes.json(), mRes.json(), tRes.json(), sRes.json(), dRes.json(), rRes.json(), aRes.json(), pRes.json(),
       ]);
       setCowork(cw);
       setMembers(Array.isArray(mb) ? mb : []);
@@ -176,6 +182,7 @@ export default function CoworkDetailPage() {
       setDocuments(Array.isArray(dc) ? dc : []);
       setRequests(Array.isArray(rq) ? rq : []);
       setActivities(Array.isArray(ac) ? ac : []);
+      setPosts(Array.isArray(ps) ? ps : []);
       setMemo(cw?.memo ?? "");
       setTitleVal(cw?.title ?? "");
     } finally {
@@ -195,6 +202,11 @@ export default function CoworkDetailPage() {
     fetch(`/api/cowork/${id}/comments?task_id=${taskModal.id}`)
       .then(r => r.ok ? r.json() : []).then(d => setComments(Array.isArray(d) ? d : []));
   }, [taskModal, id]);
+
+  const fetchPostComments = async (postId: string) => {
+    const res = await fetch(`/api/cowork/${id}/comments?post_id=${postId}`);
+    if (res.ok) { const data = await res.json(); setPostComments(Array.isArray(data) ? data : []); }
+  };
 
   const moveTask = async (task: Task, dir: "prev" | "next") => {
     const cols = ["todo", "in_progress", "done"];
@@ -305,12 +317,12 @@ export default function CoworkDetailPage() {
 
       {/* ── Tabs ── */}
       <div className="mb-6 border-b border-slate-200 flex gap-1">
-        {(["overview","kanban","calendar","docs","requests","ai"] as const).map(t => (
+        {(["overview","kanban","calendar","board","docs","requests","ai"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               tab === t ? "border-blue-500 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"
             )}>
-            {{ overview:"개요", kanban:"칸반", calendar:"캘린더", docs:"문서", requests:"업무요청", ai:"AI 어시스턴트" }[t]}
+            {{ overview:"개요", kanban:"칸반", calendar:"캘린더", board:"게시판", docs:"문서", requests:"업무요청", ai:"AI 어시스턴트" }[t]}
           </button>
         ))}
       </div>
@@ -539,6 +551,102 @@ export default function CoworkDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Tab: 게시판 ── */}
+      {tab === "board" && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-slate-700">게시판 ({posts.length})</h2>
+            {isMember && <Button size="sm" onClick={() => { setSelectedPost(null); setNewPostOpen(true); }}><Plus className="h-4 w-4 mr-1" />글쓰기</Button>}
+          </div>
+          {posts.length === 0
+            ? <div className="text-center py-16 text-slate-400 text-sm">게시글이 없습니다.</div>
+            : <div className="space-y-2">
+                {posts.map(post => (
+                  <div key={post.id} onClick={() => { setSelectedPost(post); setNewPostOpen(false); fetchPostComments(post.id); }}
+                    className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:border-blue-200 hover:shadow-sm transition-all group">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {post.pinned && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">고정</span>}
+                          <h3 className="text-sm font-semibold text-slate-800 truncate">{post.title}</h3>
+                        </div>
+                        {post.content && <p className="text-xs text-slate-500 mt-1 line-clamp-2 whitespace-pre-wrap">{post.content}</p>}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-400 shrink-0 mt-0.5" />
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                      <span>{post.author_name}</span>
+                      <span>{format(parseISO(post.created_at), "MM.dd HH:mm", { locale: ko })}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      )}
+
+      {/* ── Post Detail Modal ── */}
+      {selectedPost && !newPostOpen && (
+        <Dialog open onOpenChange={() => setSelectedPost(null)}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                {selectedPost.pinned && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">고정</span>}
+                <DialogTitle className="text-base">{selectedPost.title}</DialogTitle>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                <span>{selectedPost.author_name}</span>
+                <span>{format(parseISO(selectedPost.created_at), "yyyy.MM.dd HH:mm", { locale: ko })}</span>
+              </div>
+            </DialogHeader>
+            {selectedPost.content && (
+              <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-4 mt-2">{selectedPost.content}</div>
+            )}
+
+            {/* 댓글 */}
+            <div className="mt-4 border-t pt-3">
+              <p className="text-xs font-semibold text-slate-500 mb-2">댓글 ({postComments.filter(c => c.post_id === selectedPost.id).length})</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
+                {postComments.filter(c => c.post_id === selectedPost.id).map(c => (
+                  <div key={c.id} className="bg-slate-50 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-semibold text-slate-700">{c.author_name}</span>
+                      <span className="text-[10px] text-slate-400">{format(parseISO(c.created_at), "MM.dd HH:mm", { locale: ko })}</span>
+                    </div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.content}</p>
+                  </div>
+                ))}
+              </div>
+              {isMember && <PostCommentInput coworkId={id} postId={selectedPost.id} onAdded={(c) => setPostComments(prev => [...prev, c])} />}
+            </div>
+
+            <DialogFooter className="gap-2 mt-2">
+              {isMember && (
+                <>
+                  <Button variant="outline" size="sm" onClick={async () => {
+                    await fetch(`/api/cowork/${id}/posts/${selectedPost.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned: !selectedPost.pinned }) });
+                    setPosts(prev => prev.map(p => p.id === selectedPost.id ? { ...p, pinned: !p.pinned } : p));
+                    setSelectedPost({ ...selectedPost, pinned: !selectedPost.pinned });
+                  }}>{selectedPost.pinned ? "고정 해제" : "📌 고정"}</Button>
+                  <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={async () => {
+                    if (!confirm("게시글을 삭제하시겠습니까?")) return;
+                    await fetch(`/api/cowork/${id}/posts/${selectedPost.id}`, { method: "DELETE" });
+                    setPosts(prev => prev.filter(p => p.id !== selectedPost.id));
+                    setSelectedPost(null);
+                  }}>삭제</Button>
+                </>
+              )}
+              <Button variant="outline" onClick={() => setSelectedPost(null)}>닫기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── New Post Modal ── */}
+      {newPostOpen && (
+        <NewPostModal coworkId={id} onClose={() => setNewPostOpen(false)} onCreated={(p) => { setPosts(prev => [p, ...prev]); setNewPostOpen(false); }} />
       )}
 
       {/* ── Tab: 문서 ── */}
@@ -1212,5 +1320,63 @@ function AddRequestModal({ open, onClose, coworkId, members, currentUserId, curr
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function NewPostModal({ coworkId, onClose, onCreated }: {
+  coworkId: string; onClose: () => void; onCreated: (p: Post) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    const res = await fetch(`/api/cowork/${coworkId}/posts`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title.trim(), content: content.trim() || null }),
+    });
+    if (res.ok) { const p = await res.json(); onCreated(p); }
+    else { const err = await res.json().catch(() => ({})); alert(err.error || "작성 실패"); }
+    setSaving(false);
+  };
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>글쓰기</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label className="text-xs">제목 *</Label><Input className="mt-1" value={title} onChange={e => setTitle(e.target.value)} placeholder="제목을 입력하세요" /></div>
+          <div><Label className="text-xs">내용</Label><textarea rows={8} className="mt-1 w-full text-sm border rounded-md px-3 py-2 resize-none outline-none focus:ring-2 focus:ring-blue-500" value={content} onChange={e => setContent(e.target.value)} placeholder="내용을 입력하세요..." /></div>
+        </div>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button onClick={save} disabled={saving || !title.trim()}>{saving ? "저장 중..." : "게시"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PostCommentInput({ coworkId, postId, onAdded }: {
+  coworkId: string; postId: string; onAdded: (c: Comment) => void;
+}) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    if (!text.trim()) return;
+    setSending(true);
+    const res = await fetch(`/api/cowork/${coworkId}/comments`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ post_id: postId, content: text.trim() }),
+    });
+    if (res.ok) { const c = await res.json(); onAdded(c); setText(""); }
+    setSending(false);
+  };
+  return (
+    <div className="flex gap-2">
+      <Input value={text} onChange={e => setText(e.target.value)} placeholder="댓글 입력..."
+        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} className="text-sm" />
+      <Button size="sm" onClick={send} disabled={sending || !text.trim()}><Send className="h-4 w-4" /></Button>
+    </div>
   );
 }
