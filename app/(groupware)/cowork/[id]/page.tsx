@@ -128,6 +128,8 @@ export default function CoworkDetailPage() {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [dragDocId, setDragDocId] = useState<string | null>(null);
   const [dropZoneActive, setDropZoneActive] = useState(false);
+  const dropCountRef = useRef(0);
+  const folderDropCountRef = useRef<Record<string, number>>({});
   const [newFolderName, setNewFolderName] = useState("");
   const [addFolderOpen, setAddFolderOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -708,10 +710,11 @@ export default function CoworkDetailPage() {
         <div className="space-y-6">
           {/* 파일 — 드래그앤드롭 영역 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5"
-            onDragOver={e => { e.preventDefault(); if (e.dataTransfer.types.includes("Files")) setDropZoneActive(true); }}
-            onDragLeave={() => setDropZoneActive(false)}
+            onDragEnter={e => { e.preventDefault(); dropCountRef.current++; if (e.dataTransfer.types.includes("Files")) setDropZoneActive(true); }}
+            onDragOver={e => { e.preventDefault(); }}
+            onDragLeave={e => { e.preventDefault(); dropCountRef.current--; if (dropCountRef.current <= 0) { dropCountRef.current = 0; setDropZoneActive(false); } }}
             onDrop={async e => {
-              e.preventDefault(); setDropZoneActive(false);
+              e.preventDefault(); dropCountRef.current = 0; setDropZoneActive(false);
               if (!isMember) return;
               const files = Array.from(e.dataTransfer.files);
               if (files.length > 0) await uploadFiles(files, "");
@@ -785,15 +788,14 @@ export default function CoworkDetailPage() {
                     const folderFiles = files.filter(f => f.folder === folder);
                     return (
                       <div key={folder}
-                        onDragOver={e => { e.preventDefault(); if (dragDocId) setDragOverFolder(folder); }}
-                        onDragLeave={() => setDragOverFolder(null)}
+                        onDragEnter={e => { e.preventDefault(); folderDropCountRef.current[folder] = (folderDropCountRef.current[folder] ?? 0) + 1; setDragOverFolder(folder); }}
+                        onDragOver={e => { e.preventDefault(); }}
+                        onDragLeave={e => { e.preventDefault(); folderDropCountRef.current[folder] = (folderDropCountRef.current[folder] ?? 0) - 1; if ((folderDropCountRef.current[folder] ?? 0) <= 0) { folderDropCountRef.current[folder] = 0; if (dragOverFolder === folder) setDragOverFolder(null); } }}
                         onDrop={async e => {
-                          e.preventDefault(); e.stopPropagation(); setDragOverFolder(null);
-                          // 파일 드롭 (외부)
+                          e.preventDefault(); e.stopPropagation(); folderDropCountRef.current[folder] = 0; setDragOverFolder(null);
                           if (e.dataTransfer.files.length > 0 && isMember) {
                             await uploadFiles(Array.from(e.dataTransfer.files), folder); return;
                           }
-                          // 문서 이동 (내부)
                           if (dragDocId && isMember) { await moveDocToFolder(dragDocId, folder); setDragDocId(null); }
                         }}
                         className={cn("rounded-lg border p-3 transition-colors",
@@ -836,10 +838,11 @@ export default function CoworkDetailPage() {
                   {/* 루트 파일 (폴더 없는 파일) */}
                   {rootFiles.length > 0 && (
                     <div
-                      onDragOver={e => { e.preventDefault(); if (dragDocId) setDragOverFolder("__root__"); }}
-                      onDragLeave={() => setDragOverFolder(null)}
+                      onDragEnter={e => { e.preventDefault(); folderDropCountRef.current["__root__"] = (folderDropCountRef.current["__root__"] ?? 0) + 1; setDragOverFolder("__root__"); }}
+                      onDragOver={e => { e.preventDefault(); }}
+                      onDragLeave={e => { e.preventDefault(); folderDropCountRef.current["__root__"] = (folderDropCountRef.current["__root__"] ?? 0) - 1; if ((folderDropCountRef.current["__root__"] ?? 0) <= 0) { folderDropCountRef.current["__root__"] = 0; if (dragOverFolder === "__root__") setDragOverFolder(null); } }}
                       onDrop={async e => {
-                        e.preventDefault(); setDragOverFolder(null);
+                        e.preventDefault(); folderDropCountRef.current["__root__"] = 0; setDragOverFolder(null);
                         if (dragDocId && isMember) { await moveDocToFolder(dragDocId, ""); setDragDocId(null); }
                       }}
                       className={cn("rounded-lg border p-3 transition-colors",
