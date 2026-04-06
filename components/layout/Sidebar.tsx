@@ -15,6 +15,7 @@ import {
   Building2,
   MessageCircle,
   FolderKanban,
+  Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/goals",      label: "목표",      icon: Target },
   { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
   { href: "/approvals",  label: "전자결재",  icon: ClipboardCheck },
+  { href: "/geo",        label: "GEO 체크",   icon: Radar },
   { href: "/reports",    label: "보고서",    icon: FileBarChart },
   { href: "/hr",         label: "HR",        icon: Users },
 ] as const;
