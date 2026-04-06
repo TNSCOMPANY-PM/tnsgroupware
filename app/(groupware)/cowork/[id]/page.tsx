@@ -152,9 +152,11 @@ export default function CoworkDetailPage() {
   const [memo, setMemo] = useState("");
   const [memoSaving, setMemoSaving] = useState(false);
 
-  // Title edit
+  // Title / Desc edit
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleVal, setTitleVal] = useState("");
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descVal, setDescVal] = useState("");
 
   const isMember = members.some(m => m.employee_id === currentUserId);
   const isOwner = members.some(m => m.employee_id === currentUserId && m.role === "owner");
@@ -333,8 +335,26 @@ export default function CoworkDetailPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* 설명 */}
             <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-2">설명</h2>
-              <p className="text-sm text-slate-600 whitespace-pre-wrap">{cowork.description || <span className="text-slate-400">설명이 없습니다.</span>}</p>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-slate-700">설명</h2>
+                {isMember && !editingDesc && <button onClick={() => { setEditingDesc(true); setDescVal(cowork.description ?? ""); }} className="text-xs text-blue-500 hover:underline">수정</button>}
+              </div>
+              {editingDesc ? (
+                <div>
+                  <textarea value={descVal} onChange={e => setDescVal(e.target.value)} rows={5}
+                    className="w-full text-sm text-slate-700 resize-none border rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500" autoFocus />
+                  <div className="flex gap-2 mt-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setEditingDesc(false)}>취소</Button>
+                    <Button size="sm" onClick={async () => {
+                      await fetch(`/api/cowork/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: descVal }) });
+                      setCowork(prev => prev ? { ...prev, description: descVal } : prev);
+                      setEditingDesc(false);
+                    }}>저장</Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">{cowork.description || <span className="text-slate-400">설명이 없습니다.</span>}</p>
+              )}
             </div>
 
             {/* 진행률 */}
@@ -353,9 +373,9 @@ export default function CoworkDetailPage() {
               </div>
             </div>
 
-            {/* 빠른 메모 */}
+            {/* 핵심 메모 */}
             <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-2">공유 메모</h2>
+              <h2 className="text-sm font-semibold text-slate-700 mb-2">핵심 메모</h2>
               <textarea
                 value={memo}
                 onChange={e => setMemo(e.target.value)}
@@ -652,10 +672,113 @@ export default function CoworkDetailPage() {
       {/* ── Tab: 문서 ── */}
       {tab === "docs" && (
         <div className="space-y-6">
+          {/* 파일 */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-slate-700">파일 ({documents.filter(d=>d.type==="file").length})</h2>
+              {isMember && (
+                <div className="flex gap-2">
+                  <label className="cursor-pointer">
+                    <input type="file" multiple className="hidden" onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files || files.length === 0) return;
+                      for (const file of Array.from(files)) {
+                        const res = await fetch(`/api/cowork/${id}/documents/upload`, {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ file_name: file.name }),
+                        });
+                        if (!res.ok) continue;
+                        const doc = await res.json();
+                        const { createClient: createBrowserClient } = await import("@/utils/supabase/client");
+                        const sb = createBrowserClient();
+                        const { error: upErr } = await sb.storage.from("documents").uploadToSignedUrl(doc.storage_path, doc.token, file, {
+                          contentType: file.type || "application/octet-stream",
+                        });
+                        if (!upErr) setDocuments(prev => [doc, ...prev]);
+                      }
+                      e.target.value = "";
+                    }} />
+                    <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">
+                      <Upload className="h-4 w-4" />파일 업로드
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+            {(() => {
+              const files = documents.filter(d => d.type === "file");
+              if (files.length === 0) return (
+                <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
+                  <Upload className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">파일을 업로드하세요</p>
+                </div>
+              );
+              // 확장자별 그룹핑
+              const getExt = (name?: string) => {
+                if (!name) return "기타";
+                const ext = name.split(".").pop()?.toLowerCase() ?? "";
+                if (["pdf"].includes(ext)) return "PDF";
+                if (["doc","docx"].includes(ext)) return "문서";
+                if (["xls","xlsx","csv"].includes(ext)) return "스프레드시트";
+                if (["ppt","pptx"].includes(ext)) return "프레젠테이션";
+                if (["png","jpg","jpeg","gif","svg","webp"].includes(ext)) return "이미지";
+                if (["zip","rar","7z"].includes(ext)) return "압축파일";
+                return "기타";
+              };
+              const groups: Record<string, typeof files> = {};
+              files.forEach(f => {
+                const g = getExt(f.file_name);
+                if (!groups[g]) groups[g] = [];
+                groups[g].push(f);
+              });
+              const order = ["문서","PDF","스프레드시트","프레젠테이션","이미지","압축파일","기타"];
+              const sorted = order.filter(g => groups[g]);
+              return (
+                <div className="space-y-3">
+                  {sorted.map(group => (
+                    <div key={group}>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5 px-1">{group} ({groups[group].length})</p>
+                      <div className="space-y-1">
+                        {groups[group].map(doc => (
+                          <div key={doc.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 group">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <FileText className="h-4 w-4 text-slate-500 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-800 truncate">{doc.file_name}</p>
+                                <p className="text-xs text-slate-400">{doc.uploader_name} · {format(parseISO(doc.created_at), "MM.dd", { locale: ko })}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <button onClick={async () => {
+                                const res = await fetch(doc.file_url ?? "");
+                                const blob = await res.blob();
+                                const a = window.document.createElement("a");
+                                a.href = URL.createObjectURL(blob);
+                                a.download = doc.file_name ?? "download";
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                              }} className="text-blue-500 hover:text-blue-600">
+                                <Download className="h-4 w-4" />
+                              </button>
+                              {isMember && <button onClick={async () => {
+                                await fetch(`/api/cowork/${id}/documents?doc_id=${doc.id}`, { method: "DELETE" });
+                                setDocuments(prev => prev.filter(d => d.id !== doc.id));
+                              }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
           {/* 링크 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-slate-700">링크</h2>
+              <h2 className="text-sm font-semibold text-slate-700">링크 ({documents.filter(d=>d.type==="link").length})</h2>
               {isMember && <Button size="sm" variant="outline" onClick={() => setAddLinkOpen(true)}><Plus className="h-4 w-4 mr-1"/>링크추가</Button>}
             </div>
             {documents.filter(d=>d.type==="link").length === 0
@@ -672,67 +795,6 @@ export default function CoworkDetailPage() {
                       </a>
                       <div className="flex items-center gap-3 shrink-0 ml-2">
                         <span className="text-xs text-slate-400">{doc.uploader_name}</span>
-                        {isMember && <button onClick={async () => {
-                          await fetch(`/api/cowork/${id}/documents?doc_id=${doc.id}`, { method: "DELETE" });
-                          setDocuments(prev => prev.filter(d => d.id !== doc.id));
-                        }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-            }
-          </div>
-          {/* 파일 */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-slate-700">파일</h2>
-              {isMember && (
-                <label className="cursor-pointer">
-                  <input type="file" className="hidden" onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    // 1. 서버에서 signed token + DB 레코드 생성
-                    const res = await fetch(`/api/cowork/${id}/documents/upload`, {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ file_name: file.name }),
-                    });
-                    if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || "업로드 준비 실패"); e.target.value = ""; return; }
-                    const doc = await res.json();
-                    // 2. Supabase Storage uploadToSignedUrl
-                    const { createClient: createBrowserClient } = await import("@/utils/supabase/client");
-                    const sb = createBrowserClient();
-                    const { error: upErr } = await sb.storage.from("documents").uploadToSignedUrl(doc.storage_path, doc.token, file, {
-                      contentType: file.type || "application/octet-stream",
-                    });
-                    if (!upErr) { setDocuments(prev => [doc, ...prev]); }
-                    else { alert("파일 업로드 실패: " + upErr.message); }
-                    e.target.value = "";
-                  }} />
-                  <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">
-                    <Upload className="h-4 w-4" />파일 업로드
-                  </span>
-                </label>
-              )}
-            </div>
-            {documents.filter(d => d.type === "file").length === 0
-              ? <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
-                  <Upload className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">파일을 업로드하세요</p>
-                </div>
-              : <div className="space-y-2">
-                  {documents.filter(d => d.type === "file").map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 group">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <FileText className="h-4 w-4 text-slate-500 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{doc.file_name}</p>
-                          <p className="text-xs text-slate-400">{doc.uploader_name} · {format(parseISO(doc.created_at), "MM.dd", { locale: ko })}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <a href={doc.file_url ?? ""} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-600">
-                          <Download className="h-4 w-4" />
-                        </a>
                         {isMember && <button onClick={async () => {
                           await fetch(`/api/cowork/${id}/documents?doc_id=${doc.id}`, { method: "DELETE" });
                           setDocuments(prev => prev.filter(d => d.id !== doc.id));
