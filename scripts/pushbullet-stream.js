@@ -7,11 +7,6 @@
  *
  * 실행: node scripts/pushbullet-stream.js
  * (npm run dev:full 로 Next.js와 함께 동시 실행 가능)
- *
- * 참고: SMS는 /v2/pushes API에는 안 들어갑니다. 실시간은 이 스트림(sms_changed),
- * 과거 문자는 "입금 동기화" 버튼이 호출하는 /api/sync-pushbullet에서
- * 비공식 permanents API로 스레드에서 가져옵니다.
- * https://www.pushbullet.com/#sms/... 웹 페이지는 SPA라 서버 크롤링 불가(로그인·JS 필요).
  */
 
 const WebSocket = require("ws");
@@ -39,7 +34,6 @@ loadEnv();
 const PUSHBULLET_API_KEY = process.env.PUSHBULLET_API_KEY;
 const LOCAL_WEBHOOK  = "http://localhost:3000/api/webhook/deposit";
 const VERCEL_WEBHOOK = "https://tnsgroupware.vercel.app/api/webhook/deposit";
-// WEBHOOK_URL 환경변수가 있으면 그것을, 없으면 localhost 우선 + 실패시 Vercel 폴백
 const FORCE_WEBHOOK_URL = process.env.WEBHOOK_URL || null;
 const WEBHOOK_URL = FORCE_WEBHOOK_URL || LOCAL_WEBHOOK;
 const STREAM_URL = `wss://stream.pushbullet.com/websocket/${PUSHBULLET_API_KEY}`;
@@ -50,9 +44,9 @@ const MAX_RECONNECT_DELAY_MS = 60000;
 let reconnectDelay = RECONNECT_DELAY_MS;
 let ws = null;
 
-// 중복 방지: 처리된 알림 ID 캐시 (파일 영속 + 메모리)
+// ── 성공 캐시: webhook 성공 후에만 등록 ─────────────────────────────────────
 const IDEN_CACHE_FILE = path.join(__dirname, ".pb_processed_idens.json");
-const IDEN_MAX_AGE_MS = 24 * 3600_000; // 24시간 이상 된 항목은 정리
+const IDEN_MAX_AGE_MS = 48 * 3600_000; // 48시간
 
 function loadIdenCache() {
   try {
@@ -73,17 +67,42 @@ function saveIdenCache(map) {
   } catch {}
 }
 
-// Map<iden, timestamp>
-const recentIdenMap = loadIdenCache();
+const successCache = loadIdenCache();
 
-function hasIden(iden) { return recentIdenMap.has(iden); }
-function addIden(iden) {
-  recentIdenMap.set(iden, Date.now());
-  saveIdenCache(recentIdenMap);
+function isProcessed(iden) { return successCache.has(iden); }
+function markProcessed(iden) {
+  successCache.set(iden, Date.now());
+  saveIdenCache(successCache);
 }
 
-// 하위 호환: Set처럼 쓰던 코드용
-const recentIdens = { has: hasIden, add: addIden };
+// ── 실패 큐: webhook 실패 건 재시도 ─────────────────────────────────────────
+const FAIL_QUEUE_FILE = path.join(__dirname, ".pb_fail_queue.json");
+const FAIL_MAX_RETRIES = 10;
+const FAIL_RETRY_INTERVAL_MS = 30_000; // 30초마다 재시도
+
+function loadFailQueue() {
+  try {
+    if (!fs.existsSync(FAIL_QUEUE_FILE)) return [];
+    return JSON.parse(fs.readFileSync(FAIL_QUEUE_FILE, "utf-8"));
+  } catch { return []; }
+}
+
+function saveFailQueue(queue) {
+  try {
+    fs.writeFileSync(FAIL_QUEUE_FILE, JSON.stringify(queue));
+  } catch {}
+}
+
+// { iden, smsText, retries, lastAttempt }
+let failQueue = loadFailQueue();
+
+function addToFailQueue(iden, smsText) {
+  // 이미 큐에 있으면 무시
+  if (failQueue.some((q) => q.iden === iden)) return;
+  failQueue.push({ iden, smsText, retries: 0, lastAttempt: Date.now() });
+  saveFailQueue(failQueue);
+  log.warn(`실패 큐에 추가: ${iden} (큐 크기: ${failQueue.length})`);
+}
 
 // ── 색상 로그 헬퍼 ────────────────────────────────────────────────────────────
 const log = {
@@ -115,7 +134,7 @@ function postToWebhook(url, smsText, iden) {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
         },
-        timeout: 8000,
+        timeout: 15000,
       },
       (res) => {
         let data = "";
@@ -141,7 +160,7 @@ function postToWebhook(url, smsText, iden) {
   });
 }
 
-// 로컬 호출 재시도 (Next 기동 직후 구간 보장)
+// 로컬 호출 재시도
 const LOCAL_RETRY_DELAY_MS = 2000;
 const LOCAL_RETRY_COUNT = 3;
 
@@ -160,40 +179,105 @@ async function postToWebhookWithRetry(url, smsText, iden, retries = LOCAL_RETRY_
   }
 }
 
-// ── 웹훅 호출 (localhost 재시도 후 Vercel 폴백 → 100% 보장) ────────────────────
+// ── 웹훅 호출: 성공하면 true, 실패하면 false ─────────────────────────────────
 async function callWebhook(smsText, iden) {
-  // WEBHOOK_URL 환경변수가 명시된 경우 그것만 사용
   if (FORCE_WEBHOOK_URL) {
     try {
       const json = await postToWebhook(FORCE_WEBHOOK_URL, smsText, iden);
       log.ok(`원장 등록 완료 → ${json.amount?.toLocaleString()}원 / ${json.client_name || "미확인"} (${json.date})`);
+      return true;
     } catch (e) {
       log.error(`웹훅 호출 실패 [${FORCE_WEBHOOK_URL}]: ${e.message}`);
+      return false;
     }
-    return;
   }
 
-  // 1순위: 로컬 서버 (최대 3회 재시도 → Next 기동 직후에도 수신 보장)
+  // 1순위: 로컬 서버
   try {
     const json = await postToWebhookWithRetry(LOCAL_WEBHOOK, smsText, iden);
     log.ok(`원장 등록 완료 [로컬] → ${json.amount?.toLocaleString()}원 / ${json.client_name || "미확인"} (${json.date})`);
-    return;
+    return true;
   } catch (localErr) {
-    log.warn(`로컬 웹훅 실패 (${localErr.message}) → Vercel 웹훅으로 폴백...`);
+    log.warn(`로컬 웹훅 실패 (${localErr.message}) → Vercel 폴백...`);
   }
 
-  // 2순위: Vercel 프로덕션 (로컬 꺼져 있어도 유실 방지)
-  try {
-    const json = await postToWebhook(VERCEL_WEBHOOK, smsText, iden);
-    log.ok(`원장 등록 완료 [Vercel] → ${json.amount?.toLocaleString()}원 / ${json.client_name || "미확인"} (${json.date})`);
-  } catch (vercelErr) {
-    log.error(`Vercel 웹훅도 실패: ${vercelErr.message}`);
+  // 2순위: Vercel (3회 재시도)
+  for (let i = 1; i <= 3; i++) {
+    try {
+      const json = await postToWebhook(VERCEL_WEBHOOK, smsText, iden);
+      log.ok(`원장 등록 완료 [Vercel] → ${json.amount?.toLocaleString()}원 / ${json.client_name || "미확인"} (${json.date})`);
+      return true;
+    } catch (vercelErr) {
+      if (i < 3) {
+        log.warn(`Vercel 시도 ${i}/3 실패 (${vercelErr.message}), 3초 후 재시도...`);
+        await new Promise((r) => setTimeout(r, 3000));
+      } else {
+        log.error(`Vercel 웹훅도 3회 실패: ${vercelErr.message}`);
+      }
+    }
   }
+
+  return false;
 }
+
+// ── 실패 큐 재시도 루프 ─────────────────────────────────────────────────────
+async function processFailQueue() {
+  if (failQueue.length === 0) return;
+
+  log.info(`실패 큐 재시도: ${failQueue.length}건`);
+  const remaining = [];
+
+  for (const item of failQueue) {
+    if (isProcessed(item.iden)) {
+      log.info(`이미 성공 처리됨, 큐에서 제거: ${item.iden}`);
+      continue;
+    }
+
+    if (item.retries >= FAIL_MAX_RETRIES) {
+      log.error(`최대 재시도 초과, 영구 실패: ${item.iden} (${item.retries}회 시도)`);
+      continue;
+    }
+
+    const success = await callWebhook(item.smsText, item.iden);
+    if (success) {
+      markProcessed(item.iden);
+      log.ok(`실패 큐 재시도 성공: ${item.iden}`);
+    } else {
+      item.retries++;
+      item.lastAttempt = Date.now();
+      remaining.push(item);
+      log.warn(`실패 큐 재시도 실패 (${item.retries}/${FAIL_MAX_RETRIES}): ${item.iden}`);
+    }
+  }
+
+  failQueue = remaining;
+  saveFailQueue(failQueue);
+}
+
+// 30초마다 실패 큐 재시도
+setInterval(processFailQueue, FAIL_RETRY_INTERVAL_MS);
 
 // ── 신한은행 입금 SMS 판별 ────────────────────────────────────────────────────
 function isShinhanDeposit(text) {
   return text.includes("신한") && text.includes("입금");
+}
+
+// ── SMS 처리: 수신 → webhook → 성공시만 캐시 등록 ─────────────────────────────
+async function handleDeposit(smsText, iden) {
+  if (isProcessed(iden)) {
+    log.warn(`중복 무시 (성공 캐시): ${iden}`);
+    return;
+  }
+
+  log.recv(`🏦 신한 입금 SMS 감지!\n${smsText.split("\n").slice(0, 4).join(" | ")}`);
+
+  const success = await callWebhook(smsText, iden);
+  if (success) {
+    markProcessed(iden);
+  } else {
+    // 실패 → 큐에 추가 (30초마다 재시도)
+    addToFailQueue(iden, smsText);
+  }
 }
 
 // ── WebSocket 연결 ────────────────────────────────────────────────────────────
@@ -204,10 +288,13 @@ function connect() {
   }
 
   log.info(`Pushbullet 스트림 연결 중... (웹훅: ${WEBHOOK_URL})`);
+  if (failQueue.length > 0) {
+    log.warn(`실패 큐에 ${failQueue.length}건 대기 중`);
+  }
   ws = new WebSocket(STREAM_URL);
 
   ws.on("open", () => {
-    reconnectDelay = RECONNECT_DELAY_MS; // 성공 시 지연 리셋
+    reconnectDelay = RECONNECT_DELAY_MS;
     log.ok("Pushbullet 스트림 연결됨. 신한은행 입금 SMS 대기 중...");
   });
 
@@ -219,22 +306,19 @@ function connect() {
       return;
     }
 
-    // nop (heartbeat) 무시
     if (msg.type === "nop") return;
 
-    // tickle(데이터변경 알림) 로그
     if (msg.type === "tickle") {
       log.info(`tickle 수신 (subtype=${msg.subtype})`);
       return;
     }
 
-    // 모든 push 메시지 원문 출력 (디버깅)
     log.info(`메시지 수신: ${JSON.stringify(msg).slice(0, 300)}`);
 
     if (msg.type !== "push" || !msg.push) return;
     const push = msg.push;
 
-    // ── sms_changed: SMS 수신 이벤트 ────────────────────────────────────────
+    // ── sms_changed ────────────────────────────────────────────────────────
     if (push.type === "sms_changed") {
       const notifications = Array.isArray(push.notifications) ? push.notifications : [];
       for (const notif of notifications) {
@@ -247,18 +331,12 @@ function connect() {
 
         if (!isShinhanDeposit(combined)) continue;
 
-        if (recentIdens.has(dedupeKey)) {
-          log.warn(`중복 SMS 무시: ${dedupeKey}`);
-          continue;
-        }
-        recentIdens.add(dedupeKey);
-        log.recv(`🏦 신한 입금 SMS 감지!\n${body}`);
-        await callWebhook(body, dedupeKey);
+        await handleDeposit(body, dedupeKey);
       }
       return;
     }
 
-    // ── mirror: 앱 알림 미러링 ───────────────────────────────────────────────
+    // ── mirror ─────────────────────────────────────────────────────────────
     if (push.type === "mirror") {
       const iden = push.iden || "";
       const title = push.title || "";
@@ -269,16 +347,7 @@ function connect() {
 
       if (!isShinhanDeposit(combined)) return;
 
-      if (iden && recentIdens.has(iden)) {
-        log.warn(`중복 알림 무시: ${iden}`);
-        return;
-      }
-      if (iden) {
-        recentIdens.add(iden);
-      }
-
-      log.recv(`🏦 신한 입금 SMS 감지!\n${combined}`);
-      await callWebhook(combined, iden);
+      await handleDeposit(combined, iden);
     }
   });
 
@@ -296,6 +365,8 @@ function connect() {
 // ── 프로세스 종료 처리 ────────────────────────────────────────────────────────
 process.on("SIGINT", () => {
   log.info("종료 중...");
+  saveFailQueue(failQueue);
+  saveIdenCache(successCache);
   if (ws) ws.close();
   process.exit(0);
 });
