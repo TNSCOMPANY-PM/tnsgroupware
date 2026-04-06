@@ -13,8 +13,8 @@ const path = require("path");
 
 // ── 설정 ──────────────────────────────────────────────────────────────────
 const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-// Chrome 프로필 경로 (로그인 상태 유지)
-const USER_DATA_DIR = path.join(process.env.LOCALAPPDATA || "", "Google", "Chrome", "User Data");
+// 전용 프로필 (기존 Chrome과 충돌 안 함)
+const USER_DATA_DIR = path.join(__dirname, ".geo-chrome-profile");
 const CHATGPT_URL = "https://chatgpt.com";
 const CONCURRENT = 5; // 동시 탭 수 (25개 동시는 메모리 부담 → 5개씩)
 const SCREENSHOT_DIR = path.join(__dirname, "..", "screenshots");
