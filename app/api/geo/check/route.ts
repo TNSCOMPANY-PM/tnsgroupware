@@ -53,19 +53,48 @@ export async function POST(request: Request) {
 
   const brandName = brand.name;
   const brandNameLower = brandName.toLowerCase();
-  // 브랜드명 변형 (오공김밥 → 오공, 50gimbab 등)
   const brandVariants = [
     brandNameLower,
     brandNameLower.replace(/\s/g, ""),
   ];
 
+  // D0~D2: 노출률 체크 (브랜드 직접 언급 안 하고 질문 → 브랜드 나오는지)
+  // D3: 정확도 체크 (브랜드 직접 질문 → 답변이 정확한지)
+  const exposurePrompts = prompts.filter((p) => !p.category?.startsWith("D3"));
+  const accuracyPrompts = prompts.filter((p) => p.category?.startsWith("D3"));
+
+  // 랜딩 URL에서 참고 데이터 추출 (D3 정확도 체크용)
+  // 핵심 키워드: FAQ 문서에서 추출한 주요 수치
+  const factKeywords = [
+    { keyword: "6,500만", label: "총 창업비용" },
+    { keyword: "6500만", label: "총 창업비용" },
+    { keyword: "1,500만", label: "실투자금" },
+    { keyword: "1500만", label: "실투자금" },
+    { keyword: "4,500만", label: "평균 월매출" },
+    { keyword: "4500만", label: "평균 월매출" },
+    { keyword: "17~23%", label: "순마진" },
+    { keyword: "30만원", label: "로열티" },
+    { keyword: "10평", label: "매장 규모" },
+    { keyword: "3명", label: "운영 인원" },
+    { keyword: "3인", label: "운영 인원" },
+    { keyword: "50가지", label: "메뉴 수" },
+    { keyword: "55개", label: "가맹점 수" },
+    { keyword: "자동화", label: "자동화 설비" },
+    { keyword: "라이스시트", label: "자동화 설비" },
+    { keyword: "1년", label: "투자 회수" },
+    { keyword: "오사카", label: "해외 진출" },
+  ];
+
   let mentionedCount = 0;
+  let exposureTotal = exposurePrompts.length;
   const items: {
     run_id: string; prompt_id: string; prompt_text: string;
     ai_response: string; mentioned: boolean; accuracy_score: number;
+    check_type: string; category: string;
   }[] = [];
 
-  for (const prompt of prompts) {
+  // ── D0~D2: 노출률 체크 ──
+  for (const prompt of exposurePrompts) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -73,59 +102,97 @@ export async function POST(request: Request) {
         max_tokens: 1000,
         temperature: 0.7,
       });
-
       const response = completion.choices[0]?.message?.content ?? "";
       const responseLower = response.toLowerCase();
-
-      // 브랜드 언급 여부
       const mentioned = brandVariants.some((v) => responseLower.includes(v));
       if (mentioned) mentionedCount++;
 
-      // 정확도 점수 (0~100): 브랜드 언급 + 정량 데이터 포함 여부
+      // 노출 시 부가 점수
       let accuracy = 0;
       if (mentioned) {
         accuracy += 50;
-        // 숫자가 포함되어 있으면 (창업비용, 매출 등)
         if (/\d{3,}/.test(response)) accuracy += 20;
-        // 긍정적 추천인 경우
         if (/추천|좋은|인기|성공|높은/.test(response)) accuracy += 15;
-        // 구체적 정보 (비용, 매출, 가맹점 수 등)
         if (/만원|억|매출|가맹|창업비/.test(response)) accuracy += 15;
       }
 
       items.push({
-        run_id: run.id,
-        prompt_id: prompt.id,
-        prompt_text: prompt.prompt_text,
-        ai_response: response,
-        mentioned,
-        accuracy_score: Math.min(accuracy, 100),
+        run_id: run.id, prompt_id: prompt.id, prompt_text: prompt.prompt_text,
+        ai_response: response, mentioned, accuracy_score: Math.min(accuracy, 100),
+        check_type: "exposure", category: prompt.category ?? "",
       });
     } catch (e) {
       items.push({
-        run_id: run.id,
-        prompt_id: prompt.id,
-        prompt_text: prompt.prompt_text,
+        run_id: run.id, prompt_id: prompt.id, prompt_text: prompt.prompt_text,
         ai_response: `[오류] ${e instanceof Error ? e.message : "알 수 없는 오류"}`,
-        mentioned: false,
-        accuracy_score: 0,
+        mentioned: false, accuracy_score: 0, check_type: "exposure", category: prompt.category ?? "",
       });
     }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
 
-    // rate limit 방지: 프롬프트 간 1초 대기
+  // ── D3: 정확도 체크 ──
+  for (const prompt of accuracyPrompts) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt.prompt_text }],
+        max_tokens: 1000,
+        temperature: 0.7,
+      });
+      const response = completion.choices[0]?.message?.content ?? "";
+
+      // 팩트 키워드 매칭으로 정확도 계산
+      let matchedFacts = 0;
+      const matchedLabels: string[] = [];
+      for (const fact of factKeywords) {
+        if (response.includes(fact.keyword) && !matchedLabels.includes(fact.label)) {
+          matchedFacts++;
+          matchedLabels.push(fact.label);
+        }
+      }
+      // 정확도: 매칭된 팩트 / 전체 고유 팩트 라벨 수
+      const uniqueLabels = [...new Set(factKeywords.map((f) => f.label))];
+      const accuracy = Math.round((matchedFacts / uniqueLabels.length) * 100);
+
+      // 명백한 오류 감지 (부정확한 수치)
+      const hasError = /폐업|문을 닫|없는 브랜드|확인되지 않|정보.*없/.test(response);
+
+      items.push({
+        run_id: run.id, prompt_id: prompt.id, prompt_text: prompt.prompt_text,
+        ai_response: response,
+        mentioned: !hasError, // D3는 "정확한 답변 여부"
+        accuracy_score: hasError ? 0 : accuracy,
+        check_type: "accuracy", category: prompt.category ?? "",
+      });
+    } catch (e) {
+      items.push({
+        run_id: run.id, prompt_id: prompt.id, prompt_text: prompt.prompt_text,
+        ai_response: `[오류] ${e instanceof Error ? e.message : "알 수 없는 오류"}`,
+        mentioned: false, accuracy_score: 0, check_type: "accuracy", category: prompt.category ?? "",
+      });
+    }
     await new Promise((r) => setTimeout(r, 1000));
   }
 
   // 결과 저장
   await supabase.from("geo_check_items").insert(items);
 
-  const score = prompts.length > 0 ? Math.round((mentionedCount / prompts.length) * 100) : 0;
-  await supabase.from("geo_check_runs").update({ mentioned_count: mentionedCount, score }).eq("id", run.id);
+  const exposureScore = exposureTotal > 0 ? Math.round((mentionedCount / exposureTotal) * 100) : 0;
+  const accuracyItems = items.filter((i) => i.check_type === "accuracy");
+  const avgAccuracy = accuracyItems.length > 0 ? Math.round(accuracyItems.reduce((s, i) => s + i.accuracy_score, 0) / accuracyItems.length) : 0;
+
+  await supabase.from("geo_check_runs").update({
+    mentioned_count: mentionedCount,
+    score: exposureScore,
+  }).eq("id", run.id);
 
   return NextResponse.json({
     id: run.id,
-    score,
+    exposure_score: exposureScore,
+    accuracy_score: avgAccuracy,
     total_prompts: prompts.length,
+    exposure_prompts: exposureTotal,
     mentioned_count: mentionedCount,
     items,
   });
