@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // 체크 실행 레코드 생성
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-mini + web_search" })
     .select()
     .single();
 
@@ -93,16 +93,24 @@ export async function POST(request: Request) {
     check_type: string; category: string;
   }[] = [];
 
+  // ── 공통: Responses API + 웹 검색 (실제 ChatGPT 무료 유저 경험과 동일) ──
+  async function askWithWebSearch(question: string): Promise<string> {
+    const result = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: question,
+      tools: [{ type: "web_search_preview" as const }],
+    });
+    const msg = result.output.find((o: { type: string }) => o.type === "message");
+    if (msg && "content" in msg && Array.isArray(msg.content)) {
+      return msg.content.map((c: { type: string; text?: string }) => c.type === "output_text" ? c.text ?? "" : "").join("");
+    }
+    return "";
+  }
+
   // ── D0~D2: 노출률 체크 ──
   for (const prompt of exposurePrompts) {
     try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt.prompt_text }],
-        max_tokens: 1000,
-        temperature: 0.7,
-      });
-      const response = completion.choices[0]?.message?.content ?? "";
+      const response = await askWithWebSearch(prompt.prompt_text);
       const responseLower = response.toLowerCase();
       const mentioned = brandVariants.some((v) => responseLower.includes(v));
       if (mentioned) mentionedCount++;
@@ -134,13 +142,7 @@ export async function POST(request: Request) {
   // ── D3: 정확도 체크 ──
   for (const prompt of accuracyPrompts) {
     try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt.prompt_text }],
-        max_tokens: 1000,
-        temperature: 0.7,
-      });
-      const response = completion.choices[0]?.message?.content ?? "";
+      const response = await askWithWebSearch(prompt.prompt_text);
 
       // 팩트 키워드 매칭으로 정확도 계산
       let matchedFacts = 0;
