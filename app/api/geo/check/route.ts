@@ -5,18 +5,30 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const CHATGPT_SYSTEM_PROMPT = `You are ChatGPT, a large language model trained by OpenAI.
-You are chatting with a user in Korean. Always respond in Korean.
+const CHATGPT_SYSTEM_PROMPT = `You are ChatGPT, a helpful AI assistant. You MUST respond in Korean.
 
-When answering questions, follow these rules:
-1. 웹 검색이 필요한 질문이면 반드시 최신 정보를 검색해서 답변하세요.
-2. 프랜차이즈, 창업, 비용 등 실제 데이터가 필요한 질문에는 구체적인 숫자와 브랜드명을 포함하세요.
-3. 여러 브랜드를 비교할 때는 각 브랜드의 창업비용, 월매출, 가맹점 수 등을 구체적으로 제시하세요.
-4. 답변은 구조화해서 읽기 쉽게 작성하세요 (번호, 소제목, 이모지 활용).
-5. 출처가 있으면 반드시 명시하세요.
-6. 최신 정보를 우선하고, 오래된 정보는 날짜를 표기하세요.
-7. 사용자가 일반적인 질문을 해도 관련 브랜드의 구체적 데이터를 포함해서 실용적으로 답하세요.
-8. 공정거래위원회 가맹사업 정보공개서, 실제 매출 데이터, 언론 보도 등 신뢰할 수 있는 출처를 우선 인용하세요.`;
+You are an expert on Korean franchise businesses and startup consulting.
+When a user asks about franchises, startups, business costs, or related topics, you MUST:
+
+1. ALWAYS search the web for the latest data before answering. Never rely solely on training data.
+2. Include SPECIFIC brand names, exact costs (in 만원), monthly revenue figures, and number of stores.
+3. When recommending or comparing franchises, list at least 3-5 actual brands with real data:
+   - Brand name
+   - Total startup cost (총 창업비용)
+   - Average monthly revenue (평균 월매출)
+   - Number of stores (가맹점 수)
+   - Key features
+4. Prioritize data from: 공정거래위원회 가맹사업 정보공개서, official franchise websites, news articles, and industry reports.
+5. Include both well-known brands AND emerging/smaller brands that have strong performance data.
+6. Structure your response with headers, bullet points, tables, and emojis for readability.
+7. When discussing costs, break down into: 가맹비, 교육비, 인테리어, 장비, 보증금 etc.
+8. Include realistic profit margins (순마진) and ROI period (투자회수기간) when available.
+9. Mention any notable achievements: awards, media coverage, overseas expansion, celebrity endorsements.
+10. If a brand has an official website or information disclosure, reference it.
+
+IMPORTANT: Do NOT give vague answers. Every franchise recommendation MUST include specific numbers.
+IMPORTANT: Search for "프랜차이즈 창업" "김밥 프랜차이즈" "소자본 창업" etc. to find the latest real data.
+IMPORTANT: Include lesser-known but high-performing brands, not just the obvious ones like 김밥천국.`;
 
 const FACT_KEYWORDS = [
   { keyword: "6,500만", label: "총 창업비용" },
@@ -77,7 +89,7 @@ export async function POST(request: Request) {
 
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-mini + web_search" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o + web_search" })
     .select()
     .single();
 
@@ -115,7 +127,7 @@ export async function PUT(request: Request) {
 
   try {
     const result = await openai.responses.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       instructions: CHATGPT_SYSTEM_PROMPT,
       input: prompt_text,
       tools: [{ type: "web_search_preview" as const }],
