@@ -22,8 +22,8 @@ export async function POST(
 
   if (!member) return forbidden();
 
-  const body = await request.json() as { file_name: string };
-  const { file_name } = body;
+  const body = await request.json() as { file_name: string; folder?: string };
+  const { file_name, folder } = body;
   if (!file_name) return NextResponse.json({ error: "file_name required" }, { status: 400 });
 
   const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -48,6 +48,7 @@ export async function POST(
       type: "file",
       file_name,
       file_url: urlData.publicUrl,
+      folder: folder ?? "",
       uploaded_by: String(session.employeeId),
       uploader_name: session.name,
     })

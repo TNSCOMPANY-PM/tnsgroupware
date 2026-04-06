@@ -6,7 +6,7 @@ import {
   ArrowLeft, Bell, Plus, X, ChevronLeft, ChevronRight,
   FileText, Link as LinkIcon, Trash2, AlertTriangle,
   CheckCircle2, Clock, Users, MessageCircle, Send,
-  ArrowRight, Pencil, Check, Upload, Download
+  ArrowRight, Pencil, Check, Upload, Download, FolderPlus, FolderOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -37,6 +37,7 @@ type Schedule = { id: string; title: string; start_date: string; end_date?: stri
 type Document = {
   id: string; type: "file" | "link"; file_name?: string; file_url?: string;
   link_url?: string; link_title?: string; uploader_name: string; created_at: string;
+  folder?: string;
 };
 type WorkRequest = {
   id: string; from_id: string; from_name: string; to_id: string; to_name: string;
@@ -123,6 +124,12 @@ export default function CoworkDetailPage() {
   const [addLinkOpen, setAddLinkOpen] = useState(false);
   const [addRequestOpen, setAddRequestOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
+  const [docFolders, setDocFolders] = useState<string[]>([]);
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [dragDocId, setDragDocId] = useState<string | null>(null);
+  const [dropZoneActive, setDropZoneActive] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [addFolderOpen, setAddFolderOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [newPostOpen, setNewPostOpen] = useState(false);
   const [requestTab, setRequestTab] = useState<"received" | "sent">("received");
@@ -185,6 +192,9 @@ export default function CoworkDetailPage() {
       setRequests(Array.isArray(rq) ? rq : []);
       setActivities(Array.isArray(ac) ? ac : []);
       setPosts(Array.isArray(ps) ? ps : []);
+      const docs = Array.isArray(dc) ? dc : [];
+      const folders = [...new Set(docs.filter((d: Document) => d.folder).map((d: Document) => d.folder as string))];
+      setDocFolders(folders);
       setMemo(cw?.memo ?? "");
       setTitleVal(cw?.title ?? "");
     } finally {
@@ -204,6 +214,31 @@ export default function CoworkDetailPage() {
     fetch(`/api/cowork/${id}/comments?task_id=${taskModal.id}`)
       .then(r => r.ok ? r.json() : []).then(d => setComments(Array.isArray(d) ? d : []));
   }, [taskModal, id]);
+
+  const uploadFiles = async (files: File[], folder = "") => {
+    for (const file of files) {
+      const res = await fetch(`/api/cowork/${id}/documents/upload`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_name: file.name, folder }),
+      });
+      if (!res.ok) continue;
+      const doc = await res.json();
+      const { createClient: createBrowserClient } = await import("@/utils/supabase/client");
+      const sb = createBrowserClient();
+      const { error: upErr } = await sb.storage.from("documents").uploadToSignedUrl(doc.storage_path, doc.token, file, {
+        contentType: file.type || "application/octet-stream",
+      });
+      if (!upErr) setDocuments(prev => [doc, ...prev]);
+    }
+  };
+
+  const moveDocToFolder = async (docId: string, folder: string) => {
+    await fetch(`/api/cowork/${id}/documents`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc_id: docId, folder }),
+    });
+    setDocuments(prev => prev.map(d => d.id === docId ? { ...d, folder } : d));
+  };
 
   const fetchPostComments = async (postId: string) => {
     const res = await fetch(`/api/cowork/${id}/comments?post_id=${postId}`);
@@ -672,107 +707,155 @@ export default function CoworkDetailPage() {
       {/* ── Tab: 문서 ── */}
       {tab === "docs" && (
         <div className="space-y-6">
-          {/* 파일 */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          {/* 파일 — 드래그앤드롭 영역 */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5"
+            onDragOver={e => { e.preventDefault(); if (e.dataTransfer.types.includes("Files")) setDropZoneActive(true); }}
+            onDragLeave={() => setDropZoneActive(false)}
+            onDrop={async e => {
+              e.preventDefault(); setDropZoneActive(false);
+              if (!isMember) return;
+              const files = Array.from(e.dataTransfer.files);
+              if (files.length > 0) await uploadFiles(files, "");
+            }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-slate-700">파일 ({documents.filter(d=>d.type==="file").length})</h2>
               {isMember && (
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setAddFolderOpen(true)}><FolderPlus className="h-4 w-4 mr-1" />폴더</Button>
                   <label className="cursor-pointer">
-                    <input type="file" multiple className="hidden" onChange={async (e) => {
-                      const files = e.target.files;
-                      if (!files || files.length === 0) return;
-                      for (const file of Array.from(files)) {
-                        const res = await fetch(`/api/cowork/${id}/documents/upload`, {
-                          method: "POST", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ file_name: file.name }),
-                        });
-                        if (!res.ok) continue;
-                        const doc = await res.json();
-                        const { createClient: createBrowserClient } = await import("@/utils/supabase/client");
-                        const sb = createBrowserClient();
-                        const { error: upErr } = await sb.storage.from("documents").uploadToSignedUrl(doc.storage_path, doc.token, file, {
-                          contentType: file.type || "application/octet-stream",
-                        });
-                        if (!upErr) setDocuments(prev => [doc, ...prev]);
-                      }
-                      e.target.value = "";
+                    <input type="file" multiple className="hidden" onChange={async e => {
+                      const f = e.target.files; if (!f) return;
+                      await uploadFiles(Array.from(f), ""); e.target.value = "";
                     }} />
-                    <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700">
-                      <Upload className="h-4 w-4" />파일 업로드
-                    </span>
+                    <span className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700"><Upload className="h-4 w-4" />업로드</span>
                   </label>
                 </div>
               )}
             </div>
+
+            {/* 드롭존 오버레이 */}
+            {dropZoneActive && (
+              <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 p-8 text-center mb-4">
+                <Upload className="h-8 w-8 text-blue-400 mx-auto mb-2" />
+                <p className="text-sm text-blue-600 font-medium">여기에 파일을 놓으세요</p>
+              </div>
+            )}
+
             {(() => {
               const files = documents.filter(d => d.type === "file");
-              if (files.length === 0) return (
+              const allFolders = [...new Set([...docFolders, ...files.filter(f => f.folder).map(f => f.folder as string)])].filter(Boolean).sort();
+              const rootFiles = files.filter(f => !f.folder);
+
+              if (files.length === 0 && allFolders.length === 0) return (
                 <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
                   <Upload className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">파일을 업로드하세요</p>
+                  <p className="text-sm text-slate-400">파일을 드래그하거나 업로드하세요</p>
                 </div>
               );
-              // 확장자별 그룹핑
-              const getExt = (name?: string) => {
-                if (!name) return "기타";
-                const ext = name.split(".").pop()?.toLowerCase() ?? "";
-                if (["pdf"].includes(ext)) return "PDF";
-                if (["doc","docx"].includes(ext)) return "문서";
-                if (["xls","xlsx","csv"].includes(ext)) return "스프레드시트";
-                if (["ppt","pptx"].includes(ext)) return "프레젠테이션";
-                if (["png","jpg","jpeg","gif","svg","webp"].includes(ext)) return "이미지";
-                if (["zip","rar","7z"].includes(ext)) return "압축파일";
-                return "기타";
-              };
-              const groups: Record<string, typeof files> = {};
-              files.forEach(f => {
-                const g = getExt(f.file_name);
-                if (!groups[g]) groups[g] = [];
-                groups[g].push(f);
-              });
-              const order = ["문서","PDF","스프레드시트","프레젠테이션","이미지","압축파일","기타"];
-              const sorted = order.filter(g => groups[g]);
+
+              const FileRow = ({ doc }: { doc: Document }) => (
+                <div key={doc.id}
+                  draggable={isMember}
+                  onDragStart={() => setDragDocId(doc.id)}
+                  onDragEnd={() => setDragDocId(null)}
+                  className="flex items-center justify-between p-2.5 rounded-lg bg-white hover:bg-slate-50 group cursor-grab active:cursor-grabbing border border-transparent hover:border-slate-200">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <FileText className="h-4 w-4 text-slate-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{doc.file_name}</p>
+                      <p className="text-xs text-slate-400">{doc.uploader_name} · {format(parseISO(doc.created_at), "MM.dd", { locale: ko })}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <button onClick={async () => {
+                      const r = await fetch(doc.file_url ?? ""); const b = await r.blob();
+                      const a = window.document.createElement("a"); a.href = URL.createObjectURL(b); a.download = doc.file_name ?? "download"; a.click(); URL.revokeObjectURL(a.href);
+                    }} className="text-blue-500 hover:text-blue-600"><Download className="h-4 w-4" /></button>
+                    {isMember && <button onClick={async () => {
+                      await fetch(`/api/cowork/${id}/documents?doc_id=${doc.id}`, { method: "DELETE" });
+                      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+                    }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
+                  </div>
+                </div>
+              );
+
               return (
                 <div className="space-y-3">
-                  {sorted.map(group => (
-                    <div key={group}>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5 px-1">{group} ({groups[group].length})</p>
-                      <div className="space-y-1">
-                        {groups[group].map(doc => (
-                          <div key={doc.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 group">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <FileText className="h-4 w-4 text-slate-500 shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-slate-800 truncate">{doc.file_name}</p>
-                                <p className="text-xs text-slate-400">{doc.uploader_name} · {format(parseISO(doc.created_at), "MM.dd", { locale: ko })}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0 ml-2">
-                              <button onClick={async () => {
-                                const res = await fetch(doc.file_url ?? "");
-                                const blob = await res.blob();
-                                const a = window.document.createElement("a");
-                                a.href = URL.createObjectURL(blob);
-                                a.download = doc.file_name ?? "download";
-                                a.click();
-                                URL.revokeObjectURL(a.href);
-                              }} className="text-blue-500 hover:text-blue-600">
-                                <Download className="h-4 w-4" />
-                              </button>
-                              {isMember && <button onClick={async () => {
-                                await fetch(`/api/cowork/${id}/documents?doc_id=${doc.id}`, { method: "DELETE" });
-                                setDocuments(prev => prev.filter(d => d.id !== doc.id));
-                              }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
-                            </div>
+                  {/* 폴더들 */}
+                  {allFolders.map(folder => {
+                    const folderFiles = files.filter(f => f.folder === folder);
+                    return (
+                      <div key={folder}
+                        onDragOver={e => { e.preventDefault(); if (dragDocId) setDragOverFolder(folder); }}
+                        onDragLeave={() => setDragOverFolder(null)}
+                        onDrop={async e => {
+                          e.preventDefault(); e.stopPropagation(); setDragOverFolder(null);
+                          // 파일 드롭 (외부)
+                          if (e.dataTransfer.files.length > 0 && isMember) {
+                            await uploadFiles(Array.from(e.dataTransfer.files), folder); return;
+                          }
+                          // 문서 이동 (내부)
+                          if (dragDocId && isMember) { await moveDocToFolder(dragDocId, folder); setDragDocId(null); }
+                        }}
+                        className={cn("rounded-lg border p-3 transition-colors",
+                          dragOverFolder === folder ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-slate-50"
+                        )}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="h-4 w-4 text-amber-500" />
+                            <span className="text-sm font-semibold text-slate-700">{folder}</span>
+                            <span className="text-xs text-slate-400">({folderFiles.length})</span>
                           </div>
-                        ))}
+                          {isMember && (
+                            <label className="cursor-pointer">
+                              <input type="file" multiple className="hidden" onChange={async e => {
+                                const f = e.target.files; if (!f) return;
+                                await uploadFiles(Array.from(f), folder); e.target.value = "";
+                              }} />
+                              <span className="text-xs text-blue-500 hover:underline">+ 파일추가</span>
+                            </label>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {folderFiles.map(doc => <FileRow key={doc.id} doc={doc} />)}
+                          {folderFiles.length === 0 && <p className="text-xs text-slate-400 py-2 text-center">폴더가 비어있습니다. 파일을 드래그하세요.</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* 루트 파일 (폴더 없는 파일) */}
+                  {rootFiles.length > 0 && (
+                    <div
+                      onDragOver={e => { e.preventDefault(); if (dragDocId) setDragOverFolder("__root__"); }}
+                      onDragLeave={() => setDragOverFolder(null)}
+                      onDrop={async e => {
+                        e.preventDefault(); setDragOverFolder(null);
+                        if (dragDocId && isMember) { await moveDocToFolder(dragDocId, ""); setDragDocId(null); }
+                      }}
+                      className={cn("rounded-lg border p-3 transition-colors",
+                        dragOverFolder === "__root__" ? "border-blue-400 bg-blue-50" : "border-transparent"
+                      )}>
+                      {allFolders.length > 0 && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5 px-1">미분류</p>}
+                      <div className="space-y-1">
+                        {rootFiles.map(doc => <FileRow key={doc.id} doc={doc} />)}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               );
             })()}
+
+            {/* 폴더 생성 인라인 */}
+            {addFolderOpen && (
+              <div className="mt-3 flex items-center gap-2">
+                <FolderPlus className="h-4 w-4 text-amber-500 shrink-0" />
+                <Input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="폴더 이름" className="h-8 text-sm flex-1"
+                  onKeyDown={e => { if (e.key === "Enter" && newFolderName.trim()) { setDocFolders(prev => [...prev, newFolderName.trim()]); setNewFolderName(""); setAddFolderOpen(false); } if (e.key === "Escape") setAddFolderOpen(false); }} autoFocus />
+                <Button size="sm" className="h-8" onClick={() => { if (newFolderName.trim()) { setDocFolders(prev => [...prev, newFolderName.trim()]); setNewFolderName(""); setAddFolderOpen(false); } }}>생성</Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setAddFolderOpen(false)}>취소</Button>
+              </div>
+            )}
           </div>
 
           {/* 링크 */}

@@ -47,6 +47,26 @@ export async function POST(
   return NextResponse.json(data, { status: 201 });
 }
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
+  const { id } = await params;
+  const supabase = createAdminClient();
+  const { data: member } = await supabase.from("cowork_members").select("role").eq("cowork_id", id).eq("employee_id", String(session.employeeId)).single();
+  if (!member) return forbidden();
+
+  const body = await request.json() as { doc_id: string; folder: string };
+  if (!body.doc_id) return NextResponse.json({ error: "doc_id required" }, { status: 400 });
+
+  const { error } = await supabase.from("cowork_documents").update({ folder: body.folder ?? "" }).eq("id", body.doc_id).eq("cowork_id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
