@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // 체크 실행 레코드 생성
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "o3 + web_search" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-mini + web_search + system_prompt" })
     .select()
     .single();
 
@@ -93,10 +93,25 @@ export async function POST(request: Request) {
     check_type: string; category: string;
   }[] = [];
 
-  // ── 공통: Responses API + 웹 검색 (실제 ChatGPT 무료 유저 경험과 동일) ──
+  // ── ChatGPT 무료 버전 시뮬레이션 ──
+  // 핵심: ChatGPT 웹의 숨겨진 시스템 프롬프트를 최대한 재현
+  const CHATGPT_SYSTEM_PROMPT = `You are ChatGPT, a large language model trained by OpenAI.
+You are chatting with a user in Korean. Always respond in Korean.
+
+When answering questions, follow these rules:
+1. 웹 검색이 필요한 질문이면 반드시 최신 정보를 검색해서 답변하세요.
+2. 프랜차이즈, 창업, 비용 등 실제 데이터가 필요한 질문에는 구체적인 숫자와 브랜드명을 포함하세요.
+3. 여러 브랜드를 비교할 때는 각 브랜드의 창업비용, 월매출, 가맹점 수 등을 구체적으로 제시하세요.
+4. 답변은 구조화해서 읽기 쉽게 작성하세요 (번호, 소제목, 이모지 활용).
+5. 출처가 있으면 반드시 명시하세요.
+6. 최신 정보를 우선하고, 오래된 정보는 날짜를 표기하세요.
+7. 사용자가 일반적인 질문을 해도 관련 브랜드의 구체적 데이터를 포함해서 실용적으로 답하세요.
+8. 공정거래위원회 가맹사업 정보공개서, 실제 매출 데이터, 언론 보도 등 신뢰할 수 있는 출처를 우선 인용하세요.`;
+
   async function askWithWebSearch(question: string): Promise<string> {
     const result = await openai.responses.create({
-      model: "o3",
+      model: "gpt-4o-mini",
+      instructions: CHATGPT_SYSTEM_PROMPT,
       input: question,
       tools: [{ type: "web_search_preview" as const }],
     });
@@ -136,7 +151,7 @@ export async function POST(request: Request) {
         mentioned: false, accuracy_score: 0, check_type: "exposure", category: prompt.category ?? "",
       });
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   // ── D3: 정확도 체크 ──
@@ -174,7 +189,7 @@ export async function POST(request: Request) {
         mentioned: false, accuracy_score: 0, check_type: "accuracy", category: prompt.category ?? "",
       });
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   // 결과 저장
