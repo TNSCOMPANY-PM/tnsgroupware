@@ -130,8 +130,18 @@ export default function GeoPage() {
   }
 
   // 브랜드 상세
-  const latestRun = runs[0];
-  const scoreHistory = [...runs].reverse().map(r => ({ date: r.run_date, score: r.score }));
+  const exposurePromptCount = prompts.filter(p => !p.category?.startsWith("D3")).length;
+  const accuracyPromptCount = prompts.filter(p => p.category?.startsWith("D3")).length;
+
+  // 체크 기록에서 노출률/정확도 계산 헬퍼
+  const getRunStats = (r: CheckRun) => {
+    const expItems = (r.geo_check_items ?? []).filter(i => i.check_type !== "accuracy");
+    const accItems = (r.geo_check_items ?? []).filter(i => i.check_type === "accuracy");
+    const expMentioned = expItems.filter(i => i.mentioned).length;
+    const expScore = expItems.length > 0 ? Math.round((expMentioned / expItems.length) * 100) : 0;
+    const avgAcc = accItems.length > 0 ? Math.round(accItems.reduce((s, i) => s + i.accuracy_score, 0) / accItems.length) : 0;
+    return { expItems: expItems.length, expMentioned, expScore, accItems: accItems.length, avgAcc };
+  };
 
   return (
     <div>
@@ -147,7 +157,7 @@ export default function GeoPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setAddPromptOpen(true)}><Plus className="h-4 w-4 mr-1" />프롬프트 추가</Button>
+          <Button variant="outline" size="sm" onClick={() => setAddPromptOpen(true)}><Plus className="h-4 w-4 mr-1" />프롬프트 관리</Button>
           <Button size="sm" onClick={runCheck} disabled={runningCheck || prompts.length === 0}>
             {runningCheck ? (
               <><span className="animate-spin mr-1">⏳</span>체크 중... ({prompts.length}개)</>
@@ -159,65 +169,92 @@ export default function GeoPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 좌측: 현재 점수 + 프롬프트 */}
+        {/* 좌측: 체크 기록 + 프롬프트 관리 */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 점수 카드 */}
-          {latestRun && (
-            <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-slate-700">최신 GEO 체크 결과</h2>
-                <span className="text-xs text-slate-400">{latestRun.run_date} · {latestRun.model}</span>
-              </div>
-              <div className="flex items-center gap-6 mb-4">
-                <div className={cn("text-4xl font-bold", latestRun.score >= 50 ? "text-emerald-600" : latestRun.score >= 20 ? "text-amber-500" : "text-red-500")}>
-                  {latestRun.score}%
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">AI 노출률</p>
-                  <p className="text-xs text-slate-400">{latestRun.mentioned_count}/{latestRun.total_prompts} 프롬프트에서 브랜드 언급</p>
-                </div>
-              </div>
-              {/* 프롬프트별 결과 */}
-              <div className="space-y-2">
-                {(latestRun.geo_check_items ?? []).map(item => (
-                  <div key={item.id} onClick={() => setSelectedRun(latestRun)}
-                    className={cn("flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
-                      item.mentioned ? "bg-emerald-50 hover:bg-emerald-100" : "bg-red-50 hover:bg-red-100"
-                    )}>
-                    {item.mentioned ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700">{item.prompt_text}</p>
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.ai_response.slice(0, 150)}...</p>
-                    </div>
-                    {item.mentioned && <span className="text-xs font-bold text-emerald-600 shrink-0">{item.accuracy_score}점</span>}
-                  </div>
-                ))}
-              </div>
+          {/* 체크 기록 — 최신순, 날짜 클릭으로 상세 보기 */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-slate-700">체크 기록</h2>
+              <span className="text-xs text-slate-400">{runs.length}회 실행</span>
             </div>
-          )}
+            {runs.length === 0
+              ? <p className="text-sm text-slate-400 py-8 text-center">아직 체크 기록이 없습니다. GEO 체크를 실행하세요.</p>
+              : <div className="space-y-2">
+                  {runs.map(r => {
+                    const st = getRunStats(r);
+                    return (
+                      <button key={r.id} onClick={() => setSelectedRun(r)}
+                        className={cn("w-full flex items-center gap-4 p-3 rounded-lg text-left transition-colors",
+                          selectedRun?.id === r.id ? "bg-blue-50 border border-blue-200" : "hover:bg-slate-50 border border-transparent"
+                        )}>
+                        <div className="shrink-0 text-center">
+                          <p className="text-sm font-bold text-slate-700">{r.run_date.slice(5)}</p>
+                          <p className="text-[10px] text-slate-400">{r.run_date.slice(0, 4)}</p>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500">노출률</span>
+                              <span className={cn("text-sm font-bold", st.expScore >= 50 ? "text-emerald-600" : st.expScore >= 20 ? "text-amber-500" : "text-red-500")}>{st.expScore}%</span>
+                              <span className="text-[10px] text-slate-400">({st.expMentioned}/{st.expItems})</span>
+                            </div>
+                            <div className="w-px h-4 bg-slate-200" />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500">정확도</span>
+                              <span className={cn("text-sm font-bold", st.avgAcc >= 50 ? "text-blue-600" : st.avgAcc >= 20 ? "text-amber-500" : "text-red-500")}>{st.avgAcc}%</span>
+                              <span className="text-[10px] text-slate-400">(D3 {st.accItems}개)</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 mt-1.5">
+                            <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                              <div className={cn("h-1.5 rounded-full", st.expScore >= 50 ? "bg-emerald-500" : st.expScore >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.expScore}%` }} />
+                            </div>
+                            <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                              <div className={cn("h-1.5 rounded-full", st.avgAcc >= 50 ? "bg-blue-500" : st.avgAcc >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.avgAcc}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+            }
+          </div>
 
-          {/* 프롬프트 목록 */}
+          {/* 프롬프트 관리 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-700">테스트 프롬프트 ({prompts.length})</h2>
+              <h2 className="text-sm font-semibold text-slate-700">프롬프트 관리 ({prompts.length})</h2>
               <Button variant="outline" size="sm" onClick={() => setAddPromptOpen(true)}><Plus className="h-3 w-3 mr-1" />추가</Button>
             </div>
             {prompts.length === 0
-              ? <p className="text-sm text-slate-400 py-4 text-center">프롬프트를 추가하세요. GEO 체크 시 이 질문들로 AI에게 물어봅니다.</p>
-              : <div className="space-y-1.5">
-                  {prompts.map((p, i) => (
-                    <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 group">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-xs text-slate-400 w-5">{i + 1}</span>
-                        <span className="text-sm text-slate-700 truncate">{p.prompt_text}</span>
-                        {p.category && <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded shrink-0">{p.category}</span>}
+              ? <p className="text-sm text-slate-400 py-4 text-center">프롬프트를 추가하세요.</p>
+              : <div className="space-y-1">
+                  {["D0 개인창업 탐색","D1 프랜차이즈 탐색","D2 김밥 카테고리","D3 오공김밥 직접"].map(cat => {
+                    const catPrompts = prompts.filter(p => p.category === cat);
+                    if (catPrompts.length === 0) return null;
+                    return (
+                      <div key={cat} className="mb-2">
+                        <div className="flex items-center gap-2 mb-1 px-1">
+                          <span className={cn("text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded", cat.startsWith("D3") ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500")}>{cat}</span>
+                          <span className="text-[10px] text-slate-400">{cat.startsWith("D3") ? "정확도" : "노출률"} · {catPrompts.length}개</span>
+                        </div>
+                        {catPrompts.map((p, i) => (
+                          <div key={p.id} className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-slate-50 group">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-xs text-slate-400 w-4">{i + 1}</span>
+                              <span className="text-sm text-slate-700 truncate">{p.prompt_text}</span>
+                            </div>
+                            <button onClick={async () => {
+                              await fetch(`/api/geo/prompts?id=${p.id}`, { method: "DELETE" });
+                              setPrompts(prev => prev.filter(x => x.id !== p.id));
+                            }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ))}
                       </div>
-                      <button onClick={async () => {
-                        await fetch(`/api/geo/prompts?id=${p.id}`, { method: "DELETE" });
-                        setPrompts(prev => prev.filter(x => x.id !== p.id));
-                      }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
             }
           </div>
@@ -228,21 +265,41 @@ export default function GeoPage() {
           {/* 추이 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">
-              <TrendingUp className="h-4 w-4 inline mr-1" />노출률 추이
+              <TrendingUp className="h-4 w-4 inline mr-1" />추이
             </h2>
-            {scoreHistory.length === 0
+            {runs.length === 0
               ? <p className="text-xs text-slate-400">체크 기록이 없습니다.</p>
-              : <div className="space-y-2">
-                  {scoreHistory.map((h, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="text-xs text-slate-400 w-16">{h.date}</span>
-                      <div className="flex-1 bg-slate-100 rounded-full h-2">
-                        <div className={cn("h-2 rounded-full", h.score >= 50 ? "bg-emerald-500" : h.score >= 20 ? "bg-amber-400" : "bg-red-400")}
-                          style={{ width: `${h.score}%` }} />
-                      </div>
-                      <span className="text-xs font-bold text-slate-600 w-8 text-right">{h.score}%</span>
-                    </div>
-                  ))}
+              : <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] text-slate-400 mb-1">노출률 (D0~D2)</p>
+                    {[...runs].reverse().map((r) => {
+                      const st = getRunStats(r);
+                      return (
+                        <div key={r.id} className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] text-slate-400 w-12">{r.run_date.slice(5)}</span>
+                          <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                            <div className={cn("h-1.5 rounded-full", st.expScore >= 50 ? "bg-emerald-500" : st.expScore >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.expScore}%` }} />
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-600 w-8 text-right">{st.expScore}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 mb-1">정확도 (D3)</p>
+                    {[...runs].reverse().map((r) => {
+                      const st = getRunStats(r);
+                      return (
+                        <div key={r.id} className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] text-slate-400 w-12">{r.run_date.slice(5)}</span>
+                          <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                            <div className={cn("h-1.5 rounded-full", st.avgAcc >= 50 ? "bg-blue-500" : st.avgAcc >= 20 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${st.avgAcc}%` }} />
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-600 w-8 text-right">{st.avgAcc}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
             }
           </div>
@@ -254,39 +311,17 @@ export default function GeoPage() {
             </h2>
             <p className="text-xs text-slate-500 mb-3">아래 질문을 ChatGPT에 직접 입력해보세요:</p>
             <div className="space-y-1.5">
-              {prompts.slice(0, 5).map((p, i) => (
+              {prompts.filter(p => !p.category?.startsWith("D3")).slice(0, 5).map((p, i) => (
                 <div key={p.id} className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
-                  {i + 1}. "{p.prompt_text}"
+                  {i + 1}. &quot;{p.prompt_text}&quot;
                 </div>
               ))}
-              {prompts.length > 5 && <p className="text-xs text-slate-400 text-center">외 {prompts.length - 5}개...</p>}
+              {exposurePromptCount > 5 && <p className="text-xs text-slate-400 text-center">외 {exposurePromptCount - 5}개...</p>}
             </div>
             <a href="https://chat.openai.com" target="_blank" rel="noreferrer"
               className="mt-3 flex items-center justify-center gap-1.5 text-sm text-blue-600 hover:underline">
               <Search className="h-3.5 w-3.5" />ChatGPT 열기
             </a>
-          </div>
-
-          {/* 체크 기록 */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="text-sm font-semibold text-slate-700 mb-3">체크 기록</h2>
-            {runs.length === 0
-              ? <p className="text-xs text-slate-400">기록이 없습니다.</p>
-              : <div className="space-y-1.5">
-                  {runs.map(r => (
-                    <button key={r.id} onClick={() => setSelectedRun(r)}
-                      className="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 text-left">
-                      <div>
-                        <p className="text-xs text-slate-500">{r.run_date}</p>
-                        <p className="text-xs text-slate-400">{r.mentioned_count}/{r.total_prompts} 노출</p>
-                      </div>
-                      <span className={cn("text-sm font-bold", r.score >= 50 ? "text-emerald-600" : r.score >= 20 ? "text-amber-500" : "text-red-500")}>
-                        {r.score}%
-                      </span>
-                    </button>
-                  ))}
-                </div>
-            }
           </div>
         </div>
       </div>
@@ -432,22 +467,39 @@ function AddBrandModal({ open, onClose, onCreated }: { open: boolean; onClose: (
 
 function AddPromptModal({ open, onClose, brandId, onCreated }: { open: boolean; onClose: () => void; brandId: string; onCreated: (p: Prompt) => void }) {
   const [text, setText] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState("D0 개인창업 탐색");
   const [saving, setSaving] = useState(false);
   const save = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || !category) return;
     setSaving(true);
-    const res = await fetch("/api/geo/prompts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: brandId, prompt_text: text.trim(), category: category.trim() || undefined }) });
-    if (res.ok) { const p = await res.json(); onCreated(p); setText(""); setCategory(""); }
+    const res = await fetch("/api/geo/prompts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: brandId, prompt_text: text.trim(), category }) });
+    if (res.ok) { const p = await res.json(); onCreated(p); setText(""); }
     setSaving(false);
   };
+  const categories = [
+    { value: "D0 개인창업 탐색", label: "D0 — 개인창업 탐색 (노출률)" },
+    { value: "D1 프랜차이즈 탐색", label: "D1 — 프랜차이즈 탐색 (노출률)" },
+    { value: "D2 김밥 카테고리", label: "D2 — 김밥/분식 카테고리 (노출률)" },
+    { value: "D3 오공김밥 직접", label: "D3 — 브랜드 직접 질문 (정확도)" },
+  ];
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>프롬프트 추가</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label className="text-xs">카테고리 *</Label>
+            <select value={category} onChange={e => setCategory(e.target.value)}
+              className="mt-1 w-full text-sm border rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+              {categories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
           <div><Label className="text-xs">프롬프트 *</Label><Input className="mt-1" value={text} onChange={e => setText(e.target.value)} placeholder="김밥 프랜차이즈 창업 추천해줘" /></div>
-          <div><Label className="text-xs">카테고리</Label><Input className="mt-1" value={category} onChange={e => setCategory(e.target.value)} placeholder="일반 창업 탐색 / 브랜드 직접 질문 / ..." /></div>
+          <div className="text-xs text-slate-400 bg-slate-50 rounded-lg p-2">
+            {category.startsWith("D3")
+              ? "💡 브랜드명을 직접 넣는 질문. AI 답변의 정확도를 체크합니다."
+              : "💡 브랜드명 없이 일반적으로 질문. AI가 브랜드를 언급하는지 체크합니다."}
+          </div>
         </div>
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>취소</Button>
