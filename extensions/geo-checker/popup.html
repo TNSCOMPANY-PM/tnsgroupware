@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 360px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; padding: 16px; }
+    h1 { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .subtitle { font-size: 11px; color: #94a3b8; margin-bottom: 16px; }
+    .config { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .config label { font-size: 11px; color: #64748b; display: block; margin-bottom: 4px; }
+    .config input, .config select { width: 100%; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; outline: none; }
+    .config input:focus, .config select:focus { border-color: #3b82f6; }
+    .btn { width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+    .btn-stop { background: #ef4444; color: #fff; margin-top: 8px; }
+    .btn-stop:hover { background: #dc2626; }
+    .progress { margin-top: 12px; }
+    .progress-bar { background: #e2e8f0; border-radius: 99px; height: 6px; margin: 8px 0; }
+    .progress-fill { background: #3b82f6; height: 6px; border-radius: 99px; transition: width 0.3s; }
+    .progress-text { font-size: 11px; color: #64748b; }
+    .progress-q { font-size: 11px; color: #3b82f6; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result { margin-top: 12px; padding: 12px; border-radius: 8px; }
+    .result-ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .result-item { font-size: 11px; color: #334155; margin-bottom: 2px; }
+    .hidden { display: none; }
+    .status { font-size: 11px; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; }
+    .status-ready { background: #f0fdf4; color: #16a34a; }
+    .status-not { background: #fef2f2; color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>Frandoor GEO Checker</h1>
+  <p class="subtitle">ChatGPT 자동 질문 + 스크린샷</p>
+
+  <div id="status" class="status status-not">ChatGPT 페이지에서 실행하세요</div>
+
+  <div class="config">
+    <label>그룹웨어 URL</label>
+    <input id="apiUrl" type="text" value="https://tnsgroupware.vercel.app" placeholder="https://..." />
+  </div>
+  <div class="config">
+    <label>브랜드</label>
+    <select id="brandSelect"><option value="">로딩 중...</option></select>
+  </div>
+
+  <button id="startBtn" class="btn btn-primary" disabled>GEO 체크 시작</button>
+  <button id="stopBtn" class="btn btn-stop hidden">중지</button>
+
+  <div id="progressSection" class="progress hidden">
+    <div style="display:flex;justify-content:space-between;">
+      <span class="progress-text" id="progressLabel">0/0</span>
+      <span class="progress-text" id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+    <div class="progress-q" id="progressQ"></div>
+  </div>
+
+  <div id="resultSection" class="result result-ok hidden">
+    <div class="result-item" id="resultText"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
