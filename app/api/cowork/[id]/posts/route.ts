@@ -42,7 +42,7 @@ export async function POST(
 
   if (!member) return forbidden();
 
-  const body = await request.json() as { title: string; content?: string; pinned?: boolean };
+  const body = await request.json() as { title: string; content?: string; pinned?: boolean; image_url?: string };
   if (!body.title?.trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
 
   const { data, error } = await supabase
@@ -51,6 +51,7 @@ export async function POST(
       cowork_id: id,
       title: body.title.trim(),
       content: body.content?.trim() ?? null,
+      ...(body.image_url ? { image_url: body.image_url } : {}),
       author_id: String(session.employeeId),
       author_name: session.name,
       pinned: body.pinned ?? false,

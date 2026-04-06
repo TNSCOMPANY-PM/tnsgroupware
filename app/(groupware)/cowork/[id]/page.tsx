@@ -32,7 +32,7 @@ type Task = {
   depends_on?: string[];
 };
 type Comment = { id: string; task_id?: string; post_id?: string; author_name: string; content: string; created_at: string };
-type Post = { id: string; cowork_id: string; title: string; content?: string; author_id: string; author_name: string; pinned: boolean; created_at: string };
+type Post = { id: string; cowork_id: string; title: string; content?: string; image_url?: string; author_id: string; author_name: string; pinned: boolean; created_at: string };
 type Schedule = { id: string; title: string; start_date: string; end_date?: string; assignee_name?: string; color: string };
 type Document = {
   id: string; type: "file" | "link"; file_name?: string; file_url?: string;
@@ -123,6 +123,7 @@ export default function CoworkDetailPage() {
   const [addScheduleOpen, setAddScheduleOpen] = useState(false);
   const [addLinkOpen, setAddLinkOpen] = useState(false);
   const [addRequestOpen, setAddRequestOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<WorkRequest | null>(null);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
   const [docFolders, setDocFolders] = useState<string[]>([]);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
@@ -629,6 +630,7 @@ export default function CoworkDetailPage() {
                           <h3 className="text-sm font-semibold text-slate-800 truncate">{post.title}</h3>
                         </div>
                         {post.content && <p className="text-xs text-slate-500 mt-1 line-clamp-2 whitespace-pre-wrap">{post.content}</p>}
+                        {post.image_url && <img src={post.image_url} alt="" className="mt-2 rounded-lg max-h-24 object-cover" />}
                       </div>
                       <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-400 shrink-0 mt-0.5" />
                     </div>
@@ -657,6 +659,9 @@ export default function CoworkDetailPage() {
                 <span>{format(parseISO(selectedPost.created_at), "yyyy.MM.dd HH:mm", { locale: ko })}</span>
               </div>
             </DialogHeader>
+            {selectedPost.image_url && (
+              <img src={selectedPost.image_url} alt="" className="rounded-lg max-h-64 object-cover mt-2" />
+            )}
             {selectedPost.content && (
               <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-4 mt-2">{selectedPost.content}</div>
             )}
@@ -931,7 +936,8 @@ export default function CoworkDetailPage() {
           </div>
           <div className="space-y-3">
             {requests.filter(r => requestTab === "received" ? r.to_id === currentUserId : r.from_id === currentUserId).map(req => (
-              <div key={req.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <div key={req.id} onClick={() => setSelectedRequest(req)}
+                className="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:border-blue-200 hover:shadow-sm transition-all">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -944,32 +950,14 @@ export default function CoworkDetailPage() {
                         {req.status==="pending"?"대기중":req.status==="accepted"?"수락됨":req.status==="rejected"?"거절됨":"완료"}
                       </span>
                     </div>
-                    {req.content && <p className="text-sm text-slate-500 mb-2">{req.content}</p>}
+                    {req.content && <p className="text-sm text-slate-500 mb-1 line-clamp-1">{req.content}</p>}
                     <div className="flex items-center gap-3 text-xs text-slate-400">
                       <span>{requestTab==="received"?`요청자: ${req.from_name}`:`수신자: ${req.to_name}`}</span>
                       {req.due_date && <span className={getDueDateStyle(req.due_date)}>마감: {req.due_date}</span>}
+                      <span>{format(parseISO(req.created_at), "MM.dd", { locale: ko })}</span>
                     </div>
                   </div>
-                  {requestTab === "received" && req.to_id === currentUserId && (
-                    <div className="flex gap-2 shrink-0">
-                      {req.status === "pending" && <>
-                        <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50" onClick={async () => {
-                          await fetch(`/api/cowork/${id}/requests/${req.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"rejected"}) });
-                          setRequests(prev => prev.map(r => r.id===req.id ? {...r,status:"rejected"} : r));
-                        }}>거절</Button>
-                        <Button size="sm" className="h-7 text-xs" onClick={async () => {
-                          await fetch(`/api/cowork/${id}/requests/${req.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"accepted"}) });
-                          setRequests(prev => prev.map(r => r.id===req.id ? {...r,status:"accepted"} : r));
-                        }}>수락</Button>
-                      </>}
-                      {req.status === "accepted" && (
-                        <Button size="sm" className="h-7 text-xs bg-emerald-500 hover:bg-emerald-600" onClick={async () => {
-                          await fetch(`/api/cowork/${id}/requests/${req.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"done"}) });
-                          setRequests(prev => prev.map(r => r.id===req.id ? {...r,status:"done"} : r));
-                        }}>완료</Button>
-                      )}
-                    </div>
-                  )}
+                  <ChevronRight className="h-4 w-4 text-slate-300 shrink-0 mt-1" />
                 </div>
               </div>
             ))}
@@ -978,6 +966,62 @@ export default function CoworkDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ── 업무요청 상세 모달 ── */}
+      {selectedRequest && (
+        <Dialog open onOpenChange={() => setSelectedRequest(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <DialogTitle className="text-base">{selectedRequest.title}</DialogTitle>
+                <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium",
+                  selectedRequest.status==="pending"?"bg-amber-100 text-amber-700":
+                  selectedRequest.status==="accepted"?"bg-blue-100 text-blue-700":
+                  selectedRequest.status==="rejected"?"bg-red-100 text-red-600":
+                  "bg-emerald-100 text-emerald-700")}>
+                  {selectedRequest.status==="pending"?"대기중":selectedRequest.status==="accepted"?"수락됨":selectedRequest.status==="rejected"?"거절됨":"완료"}
+                </span>
+              </div>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-xs text-slate-400">요청자</span><p className="font-medium text-slate-700">{selectedRequest.from_name}</p></div>
+                <div><span className="text-xs text-slate-400">수신자</span><p className="font-medium text-slate-700">{selectedRequest.to_name}</p></div>
+                <div><span className="text-xs text-slate-400">요청일</span><p className="text-slate-600">{format(parseISO(selectedRequest.created_at), "yyyy.MM.dd HH:mm", { locale: ko })}</p></div>
+                {selectedRequest.due_date && <div><span className="text-xs text-slate-400">마감일</span><p className={getDueDateStyle(selectedRequest.due_date)}>{selectedRequest.due_date}</p></div>}
+              </div>
+              {selectedRequest.content && (
+                <div>
+                  <span className="text-xs text-slate-400">내용</span>
+                  <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-3">{selectedRequest.content}</div>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="gap-2 mt-3">
+              {selectedRequest.to_id === currentUserId && selectedRequest.status === "pending" && <>
+                <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={async () => {
+                  await fetch(`/api/cowork/${id}/requests/${selectedRequest.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"rejected"}) });
+                  setRequests(prev => prev.map(r => r.id===selectedRequest.id ? {...r,status:"rejected"} : r));
+                  setSelectedRequest({ ...selectedRequest, status: "rejected" });
+                }}>거절</Button>
+                <Button size="sm" onClick={async () => {
+                  await fetch(`/api/cowork/${id}/requests/${selectedRequest.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"accepted"}) });
+                  setRequests(prev => prev.map(r => r.id===selectedRequest.id ? {...r,status:"accepted"} : r));
+                  setSelectedRequest({ ...selectedRequest, status: "accepted" });
+                }}>수락</Button>
+              </>}
+              {selectedRequest.to_id === currentUserId && selectedRequest.status === "accepted" && (
+                <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600" onClick={async () => {
+                  await fetch(`/api/cowork/${id}/requests/${selectedRequest.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"done"}) });
+                  setRequests(prev => prev.map(r => r.id===selectedRequest.id ? {...r,status:"done"} : r));
+                  setSelectedRequest({ ...selectedRequest, status: "done" });
+                }}>완료</Button>
+              )}
+              <Button variant="outline" onClick={() => setSelectedRequest(null)}>닫기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ── Tab: AI 어시스턴트 ── */}
@@ -1500,13 +1544,33 @@ function NewPostModal({ coworkId, onClose, onCreated }: {
 }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    const res = await fetch(`/api/cowork/${coworkId}/documents/upload`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_name: file.name }),
+    });
+    if (!res.ok) { setUploading(false); return; }
+    const doc = await res.json();
+    const { createClient: createBrowserClient } = await import("@/utils/supabase/client");
+    const sb = createBrowserClient();
+    const { error } = await sb.storage.from("documents").uploadToSignedUrl(doc.storage_path, doc.token, file, {
+      contentType: file.type,
+    });
+    if (!error) setImageUrl(doc.file_url);
+    setUploading(false);
+  };
+
   const save = async () => {
     if (!title.trim()) return;
     setSaving(true);
     const res = await fetch(`/api/cowork/${coworkId}/posts`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), content: content.trim() || null }),
+      body: JSON.stringify({ title: title.trim(), content: content.trim() || null, image_url: imageUrl || null }),
     });
     if (res.ok) { const p = await res.json(); onCreated(p); }
     else { const err = await res.json().catch(() => ({})); alert(err.error || "작성 실패"); }
@@ -1518,11 +1582,25 @@ function NewPostModal({ coworkId, onClose, onCreated }: {
         <DialogHeader><DialogTitle>글쓰기</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><Label className="text-xs">제목 *</Label><Input className="mt-1" value={title} onChange={e => setTitle(e.target.value)} placeholder="제목을 입력하세요" /></div>
-          <div><Label className="text-xs">내용</Label><textarea rows={8} className="mt-1 w-full text-sm border rounded-md px-3 py-2 resize-none outline-none focus:ring-2 focus:ring-blue-500" value={content} onChange={e => setContent(e.target.value)} placeholder="내용을 입력하세요..." /></div>
+          <div><Label className="text-xs">내용</Label><textarea rows={6} className="mt-1 w-full text-sm border rounded-md px-3 py-2 resize-none outline-none focus:ring-2 focus:ring-blue-500" value={content} onChange={e => setContent(e.target.value)} placeholder="내용을 입력하세요..." /></div>
+          <div>
+            <Label className="text-xs">이미지</Label>
+            {imageUrl ? (
+              <div className="mt-1 relative">
+                <img src={imageUrl} alt="첨부" className="rounded-lg max-h-48 object-cover" />
+                <button onClick={() => setImageUrl("")} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"><X className="h-3 w-3" /></button>
+              </div>
+            ) : (
+              <label className="mt-1 flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-lg p-4 cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors">
+                <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); e.target.value = ""; }} />
+                {uploading ? <span className="text-xs text-slate-400 animate-pulse">업로드 중...</span> : <><Upload className="h-4 w-4 text-slate-400" /><span className="text-xs text-slate-400">이미지 첨부</span></>}
+              </label>
+            )}
+          </div>
         </div>
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>취소</Button>
-          <Button onClick={save} disabled={saving || !title.trim()}>{saving ? "저장 중..." : "게시"}</Button>
+          <Button onClick={save} disabled={saving || uploading || !title.trim()}>{saving ? "저장 중..." : "게시"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
