@@ -291,31 +291,79 @@ export default function GeoPage() {
         </div>
       </div>
 
-      {/* 상세 결과 모달 */}
+      {/* 상세 결과 — ChatGPT 스타일 대화 UI */}
       {selectedRun && (
         <Dialog open onOpenChange={() => setSelectedRun(null)}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>GEO 체크 결과 — {selectedRun.run_date}</DialogTitle>
-              <p className="text-xs text-slate-400">모델: {selectedRun.model} · 노출률: {selectedRun.score}% ({selectedRun.mentioned_count}/{selectedRun.total_prompts})</p>
-            </DialogHeader>
-            <div className="space-y-4 mt-2">
+          <DialogContent className="max-w-3xl max-h-[90vh] p-0 overflow-hidden">
+            {/* 헤더: 날짜 선택 */}
+            <div className="px-5 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogHeader className="p-0">
+                    <DialogTitle className="text-base">GEO 체크 결과</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-xs text-slate-400 mt-0.5">{selectedRun.model} · 노출률 {selectedRun.score}% ({selectedRun.mentioned_count}/{selectedRun.total_prompts})</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {runs.map(r => (
+                    <button key={r.id} onClick={() => setSelectedRun(r)}
+                      className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                        r.id === selectedRun.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      )}>
+                      {r.run_date.slice(5)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 요약 바 */}
+              <div className="flex items-center gap-4 mt-3">
+                <div className={cn("text-2xl font-bold", selectedRun.score >= 50 ? "text-emerald-600" : selectedRun.score >= 20 ? "text-amber-500" : "text-red-500")}>
+                  {selectedRun.score}%
+                </div>
+                <div className="flex-1 bg-slate-100 rounded-full h-2.5">
+                  <div className={cn("h-2.5 rounded-full transition-all", selectedRun.score >= 50 ? "bg-emerald-500" : selectedRun.score >= 20 ? "bg-amber-400" : "bg-red-400")}
+                    style={{ width: `${selectedRun.score}%` }} />
+                </div>
+                <div className="flex gap-3 text-xs text-slate-500">
+                  <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" />{selectedRun.mentioned_count} 노출</span>
+                  <span className="flex items-center gap-1"><XCircle className="h-3 w-3 text-red-400" />{selectedRun.total_prompts - selectedRun.mentioned_count} 미노출</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 대화 목록 */}
+            <div className="overflow-y-auto px-5 py-4 space-y-6" style={{ maxHeight: "calc(90vh - 140px)" }}>
               {(selectedRun.geo_check_items ?? []).map((item, i) => (
-                <div key={item.id} className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className={cn("px-4 py-2.5 flex items-center justify-between", item.mentioned ? "bg-emerald-50" : "bg-red-50")}>
-                    <div className="flex items-center gap-2">
-                      {item.mentioned ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-400" />}
-                      <span className="text-sm font-medium text-slate-700">Q{i + 1}. {item.prompt_text}</span>
-                    </div>
-                    {item.mentioned && <span className="text-xs font-bold text-emerald-600">정확도 {item.accuracy_score}점</span>}
-                  </div>
-                  {/* ChatGPT 스타일 응답 */}
-                  <div className="p-4 bg-white">
-                    <div className="flex gap-3">
-                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold shrink-0">AI</div>
-                      <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{item.ai_response}</div>
+                <div key={item.id} className="space-y-3">
+                  {/* 사용자 질문 */}
+                  <div className="flex justify-end">
+                    <div className="max-w-[80%] bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-2.5">
+                      <p className="text-sm">{item.prompt_text}</p>
                     </div>
                   </div>
+
+                  {/* AI 응답 — ChatGPT 스타일 */}
+                  <div className="flex gap-3">
+                    <div className="h-8 w-8 rounded-full bg-[#10a37f] flex items-center justify-center text-white shrink-0">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364l2.0201-1.1638a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4059-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0974-2.3616l2.603-1.5018 2.6032 1.5018v3.0036l-2.6032 1.5018-2.603-1.5018z"/></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="bg-slate-50 rounded-2xl rounded-tl-md px-4 py-3">
+                        <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed [&>p]:mb-2">{item.ai_response}</div>
+                      </div>
+                      {/* 노출 여부 태그 */}
+                      <div className="flex items-center gap-2 mt-1.5 px-1">
+                        {item.mentioned
+                          ? <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"><CheckCircle2 className="h-3 w-3" />브랜드 노출 · 정확도 {item.accuracy_score}점</span>
+                          : <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400"><XCircle className="h-3 w-3" />브랜드 미노출</span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {i < (selectedRun.geo_check_items?.length ?? 0) - 1 && (
+                    <div className="border-t border-dashed border-slate-200 mx-4" />
+                  )}
                 </div>
               ))}
             </div>
