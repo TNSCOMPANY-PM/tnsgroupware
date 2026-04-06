@@ -29,6 +29,7 @@ export default function GeoPage() {
   const [addBrandOpen, setAddBrandOpen] = useState(false);
   const [addPromptOpen, setAddPromptOpen] = useState(false);
   const [runningCheck, setRunningCheck] = useState(false);
+  const [checkProgress, setCheckProgress] = useState({ current: 0, total: 0, currentQ: "" });
   const [selectedRun, setSelectedRun] = useState<CheckRun | null>(null);
   const [runPage, setRunPage] = useState(0);
 
@@ -54,20 +55,43 @@ export default function GeoPage() {
   const runCheck = async () => {
     if (!selectedBrand || runningCheck) return;
     setRunningCheck(true);
-    const res = await fetch("/api/geo/check", {
+    setCheckProgress({ current: 0, total: 0, currentQ: "" });
+
+    // 1. run 생성 + 프롬프트 목록 받기
+    const createRes = await fetch("/api/geo/check", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ brand_id: selectedBrand.id }),
     });
-    if (res.ok) {
-      // 결과 리프레시
-      const rRes = await fetch(`/api/geo/check?brand_id=${selectedBrand.id}`);
-      if (rRes.ok) setRuns(await rRes.json());
-      fetchBrands();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error || "체크 실패");
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => ({}));
+      alert(err.error || "체크 시작 실패");
+      setRunningCheck(false); return;
     }
+    const { run_id, brand_name, prompts: checkPrompts } = await createRes.json();
+    setCheckProgress({ current: 0, total: checkPrompts.length, currentQ: "" });
+
+    // 2. 프롬프트 하나씩 순차 실행
+    for (let i = 0; i < checkPrompts.length; i++) {
+      const p = checkPrompts[i];
+      setCheckProgress({ current: i + 1, total: checkPrompts.length, currentQ: p.prompt_text });
+      await fetch("/api/geo/check", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_id, prompt_id: p.id, prompt_text: p.prompt_text, brand_name, category: p.category }),
+      });
+    }
+
+    // 3. 최종 점수 업데이트
+    await fetch("/api/geo/check", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id }),
+    });
+
+    // 4. 리프레시
+    const rRes = await fetch(`/api/geo/check?brand_id=${selectedBrand.id}`);
+    if (rRes.ok) setRuns(await rRes.json());
+    fetchBrands();
     setRunningCheck(false);
+    setCheckProgress({ current: 0, total: 0, currentQ: "" });
   };
 
   // 브랜드 목록
@@ -161,7 +185,7 @@ export default function GeoPage() {
           <Button variant="outline" size="sm" onClick={() => setAddPromptOpen(true)}><Plus className="h-4 w-4 mr-1" />프롬프트 관리</Button>
           <Button size="sm" onClick={runCheck} disabled={runningCheck || prompts.length === 0}>
             {runningCheck ? (
-              <><span className="animate-spin mr-1">⏳</span>체크 중... ({prompts.length}개)</>
+              <><span className="animate-spin mr-1">⏳</span>{checkProgress.current}/{checkProgress.total} 진행 중</>
             ) : (
               <><Play className="h-4 w-4 mr-1" />GEO 체크 실행</>
             )}
@@ -172,6 +196,20 @@ export default function GeoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 좌측: 체크 기록 + 프롬프트 관리 */}
         <div className="lg:col-span-2 space-y-6">
+          {/* 진행 상태 */}
+          {runningCheck && checkProgress.total > 0 && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-blue-700">GEO 체크 진행 중</span>
+                <span className="text-xs text-blue-500">{checkProgress.current}/{checkProgress.total}</span>
+              </div>
+              <div className="bg-blue-100 rounded-full h-2 mb-2">
+                <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${(checkProgress.current / checkProgress.total) * 100}%` }} />
+              </div>
+              <p className="text-xs text-blue-600 truncate">Q{checkProgress.current}: {checkProgress.currentQ}</p>
+            </div>
+          )}
+
           {/* 체크 기록 — 최신순 10개 페이징 */}
           {(() => {
             const PAGE_SIZE = 10;
