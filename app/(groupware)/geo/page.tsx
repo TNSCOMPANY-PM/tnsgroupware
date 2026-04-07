@@ -251,8 +251,22 @@ ${monthRuns.map((r) => {
       </table>`;
     };
 
+    // 답변 요약 생성
+    const exposedBrands = expItems.filter(i => i.mentioned).map(i => i.prompt_text);
+    const missedBrands = expItems.filter(i => !i.mentioned).map(i => i.prompt_text);
+    const highAccItems = accItems.filter(i => i.accuracy_score >= 50);
+    const lowAccItems = accItems.filter(i => i.accuracy_score < 50);
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>GEO 체크 리포트 — ${brandName} ${run.run_date}</title>
-<style>${REPORT_CSS}</style></head><body>
+<style>${REPORT_CSS}
+  .insight { background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 16px; margin-bottom: 12px; border-radius: 0 8px 8px 0; }
+  .insight-title { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 4px; }
+  .insight-text { font-size: 11px; color: #64748b; line-height: 1.6; }
+  .q-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .q-badge { flex-shrink: 0; margin-top: 10px; }
+</style></head><body>
+
+<!-- 첫장: 요약 + 추이 -->
 <h1>GEO 체크 리포트</h1>
 <p class="subtitle">${brandName} · ${run.run_date} · ${run.model}</p>
 
@@ -274,6 +288,29 @@ ${monthRuns.map((r) => {
   </div>
 </div>
 
+<!-- 답변 요약 -->
+<div class="section">
+  <div class="section-title">답변 요약</div>
+  <div class="insight">
+    <div class="insight-title">노출 현황</div>
+    <div class="insight-text">
+      ${expMentioned > 0 ? `${expItems.length}개 질문 중 <strong>${expMentioned}개</strong>에서 ${brandName}이(가) 언급되었습니다.` : `${expItems.length}개 질문 모두에서 ${brandName}이(가) 언급되지 않았습니다.`}
+      ${exposedBrands.length > 0 ? `<br>노출된 질문: ${exposedBrands.map(q => `"${q.slice(0, 25)}..."`).join(", ")}` : ""}
+    </div>
+  </div>
+  ${missedBrands.length > 0 ? `<div class="insight" style="border-color:#ef4444">
+    <div class="insight-title" style="color:#dc2626">미노출 질문 (${missedBrands.length}개)</div>
+    <div class="insight-text">${missedBrands.map(q => `"${q.slice(0, 30)}"`).join(", ")}</div>
+  </div>` : ""}
+  ${accItems.length > 0 ? `<div class="insight" style="border-color:#2563eb">
+    <div class="insight-title" style="color:#2563eb">정확도 분석 (D3)</div>
+    <div class="insight-text">
+      ${highAccItems.length > 0 ? `정확한 답변: ${highAccItems.length}개 (${highAccItems.map(i => `"${i.prompt_text.slice(0, 20)}..." ${i.accuracy_score}%`).join(", ")})` : ""}
+      ${lowAccItems.length > 0 ? `<br>개선 필요: ${lowAccItems.length}개 (${lowAccItems.map(i => `"${i.prompt_text.slice(0, 20)}..." ${i.accuracy_score}%`).join(", ")})` : ""}
+    </div>
+  </div>` : ""}
+</div>
+
 ${recentRuns.length > 1 ? `<div class="section">
   <div class="section-title">최근 30일 추이</div>
   ${svgLineChart(trendExpData, trendLabels, "#16a34a", "노출률 (D0~D2)")}
@@ -282,9 +319,10 @@ ${recentRuns.length > 1 ? `<div class="section">
 <div class="section">
   <div class="section-title">질문별 노출 추이</div>
   ${buildFullMatrixHtml(recentRuns)}
-</div>
-<div class="page-break"></div>` : ""}
+</div>` : ""}
+<div class="page-break"></div>
 
+<!-- 상세 Q&A -->
 ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고리", "D3 오공김밥 직접"].map(cat => {
   const catItems = items.filter(i => (i.category ?? "") === cat);
   if (catItems.length === 0) return "";
@@ -292,13 +330,15 @@ ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고�
   return `<div class="section">
   <div class="section-title">${cat} — ${isD3 ? "정확도 체크" : "노출률 체크"}</div>
   ${catItems.map((item, idx) => `<div class="qa">
-    <div class="q">Q${idx + 1}. ${item.prompt_text}</div>
+    <div class="q-row">
+      <div style="flex:1">Q${idx + 1}. ${item.prompt_text}</div>
+      <div class="q-badge">${isD3
+        ? `<span class="tag tag-acc">정확도 ${item.accuracy_score}%</span>`
+        : item.mentioned
+          ? `<span class="tag tag-yes">노출</span>`
+          : `<span class="tag tag-no">미노출</span>`}</div>
+    </div>
     <div class="a">${item.ai_response.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-    ${isD3
-      ? `<span class="tag tag-acc">정확도 ${item.accuracy_score}%</span>`
-      : item.mentioned
-        ? `<span class="tag tag-yes">브랜드 노출</span>`
-        : `<span class="tag tag-no">브랜드 미노출</span>`}
   </div>`).join("")}
 </div>`;
 }).join("")}
@@ -712,10 +752,41 @@ ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고�
                   </div>
                 );
               })()}
+
+              {/* 답변 요약 */}
+              {(() => {
+                const allItems = selectedRun.geo_check_items ?? [];
+                const eItems = allItems.filter(i => i.check_type !== "accuracy");
+                const aItems = allItems.filter(i => i.check_type === "accuracy");
+                const exposed = eItems.filter(i => i.mentioned);
+                const missed = eItems.filter(i => !i.mentioned);
+                return (
+                  <div className="mt-3 space-y-2">
+                    {exposed.length > 0 && (
+                      <div className="bg-emerald-50 border-l-4 border-emerald-400 rounded-r-lg px-3 py-2">
+                        <p className="text-xs font-semibold text-emerald-700">노출 질문 ({exposed.length}개)</p>
+                        <p className="text-[11px] text-emerald-600 mt-0.5">{exposed.map(i => `"${i.prompt_text.slice(0, 25)}..."`).join(", ")}</p>
+                      </div>
+                    )}
+                    {missed.length > 0 && (
+                      <div className="bg-red-50 border-l-4 border-red-300 rounded-r-lg px-3 py-2">
+                        <p className="text-xs font-semibold text-red-600">미노출 질문 ({missed.length}개)</p>
+                        <p className="text-[11px] text-red-500 mt-0.5">{missed.map(i => `"${i.prompt_text.slice(0, 25)}..."`).join(", ")}</p>
+                      </div>
+                    )}
+                    {aItems.length > 0 && (
+                      <div className="bg-blue-50 border-l-4 border-blue-300 rounded-r-lg px-3 py-2">
+                        <p className="text-xs font-semibold text-blue-700">정확도 (D3): 평균 {Math.round(aItems.reduce((s, i) => s + i.accuracy_score, 0) / aItems.length)}%</p>
+                        <p className="text-[11px] text-blue-500 mt-0.5">{aItems.map(i => `"${i.prompt_text.slice(0, 20)}..." ${i.accuracy_score}%`).join(", ")}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* 대화 목록 */}
-            <div className="overflow-y-auto px-5 py-4 space-y-4" style={{ maxHeight: "calc(90vh - 180px)" }}>
+            <div className="overflow-y-auto px-5 py-4 space-y-4" style={{ maxHeight: "calc(90vh - 280px)" }}>
               {/* D0~D2 노출률 섹션 */}
               {(() => {
                 const exposureItems = (selectedRun.geo_check_items ?? []).filter(i => i.check_type !== "accuracy");
@@ -862,11 +933,21 @@ function AddPromptModal({ open, onClose, brandId, onCreated }: { open: boolean; 
 }
 
 function ChatBubble({ item, type }: { item: CheckItem; type: "exposure" | "accuracy" }) {
+  const tag = type === "exposure"
+    ? (item.mentioned
+      ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" />노출</span>
+      : <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><XCircle className="h-3 w-3" />미노출</span>)
+    : <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full",
+        item.accuracy_score >= 50 ? "text-blue-600 bg-blue-50" : "text-red-500 bg-red-50")}>
+        {item.accuracy_score}%
+      </span>;
+
   return (
     <div className="space-y-3">
-      {/* 사용자 질문 */}
-      <div className="flex justify-end">
-        <div className="max-w-[80%] bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-2.5">
+      {/* 사용자 질문 + 태그 */}
+      <div className="flex items-center justify-end gap-2">
+        {tag}
+        <div className="max-w-[75%] bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-2.5">
           <p className="text-sm">{item.prompt_text}</p>
         </div>
       </div>
@@ -878,19 +959,6 @@ function ChatBubble({ item, type }: { item: CheckItem; type: "exposure" | "accur
         <div className="flex-1 min-w-0">
           <div className="bg-slate-50 rounded-2xl rounded-tl-md px-4 py-3">
             <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{item.ai_response}</div>
-          </div>
-          <div className="flex items-center gap-2 mt-1.5 px-1">
-            {type === "exposure" ? (
-              item.mentioned
-                ? <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"><CheckCircle2 className="h-3 w-3" />브랜드 노출</span>
-                : <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400"><XCircle className="h-3 w-3" />브랜드 미노출</span>
-            ) : (
-              <span className={cn("inline-flex items-center gap-1 text-xs font-medium", item.accuracy_score >= 50 ? "text-blue-600" : item.accuracy_score >= 20 ? "text-amber-500" : "text-red-400")}>
-                {item.accuracy_score >= 50 ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                정확도 {item.accuracy_score}%
-                {item.mentioned ? "" : " · 오류 감지"}
-              </span>
-            )}
           </div>
         </div>
       </div>
