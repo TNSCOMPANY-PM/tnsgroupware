@@ -30,6 +30,7 @@ export default function GeoPage() {
   const [addPromptOpen, setAddPromptOpen] = useState(false);
   const [runningCheck, setRunningCheck] = useState(false);
   const [checkProgress, setCheckProgress] = useState({ current: 0, total: 0, currentQ: "" });
+  const [trendDetailOpen, setTrendDetailOpen] = useState(false);
   const [selectedRun, setSelectedRun] = useState<CheckRun | null>(null);
   const [runPage, setRunPage] = useState(0);
 
@@ -77,6 +78,13 @@ export default function GeoPage() {
   .tag-no { background: #fee2e2; color: #dc2626; }
   .tag-acc { background: #dbeafe; color: #2563eb; }
   .footer { margin-top: 30px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+  .matrix { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 24px; }
+  .matrix th, .matrix td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; }
+  .matrix th { background: #f8fafc; font-weight: 600; color: #64748b; }
+  .matrix td.q-cell { text-align: left; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot-yes { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: #16a34a; color: #fff; font-size: 10px; line-height: 18px; }
+  .dot-no { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: #fee2e2; color: #dc2626; font-size: 10px; line-height: 18px; }
+  .page-break { page-break-after: always; }
 </style></head><body>
 <h1>GEO 체크 리포트</h1>
 <p class="subtitle">${brandName} · ${run.run_date} · ${run.model}</p>
@@ -98,6 +106,35 @@ export default function GeoPage() {
     <div class="summary-detail">D0~D2: ${expItems.length} · D3: ${accItems.length}</div>
   </div>
 </div>
+
+${(() => {
+  // 같은 월의 run들로 추이 매트릭스 생성
+  const month = run.run_date.slice(0, 7);
+  const monthRuns = [...runs].filter(r => r.run_date.startsWith(month)).reverse();
+  const ePrompts = prompts.filter(p => !p.category?.startsWith("D3"));
+  if (monthRuns.length <= 1 || ePrompts.length === 0) return "";
+  return `<div class="section">
+  <div class="section-title">질문별 노출 추이 (${month})</div>
+  <table class="matrix">
+    <tr><th style="text-align:left;min-width:200px">질문</th>${monthRuns.map(r => `<th>${r.run_date.slice(5)}</th>`).join("")}</tr>
+    ${ePrompts.map(p => `<tr>
+      <td class="q-cell" title="${p.prompt_text.replace(/"/g, "&quot;")}">${p.prompt_text.slice(0, 35)}${p.prompt_text.length > 35 ? "..." : ""}</td>
+      ${monthRuns.map(r => {
+        const it = (r.geo_check_items ?? []).find((i: CheckItem) => i.prompt_text === p.prompt_text);
+        return `<td>${it ? (it.mentioned ? '<span class="dot-yes">O</span>' : '<span class="dot-no">X</span>') : '-'}</td>`;
+      }).join("")}
+    </tr>`).join("")}
+    <tr style="font-weight:700;background:#f8fafc">
+      <td style="text-align:left">노출률</td>
+      ${monthRuns.map(r => {
+        const st = getRunStats(r);
+        return `<td>${st.expScore}%</td>`;
+      }).join("")}
+    </tr>
+  </table>
+</div>
+<div class="page-break"></div>`;
+})()}
 
 ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고리", "D3 오공김밥 직접"].map(cat => {
       const catItems = items.filter(i => (i.category ?? "") === cat);
@@ -418,9 +455,12 @@ ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고�
         <div className="space-y-6">
           {/* 추이 — 꺾은선 그래프 */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="text-sm font-semibold text-slate-700 mb-3">
-              <TrendingUp className="h-4 w-4 inline mr-1" />추이
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-slate-700">
+                <TrendingUp className="h-4 w-4 inline mr-1" />추이
+              </h2>
+              {runs.length > 0 && <button onClick={() => setTrendDetailOpen(true)} className="text-xs text-blue-500 hover:underline">상세보기</button>}
+            </div>
             {runs.length === 0
               ? <p className="text-xs text-slate-400">체크 기록이 없습니다.</p>
               : (() => {
@@ -567,6 +607,11 @@ ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고�
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* 추이 상세 모달 */}
+      {trendDetailOpen && runs.length > 0 && (
+        <TrendDetailModal runs={runs} prompts={prompts} brandName={selectedBrand.name} getRunStats={getRunStats} onClose={() => setTrendDetailOpen(false)} />
       )}
 
       {/* 프롬프트 추가 모달 */}
@@ -741,5 +786,156 @@ function MiniLineChart({ data, labels, color, label }: { data: number[]; labels:
         ))}
       </svg>
     </div>
+  );
+}
+
+function TrendDetailModal({ runs, prompts, brandName, getRunStats, onClose }: {
+  runs: CheckRun[]; prompts: Prompt[]; brandName: string;
+  getRunStats: (r: CheckRun) => { expItems: number; expMentioned: number; expScore: number; accItems: number; avgAcc: number };
+  onClose: () => void;
+}) {
+  const sorted = [...runs].reverse();
+
+  // 월별 그룹핑
+  const months: Record<string, typeof sorted> = {};
+  sorted.forEach(r => {
+    const m = r.run_date.slice(0, 7);
+    if (!months[m]) months[m] = [];
+    months[m].push(r);
+  });
+  const monthKeys = Object.keys(months).sort().reverse();
+  const [selMonth, setSelMonth] = useState(monthKeys[0] ?? "");
+
+  // 질문별 일별 매트릭스 (노출률용 프롬프트만)
+  const expPrompts = prompts.filter(p => !p.category?.startsWith("D3"));
+  const monthRuns = months[selMonth] ?? [];
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
+          <div className="flex items-center justify-between">
+            <DialogHeader className="p-0">
+              <DialogTitle className="text-base">{brandName} — 추이 상세</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center gap-1">
+              {monthKeys.map(m => (
+                <button key={m} onClick={() => setSelMonth(m)}
+                  className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                    m === selMonth ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  )}>{m}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-auto p-5" style={{ maxHeight: "calc(90vh - 60px)" }}>
+          {/* 월 요약 */}
+          <div className="flex gap-4 mb-6">
+            {monthRuns.length > 0 && (() => {
+              const latest = monthRuns[monthRuns.length - 1];
+              const first = monthRuns[0];
+              const latestSt = getRunStats(latest);
+              const firstSt = getRunStats(first);
+              const expDiff = latestSt.expScore - firstSt.expScore;
+              const accDiff = latestSt.avgAcc - firstSt.avgAcc;
+              return (
+                <>
+                  <div className="flex-1 bg-emerald-50 rounded-lg p-4 text-center">
+                    <p className="text-[10px] text-emerald-600 font-semibold uppercase">노출률</p>
+                    <p className="text-2xl font-bold text-emerald-700">{latestSt.expScore}%</p>
+                    {monthRuns.length > 1 && <p className={cn("text-xs font-semibold", expDiff >= 0 ? "text-emerald-600" : "text-red-500")}>{expDiff >= 0 ? "+" : ""}{expDiff}%p</p>}
+                  </div>
+                  <div className="flex-1 bg-blue-50 rounded-lg p-4 text-center">
+                    <p className="text-[10px] text-blue-600 font-semibold uppercase">정확도</p>
+                    <p className="text-2xl font-bold text-blue-700">{latestSt.avgAcc}%</p>
+                    {monthRuns.length > 1 && <p className={cn("text-xs font-semibold", accDiff >= 0 ? "text-blue-600" : "text-red-500")}>{accDiff >= 0 ? "+" : ""}{accDiff}%p</p>}
+                  </div>
+                  <div className="flex-1 bg-slate-50 rounded-lg p-4 text-center">
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase">체크 횟수</p>
+                    <p className="text-2xl font-bold text-slate-700">{monthRuns.length}</p>
+                    <p className="text-xs text-slate-400">이번 달</p>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          {/* 질문별 일별 노출 매트릭스 */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">질문별 노출 현황 (D0~D2)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="text-left p-2 border border-slate-200 sticky left-0 bg-slate-50 min-w-[200px]">질문</th>
+                    {monthRuns.map(r => (
+                      <th key={r.id} className="p-2 border border-slate-200 text-center whitespace-nowrap">{r.run_date.slice(5)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {expPrompts.map(p => (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="p-2 border border-slate-200 sticky left-0 bg-white truncate max-w-[200px]" title={p.prompt_text}>{p.prompt_text}</td>
+                      {monthRuns.map(r => {
+                        const item = (r.geo_check_items ?? []).find(i => i.prompt_text === p.prompt_text);
+                        return (
+                          <td key={r.id} className="p-2 border border-slate-200 text-center">
+                            {item ? (
+                              item.mentioned
+                                ? <span className="inline-block w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] leading-5">O</span>
+                                : <span className="inline-block w-5 h-5 rounded-full bg-red-100 text-red-400 text-[10px] leading-5">X</span>
+                            ) : <span className="text-slate-300">-</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* D3 정확도 매트릭스 */}
+          {prompts.some(p => p.category?.startsWith("D3")) && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">정확도 현황 (D3)</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="text-left p-2 border border-slate-200 sticky left-0 bg-slate-50 min-w-[200px]">질문</th>
+                      {monthRuns.map(r => (
+                        <th key={r.id} className="p-2 border border-slate-200 text-center whitespace-nowrap">{r.run_date.slice(5)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prompts.filter(p => p.category?.startsWith("D3")).map(p => (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="p-2 border border-slate-200 sticky left-0 bg-white truncate max-w-[200px]" title={p.prompt_text}>{p.prompt_text}</td>
+                        {monthRuns.map(r => {
+                          const item = (r.geo_check_items ?? []).find(i => i.prompt_text === p.prompt_text);
+                          return (
+                            <td key={r.id} className="p-2 border border-slate-200 text-center">
+                              {item ? (
+                                <span className={cn("font-semibold", item.accuracy_score >= 50 ? "text-blue-600" : item.accuracy_score >= 20 ? "text-amber-500" : "text-red-400")}>
+                                  {item.accuracy_score}%
+                                </span>
+                              ) : <span className="text-slate-300">-</span>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
