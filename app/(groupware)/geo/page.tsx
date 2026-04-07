@@ -282,7 +282,26 @@ ${recentRuns.length > 1 ? `<div class="section">
 <div class="section">
   <div class="section-title">질문별 노출 추이</div>
   ${buildFullMatrixHtml(recentRuns)}
-</div>` : ""}
+</div>
+<div class="page-break"></div>` : ""}
+
+${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고리", "D3 오공김밥 직접"].map(cat => {
+  const catItems = items.filter(i => (i.category ?? "") === cat);
+  if (catItems.length === 0) return "";
+  const isD3 = cat.startsWith("D3");
+  return `<div class="section">
+  <div class="section-title">${cat} — ${isD3 ? "정확도 체크" : "노출률 체크"}</div>
+  ${catItems.map((item, idx) => `<div class="qa">
+    <div class="q">Q${idx + 1}. ${item.prompt_text}</div>
+    <div class="a">${item.ai_response.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+    ${isD3
+      ? `<span class="tag tag-acc">정확도 ${item.accuracy_score}%</span>`
+      : item.mentioned
+        ? `<span class="tag tag-yes">브랜드 노출</span>`
+        : `<span class="tag tag-no">브랜드 미노출</span>`}
+  </div>`).join("")}
+</div>`;
+}).join("")}
 
 <div class="footer">
   Frandoor GEO Checker · ${run.run_date} · Powered by ${run.model}
