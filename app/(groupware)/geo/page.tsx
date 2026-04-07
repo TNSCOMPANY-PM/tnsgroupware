@@ -663,8 +663,6 @@ ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고�
           </div>
         </div>
 
-        </div>
-
         {/* 우측: 추이 + 직접 확인 + 팩트데이터 */}
         <div className="space-y-6">
           {/* 추이 — 꺾은선 그래프 */}
@@ -718,27 +716,46 @@ ${["D0 개인창업 탐색", "D1 프랜차이즈 탐색", "D2 김밥 카테고�
             <p className="text-xs text-slate-400 mb-3">D3 답변 정확도를 이 데이터 기준으로 체크. 없으면 홈페이지 자동 추출.</p>
             <div className="flex items-center gap-2 mb-2">
               <label className="cursor-pointer">
-                <input type="file" accept=".txt,.csv,.docx" className="hidden" onChange={async (e) => {
+                <input type="file" accept=".txt,.csv,.docx,.xlsx,.pdf" className="hidden" onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file || !selectedBrand) return;
+                  // presigned URL 방식 (코워크 문서 업로드와 동일)
                   const { createClient: cb } = await import("@/utils/supabase/client");
                   const sb = cb();
-                  const path = `geo-facts/${selectedBrand.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-                  await sb.storage.from("documents").upload(path, file, { upsert: true });
-                  const { data: u } = sb.storage.from("documents").getPublicUrl(path);
+                  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                  const storagePath = `geo-facts/${selectedBrand.id}/${Date.now()}_${safeName}`;
+                  const { data: signedData, error: signErr } = await sb.storage.from("documents").createSignedUploadUrl(storagePath);
+                  if (signErr || !signedData) { alert("업로드 준비 실패"); e.target.value = ""; return; }
+                  const { error: upErr } = await sb.storage.from("documents").uploadToSignedUrl(storagePath, signedData.token, file, {
+                    contentType: file.type || "application/octet-stream",
+                  });
+                  if (upErr) { alert("업로드 실패: " + upErr.message); e.target.value = ""; return; }
+                  const { data: u } = sb.storage.from("documents").getPublicUrl(storagePath);
                   await fetch("/api/geo/brands", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedBrand.id, fact_file_url: u.publicUrl }) });
                   setSelectedBrand({ ...selectedBrand, fact_file_url: u.publicUrl });
                   e.target.value = "";
                 }} />
                 <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-600"><Upload className="h-3.5 w-3.5" />파일 업로드</span>
               </label>
-              {selectedBrand?.fact_file_url && <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />등록됨</span>}
+              {selectedBrand?.fact_file_url && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />등록됨</span>
+                  <button onClick={async () => {
+                    await fetch("/api/geo/brands", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedBrand.id, fact_file_url: "" }) });
+                    setSelectedBrand({ ...selectedBrand, fact_file_url: "" });
+                  }} className="text-xs text-red-400 hover:text-red-600">삭제</button>
+                </div>
+              )}
             </div>
+            {selectedBrand?.fact_file_url && (
+              <a href={selectedBrand.fact_file_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline mb-2 block truncate">{selectedBrand.fact_file_url.split("/").pop()}</a>
+            )}
             <p className="text-[10px] text-slate-400">
-              {!selectedBrand?.fact_file_url ? (selectedBrand?.landing_url ? "홈페이지에서 자동 추출" : "홈페이지 URL 등록 필요") : ""}
+              {!selectedBrand?.fact_file_url ? (selectedBrand?.landing_url ? "팩트 파일 없음 → 홈페이지에서 자동 추출" : "팩트 파일 없음 · 홈페이지 URL 등록 필요") : ""}
             </p>
           </div>
         </div>
+      </div>
 
       {/* 상세 결과 — ChatGPT 스타일 대화 UI */}
       {selectedRun && (
