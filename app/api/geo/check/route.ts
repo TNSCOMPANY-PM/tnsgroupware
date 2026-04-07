@@ -30,25 +30,79 @@ IMPORTANT: Do NOT give vague answers. Every franchise recommendation MUST includ
 IMPORTANT: Search for "프랜차이즈 창업" "김밥 프랜차이즈" "소자본 창업" etc. to find the latest real data.
 IMPORTANT: Include lesser-known but high-performing brands, not just the obvious ones like 김밥천국.`;
 
-const FACT_KEYWORDS = [
-  { keyword: "6,500만", label: "총 창업비용" },
-  { keyword: "6500만", label: "총 창업비용" },
-  { keyword: "1,500만", label: "실투자금" },
-  { keyword: "1500만", label: "실투자금" },
-  { keyword: "4,500만", label: "평균 월매출" },
-  { keyword: "4500만", label: "평균 월매출" },
-  { keyword: "17~23%", label: "순마진" },
-  { keyword: "30만원", label: "로열티" },
-  { keyword: "10평", label: "매장 규모" },
-  { keyword: "3명", label: "운영 인원" },
-  { keyword: "3인", label: "운영 인원" },
-  { keyword: "50가지", label: "메뉴 수" },
-  { keyword: "55개", label: "가맹점 수" },
-  { keyword: "자동화", label: "자동화 설비" },
-  { keyword: "라이스시트", label: "자동화 설비" },
-  { keyword: "1년", label: "투자 회수" },
-  { keyword: "오사카", label: "해외 진출" },
-];
+// 팩트 키워드를 DB(fact_data) 또는 홈페이지 크롤링에서 동적으로 가져옴
+type FactKeyword = { keyword: string; label: string };
+
+async function getFactKeywords(supabase: ReturnType<typeof createAdminClient>, brandId: string): Promise<FactKeyword[]> {
+  const { data: brand } = await supabase.from("geo_brands").select("fact_data, fact_file_url, landing_url").eq("id", brandId).single();
+  if (!brand) return [];
+
+  // 1순위: DB에 저장된 fact_data (JSON 배열)
+  if (brand.fact_data && Array.isArray(brand.fact_data) && brand.fact_data.length > 0) {
+    return brand.fact_data as FactKeyword[];
+  }
+
+  // 2순위: 업로드된 팩트 파일에서 키워드 추출
+  if (brand.fact_file_url) {
+    try {
+      const res = await fetch(brand.fact_file_url);
+      if (res.ok) {
+        const text = await res.text();
+        return extractKeywordsFromText(text);
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 3순위: 공식 홈페이지 크롤링
+  if (brand.landing_url) {
+    try {
+      const res = await fetch(brand.landing_url, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (res.ok) {
+        const html = await res.text();
+        // HTML 태그 제거
+        const text = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+        return extractKeywordsFromText(text);
+      }
+    } catch { /* ignore */ }
+  }
+
+  return [];
+}
+
+// 텍스트에서 핵심 수치 키워드 자동 추출
+function extractKeywordsFromText(text: string): FactKeyword[] {
+  const keywords: FactKeyword[] = [];
+  const patterns: { regex: RegExp; label: string }[] = [
+    { regex: /총?\s*창업\s*비용\s*[:\s]*약?\s*([\d,]+만\s*원?)/g, label: "총 창업비용" },
+    { regex: /실\s*투자\s*금?\s*[:\s]*약?\s*([\d,]+만\s*원?)/g, label: "실투자금" },
+    { regex: /(평균\s*)?월\s*매출\s*[:\s]*약?\s*([\d,]+만\s*원?)/g, label: "평균 월매출" },
+    { regex: /순\s*마진\s*[:\s]*약?\s*([\d~.]+%)/g, label: "순마진" },
+    { regex: /로열티\s*[:\s]*약?\s*([\d,]+만?\s*원?)/g, label: "로열티" },
+    { regex: /가맹\s*점\s*수?\s*[:\s]*약?\s*([\d,]+개?)/g, label: "가맹점 수" },
+    { regex: /투자\s*회수\s*(기간)?\s*[:\s]*약?\s*([\d~.]+년?개?월?)/g, label: "투자 회수" },
+    { regex: /([\d,]+만\s*원)\s*(이하|부터|실투자)/g, label: "비용" },
+  ];
+
+  for (const { regex, label } of patterns) {
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const kw = match[1] || match[2] || match[0];
+      if (kw && !keywords.some(k => k.keyword === kw)) {
+        keywords.push({ keyword: kw.trim(), label });
+      }
+    }
+  }
+
+  // 일반 숫자+만원 패턴
+  const moneyMatches = text.match(/[\d,]+만\s*원/g) ?? [];
+  for (const m of moneyMatches) {
+    if (!keywords.some(k => k.keyword === m)) {
+      keywords.push({ keyword: m, label: "금액" });
+    }
+  }
+
+  return keywords.slice(0, 30); // 최대 30개
+}
 
 // GET: 체크 기록 목록
 export async function GET(request: Request) {
@@ -95,7 +149,7 @@ export async function POST(request: Request) {
 
   if (runErr || !run) return NextResponse.json({ error: runErr?.message || "run 생성 실패" }, { status: 500 });
 
-  return NextResponse.json({ run_id: run.id, brand_name: brand.name, prompts });
+  return NextResponse.json({ run_id: run.id, brand_id: body.brand_id, brand_name: brand.name, prompts });
 }
 
 // PUT: 단일 프롬프트 실행 (프론트에서 하나씩 호출)
@@ -108,10 +162,11 @@ export async function PUT(request: Request) {
     prompt_id: string;
     prompt_text: string;
     brand_name: string;
+    brand_id: string;
     category?: string;
   };
 
-  const { run_id, prompt_id, prompt_text, brand_name, category } = body;
+  const { run_id, prompt_id, prompt_text, brand_name, brand_id, category } = body;
   if (!run_id || !prompt_id || !prompt_text) {
     return NextResponse.json({ error: "run_id, prompt_id, prompt_text required" }, { status: 400 });
   }
@@ -150,17 +205,20 @@ export async function PUT(request: Request) {
       accuracy_score = Math.min(accuracy_score, 100);
     }
   } else {
-    // D3 정확도 체크
-    let matchedFacts = 0;
-    const matchedLabels: string[] = [];
-    for (const fact of FACT_KEYWORDS) {
-      if (response.includes(fact.keyword) && !matchedLabels.includes(fact.label)) {
-        matchedFacts++;
-        matchedLabels.push(fact.label);
+    // D3 정확도 체크 — 팩트 데이터 동적 조회
+    const factKeywords = await getFactKeywords(supabase, brand_id);
+    if (factKeywords.length > 0) {
+      let matchedFacts = 0;
+      const matchedLabels: string[] = [];
+      for (const fact of factKeywords) {
+        if (response.includes(fact.keyword) && !matchedLabels.includes(fact.label)) {
+          matchedFacts++;
+          matchedLabels.push(fact.label);
+        }
       }
+      const uniqueLabels = [...new Set(factKeywords.map((f) => f.label))];
+      accuracy_score = uniqueLabels.length > 0 ? Math.round((matchedFacts / uniqueLabels.length) * 100) : 0;
     }
-    const uniqueLabels = [...new Set(FACT_KEYWORDS.map((f) => f.label))];
-    accuracy_score = Math.round((matchedFacts / uniqueLabels.length) * 100);
     const hasError = /폐업|문을 닫|없는 브랜드|확인되지 않|정보.*없/.test(response);
     mentioned = !hasError;
     if (hasError) accuracy_score = 0;
