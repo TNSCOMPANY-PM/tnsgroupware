@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /**
  * GET /api/leave-events
@@ -7,6 +8,9 @@ import { NextResponse } from "next/server";
  * (전사 캘린더, 번아웃 리스크 계산용)
  */
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("leave_requests")

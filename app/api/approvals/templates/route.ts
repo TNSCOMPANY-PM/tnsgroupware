@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** 전체 공유 간단 정산 템플릿 목록 */
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("approval_settlement_templates")
@@ -14,6 +18,9 @@ export async function GET() {
 
 /** 새 템플릿 추가 (전체 공유) */
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const body = await req.json();
   const {

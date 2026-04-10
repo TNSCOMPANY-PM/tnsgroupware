@@ -1,5 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
+
+void createAdminClient;
 
 const SEED_USERS = [
   { name: "김정섭", empNumber: "TNS-20250201" },
@@ -22,6 +26,9 @@ function empNumberToHireDate(empNumber: string): string {
 }
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /**
  * GET /api/leaves/annual-grant
@@ -12,6 +13,9 @@ import { createAdminClient } from "@/utils/supabase/admin";
  *   user_id    string  employees DB id (join_date 없을 때 조회용)
  */
 export async function GET(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? new Date().getFullYear());
 

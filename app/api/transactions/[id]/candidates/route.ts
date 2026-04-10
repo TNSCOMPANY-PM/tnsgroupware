@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInvoiceCandidates } from "@/lib/transactions";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { id } = await params;
   const { searchParams } = new URL(request.url);
   const amount = Number(searchParams.get("amount"));

@@ -1,7 +1,11 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("granted_leaves")
@@ -12,6 +16,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const body = await req.json();
   const { data, error } = await supabase

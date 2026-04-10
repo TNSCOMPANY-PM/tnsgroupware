@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** 이상 거래 감지: 평균 대비 2σ 이상 이탈 거래 반환 */
 export async function GET(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? (() => {
     const d = new Date();

@@ -1,5 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
+
+void createAdminClient;
 
 /**
  * 일회용 시드 API: 이번 달 기본 운영 목표를 projects 테이블에 삽입합니다.
@@ -16,10 +20,16 @@ function getThisMonthRange(): { start: string; end: string } {
 }
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   return runSeed();
 }
 
 export async function POST() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   return runSeed();
 }
 

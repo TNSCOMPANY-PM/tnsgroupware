@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 function isTableMissing(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
@@ -7,6 +8,9 @@ function isTableMissing(e: unknown): boolean {
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   try {
     const supabase = createAdminClient();
     const { id } = await params;
@@ -40,6 +44,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   try {
     const supabase = createAdminClient();
     const { id } = await params;

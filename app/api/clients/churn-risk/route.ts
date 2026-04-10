@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** 고객 이탈 위험 스코어 (0~100, 높을수록 위험) */
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);

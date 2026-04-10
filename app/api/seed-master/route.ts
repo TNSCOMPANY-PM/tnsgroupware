@@ -1,10 +1,17 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
+
+void createAdminClient;
 
 const MASTER_EMAIL = "admin@example.com";
 const MASTER_PASSWORD = "REDACTED_MASTER_PW";
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

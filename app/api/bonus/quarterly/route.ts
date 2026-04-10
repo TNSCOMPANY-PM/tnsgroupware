@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 // ── 성과급 계산 상수 (reports/page.tsx 와 동일) ──────────────────
 const BONUS_TARGET_GP = 50_000_000;
@@ -72,6 +73,9 @@ function calcBonus(rows: FinRow[]): Record<BonusKey, number> {
 }
 
 export async function GET(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { searchParams } = new URL(req.url);
   const empNumber = searchParams.get("empNumber");
   if (!empNumber) return NextResponse.json({ total: 0, months: [], quarter: 0, year: 0, bonusKey: null });

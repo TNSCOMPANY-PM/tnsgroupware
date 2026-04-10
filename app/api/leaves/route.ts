@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 async function notifyPushbullet(title: string, body: string) {
   const apiKey = process.env.PUSHBULLET_API_KEY?.trim();
@@ -16,6 +17,9 @@ async function notifyPushbullet(title: string, body: string) {
 }
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   // 관리자 클라이언트로 RLS 우회 — 팀장/C레벨 모두 전체 목록 조회 필요
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -28,6 +32,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const body = await req.json();
 

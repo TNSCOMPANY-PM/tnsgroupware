@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 const BONUS_TARGET_GP = 50_000_000;
 const BONUS_POOL_RATE = 0.2;
@@ -62,6 +63,9 @@ function calcBonus(rows: FinRow[]): Record<BonusKey, number> & { grossTotalSuppl
 }
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const today = new Date();
   const year  = today.getFullYear();
   const month = today.getMonth() + 1;

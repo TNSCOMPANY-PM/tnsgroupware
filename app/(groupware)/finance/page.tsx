@@ -50,7 +50,6 @@ import {
   Receipt,
   ChevronDown,
   BarChart3,
-  AlertTriangle,
   Plus,
   RefreshCw,
   Trash2,
@@ -287,8 +286,6 @@ export default function FinancePage() {
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
   type ForecastData = { currentTotal: number; projected: number; pastAvg: number; progress: number; elapsedDays: number; totalDays: number };
   const [forecast, setForecast] = useState<ForecastData | null>(null);
-  type AnomalyRow = { id: string; type: string; amount: number; client_name: string | null; date: string; z_score: number; reason: string };
-  const [anomalies, setAnomalies] = useState<AnomalyRow[]>([]);
   const [receiptTarget, setReceiptTarget] = useState<FinanceRow | null>(null);
   type AddFormType = "DEPOSIT" | "WITHDRAWAL" | "RECEIVABLE" | "PAYABLE";
   const [addForm, setAddForm] = useState({
@@ -416,9 +413,10 @@ export default function FinancePage() {
     }
   };
 
-  const fetchFinanceRows = useCallback(async () => {
+  const fetchFinanceRows = useCallback(async (month?: string) => {
     try {
-      const res = await fetch("/api/finance");
+      const url = month ? `/api/finance?month=${month}` : "/api/finance";
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = (await res.json()) as FinanceRow[];
       setFinanceRows(Array.isArray(data) ? data : []);
@@ -473,13 +471,8 @@ export default function FinancePage() {
         .catch(() => {});
     };
     runSync();
-    const retry = setTimeout(runSync, 4000);
-    const interval = setInterval(runSync, 90_000);
-    return () => {
-      mounted = false;
-      clearTimeout(retry);
-      clearInterval(interval);
-    };
+    const interval = setInterval(runSync, 300_000); // 5분마다
+    return () => { mounted = false; clearInterval(interval); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const summary: MonthSummary = useMemo(
@@ -1193,9 +1186,8 @@ export default function FinancePage() {
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     })();
-    if (!isCurrentMonth) { setForecast(null); setAnomalies([]); return; }
+    if (!isCurrentMonth) { setForecast(null); return; }
     fetch("/api/finance/forecast").then((r) => r.ok ? r.json() : null).then((d) => d && setForecast(d)).catch(() => {});
-    fetch(`/api/finance/anomalies?month=${ledgerMonthKey}`).then((r) => r.ok ? r.json() : []).then(setAnomalies).catch(() => {});
   }, [ledgerMonthKey]);
 
   const fetchSyncPushbullet = useCallback(async () => {
@@ -1341,13 +1333,6 @@ export default function FinancePage() {
                 <h2 className="flex items-center gap-2 font-semibold text-slate-800">
                   <Receipt className="size-4 text-[var(--primary)]" />
                   통합 입출금 원장
-                  {anomalies.length > 0 && (
-                    <span title={anomalies.map((a) => `${a.client_name ?? ""} ${(a.amount/10000).toFixed(0)}만원 (${a.reason})`).join(", ")}
-                      className="flex cursor-help items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                      <AlertTriangle className="size-3" />
-                      이상거래 {anomalies.length}건
-                    </span>
-                  )}
                 </h2>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {/* 상태 필터 */}
@@ -1493,8 +1478,6 @@ export default function FinancePage() {
                     <LedgerRowComponent
                       key={row.id}
                       row={row}
-                      isAnomaly={anomalies.some((a) => a.id === row.id)}
-                      anomalyReason={anomalies.find((a) => a.id === row.id)?.reason}
                       suggestedClassification={aiSuggestions[row.id]}
                       approvingId={approvingId}
                       justApprovedId={justApprovedId}

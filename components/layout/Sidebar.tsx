@@ -30,7 +30,7 @@ const navItems = [
   { href: "/goals",      label: "목표",      icon: Target },
   { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
   { href: "/approvals",  label: "전자결재",  icon: ClipboardCheck },
-  { href: "/geo",        label: "GEO 체크",   icon: Radar },
+  { href: "/frandoor",   label: "Frandoor",   icon: Radar },
   { href: "/reports",    label: "보고서",    icon: FileBarChart },
   { href: "/hr",         label: "HR",        icon: Users },
 ] as const;

@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import type { ContractInsert } from "@/types/contract";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** GET: employee_id 쿼리로 해당 직원 계약 목록 조회 / all=true이면 전체 (C레벨용) */
 export async function GET(request: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   try {
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get("employee_id");
@@ -55,6 +59,9 @@ export async function GET(request: Request) {
 
 /** POST: 계약서 발송 (pending 상태로 INSERT) */
 export async function POST(request: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   try {
     const body = (await request.json()) as ContractInsert;
     const { employee_id, contract_type, content } = body;

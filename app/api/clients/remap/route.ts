@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import { matchClient, type ClientForMatch } from "@/lib/clientMatcher";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function POST() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
 
   // 모든 clients 가져오기

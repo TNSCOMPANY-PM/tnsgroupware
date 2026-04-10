@@ -134,6 +134,7 @@ export default function ApprovalsPage() {
   const [tab, setTab] = useState("all");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [monthFilter, setMonthFilter] = useState<string>(() => format(new Date(), "yyyy-MM"));
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [showForm, setShowForm] = useState(false);
@@ -171,6 +172,7 @@ export default function ApprovalsPage() {
     invoice_depositor: "",
     invoice_tax_email: "",
     invoice_item: "",
+    invoice_memo: "",
   });
 
   // 청구발행 CRM 클라이언트 검색
@@ -267,6 +269,7 @@ export default function ApprovalsPage() {
         depositor_name: form.invoice_depositor.trim(),
         tax_email: form.invoice_tax_email.trim(),
         item_name: form.invoice_item.trim(),
+        memo: form.invoice_memo.trim(),
       };
       payload.content = JSON.stringify(invoiceData);
       payload.title = `🧾 ${form.invoice_company.trim() || "청구발행"}`;
@@ -309,6 +312,7 @@ export default function ApprovalsPage() {
         invoice_depositor: "",
         invoice_tax_email: "",
         invoice_item: "",
+        invoice_memo: "",
       });
       setAttachmentFiles([]);
       if (created?._warning) {
@@ -359,6 +363,15 @@ export default function ApprovalsPage() {
     if (tab !== "mine" && tab !== "all" && a.status !== tab) return false;
     if (typeFilter && a.type !== typeFilter) return false;
     if (monthFilter && !a.created_at.startsWith(monthFilter)) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const searchTarget = [
+        a.title, a.content, a.requester_name, a.approver_name,
+        a.payment_reason, a.sheet_classification, a.bank,
+        a.account_holder_name, a.amount?.toString(),
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (!searchTarget.includes(q)) return false;
+    }
     return true;
   });
 
@@ -407,6 +420,7 @@ export default function ApprovalsPage() {
       invoice_depositor: "",
       invoice_tax_email: "",
       invoice_item: "",
+      invoice_memo: "",
     });
     setAttachmentFiles([]);
     setShowForm(true);
@@ -418,7 +432,7 @@ export default function ApprovalsPage() {
     fetch("/api/clients").then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setInvoiceClients(d);
     }).catch(() => {});
-    let inv = { company_name: "", representative: "", business_number: "", address: "", business_type: "", business_item: "", depositor_name: "", tax_email: "", item_name: "" };
+    let inv = { company_name: "", representative: "", business_number: "", address: "", business_type: "", business_item: "", depositor_name: "", tax_email: "", item_name: "", memo: "" };
     if (a.type === "invoice" && a.content) {
       try { inv = { ...inv, ...JSON.parse(a.content) }; } catch { /* ignore */ }
     }
@@ -449,6 +463,7 @@ export default function ApprovalsPage() {
       invoice_depositor: inv.depositor_name,
       invoice_tax_email: inv.tax_email,
       invoice_item: inv.item_name,
+      invoice_memo: inv.memo ?? "",
     });
     setAttachmentFiles([]);
     setDetailItem(null);
@@ -696,6 +711,13 @@ export default function ApprovalsPage() {
               {f.label}
             </button>
           ))}
+        </div>
+        <div className="relative ml-auto">
+          <input type="text" value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+            placeholder="제목, 신청자, 금액 검색..."
+            className="w-52 rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200" />
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>}
         </div>
       </div>
 
@@ -975,8 +997,14 @@ export default function ApprovalsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-600">비밀번호</label>
-                      <input type="password" autoComplete="off" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                        value={form.purchase_password} onChange={(e) => setForm({ ...form, purchase_password: e.target.value })} placeholder="사이트 비밀번호" />
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        value={form.purchase_password}
+                        onChange={(e) => setForm({ ...form, purchase_password: e.target.value })}
+                        placeholder="사이트 비밀번호"
+                      />
                     </div>
                   </div>
                   <div>
@@ -1099,6 +1127,11 @@ export default function ApprovalsPage() {
                     <label className="text-xs font-medium text-slate-600">품목</label>
                     <input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
                       value={form.invoice_item} onChange={(e) => setForm({ ...form, invoice_item: e.target.value })} placeholder="청구 품목명" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">메모</label>
+                    <textarea rows={2} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none resize-none"
+                      value={form.invoice_memo} onChange={(e) => setForm({ ...form, invoice_memo: e.target.value })} placeholder="청구 관련 메모 (선택사항)" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-slate-600">금액 (원) *</label>
@@ -1290,7 +1323,12 @@ export default function ApprovalsPage() {
                     </div>
                   )}
                   {detailItem.purchase_id && <div className="flex justify-between"><span className="text-slate-500">아이디</span><span>{detailItem.purchase_id}</span></div>}
-                  {detailItem.purchase_password && <div className="flex justify-between"><span className="text-slate-500">비밀번호</span><span className="font-mono text-sm">{detailItem.purchase_password}</span></div>}
+                  {detailItem.purchase_password && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">비밀번호</span>
+                      <span className="font-mono text-sm">{detailItem.purchase_password}</span>
+                    </div>
+                  )}
                   {detailItem.item_name && <div className="flex justify-between"><span className="text-slate-500">물품명</span><span>{detailItem.item_name}</span></div>}
                   {detailItem.purpose && <div className="flex justify-between"><span className="text-slate-500">용도</span><span>{detailItem.purpose}</span></div>}
                   {detailItem.amount != null && <div className="flex justify-between"><span className="text-slate-500">금액</span><span className="font-semibold">{Number(detailItem.amount).toLocaleString()}원</span></div>}

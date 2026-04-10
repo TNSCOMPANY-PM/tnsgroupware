@@ -1,10 +1,22 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
 import { LUNCH_MENUS } from "@/constants/dashboard";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// action 도구 목록 (CUD 작업 — Claude Haiku로 응답 생성)
+const ACTION_TOOLS = new Set([
+  "create_leave", "cancel_leave", "approve_leave",
+  "prepare_approval", "create_approval", "approve_approval",
+  "create_event", "create_announcement",
+  "create_kanban_card", "update_kanban_card", "delete_kanban_card",
+  "create_client", "update_client",
+]);
 
 type UserContext = {
   userId: string;
@@ -886,6 +898,9 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
 }
 
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { messages, user } = await req.json() as {
     messages: OpenAI.Chat.ChatCompletionMessageParam[];
     user: UserContext;
@@ -912,6 +927,7 @@ export async function POST(req: Request) {
     { role: "system", content: systemPrompt },
     ...messages,
   ];
+
 
   // 휴가자 조회 키워드 감지 → 자동으로 query_leaves 선실행 (신청/취소는 제외)
   const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
@@ -958,9 +974,12 @@ export async function POST(req: Request) {
     allMessages.push({ role: "tool", tool_call_id: autoCallId, content: autoResult });
   }
 
+  let usedActionTool = false;
+  const toolResults: { name: string; args: Record<string, unknown>; result: string }[] = [];
+
   for (let i = 0; i < 6; i++) {
     const res = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5.4-mini",
       messages: allMessages,
       tools,
       tool_choice: "auto",
@@ -971,15 +990,51 @@ export async function POST(req: Request) {
     allMessages.push(msg);
 
     if (!msg.tool_calls?.length) {
-      return NextResponse.json({ reply: msg.content ?? "" });
+      // tool 호출 없이 직접 응답 — GPT 응답 그대로
+      if (!usedActionTool) {
+        return NextResponse.json({ reply: msg.content ?? "" });
+      }
+      // action tool 사용했으면 Claude가 최종 응답 생성
+      break;
     }
 
     for (const tc of msg.tool_calls) {
       const fn = (tc as unknown as { function: { name: string; arguments: string } }).function;
-      const result = await runTool(fn.name, JSON.parse(fn.arguments) as Record<string, unknown>, user);
+      const args = JSON.parse(fn.arguments) as Record<string, unknown>;
+      const result = await runTool(fn.name, args, user);
       allMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      toolResults.push({ name: fn.name, args, result });
+      if (ACTION_TOOLS.has(fn.name)) usedActionTool = true;
     }
   }
 
-  return NextResponse.json({ reply: "답변을 생성하지 못했습니다." });
+  // action tool 실행 후 Claude Haiku로 최종 응답 생성
+  if (usedActionTool && toolResults.length > 0) {
+    try {
+      const toolSummary = toolResults.map(t => `[${t.name}] 파라미터: ${JSON.stringify(t.args)} → 결과: ${t.result}`).join("\n\n");
+      const claudeRes = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 1000,
+        system: `당신은 회사 그룹웨어 AI 어시스턴트입니다. 사용자의 요청에 따라 실행된 작업 결과를 자연스럽고 간결하게 전달하세요.
+사용자: ${user.name} (${user.department} ${user.role})
+오늘: ${new Date().toISOString().slice(0, 10)}`,
+        messages: [
+          { role: "user", content: lastContent },
+          { role: "assistant", content: `아래 작업을 실행했습니다:\n\n${toolSummary}` },
+          { role: "user", content: "위 결과를 사용자에게 자연스럽게 전달해주세요. 간결하게." },
+        ],
+      });
+      const reply = claudeRes.content[0]?.type === "text" ? claudeRes.content[0].text : "";
+      return NextResponse.json({ reply });
+    } catch {
+      // Claude 실패 시 마지막 GPT 메시지 또는 tool 결과 반환
+      const lastResult = toolResults[toolResults.length - 1];
+      return NextResponse.json({ reply: lastResult?.result ?? "작업이 완료되었습니다." });
+    }
+  }
+
+  // GPT가 최종 응답을 생성한 경우
+  const lastMsg = allMessages[allMessages.length - 1];
+  const finalContent = typeof lastMsg === "object" && lastMsg !== null && "content" in lastMsg ? (lastMsg as { content: string | null }).content : null;
+  return NextResponse.json({ reply: finalContent ?? "답변을 생성하지 못했습니다." });
 }

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const CATEGORIES = [
   "더널리", "더널리 충전", "티제이웹", "기타",
@@ -11,6 +12,9 @@ const CATEGORIES = [
 type InputRow = { id: string; senderName?: string; description?: string; amount?: number; type?: string };
 
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { rows } = (await req.json()) as { rows: InputRow[] };
   if (!rows?.length) return NextResponse.json({ suggestions: [] });
 
@@ -37,15 +41,16 @@ ${rowText}
 
 {"suggestions": [{"id": "...", "classification": "카테고리명"}, ...]} 형식 JSON으로만 응답하세요.`;
 
-  const res = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
+  const res = await anthropic.messages.create({
+    model: "claude-haiku-4-5",
     max_tokens: 1000,
+    messages: [{ role: "user", content: prompt }],
   });
 
   try {
-    const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as { suggestions?: { id: string; classification: string }[] };
+    const text = res.content[0]?.type === "text" ? res.content[0].text : "{}";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text) as { suggestions?: { id: string; classification: string }[] };
     const suggestions = (parsed.suggestions ?? []).filter(
       (s) => s.id && CATEGORIES.includes(s.classification)
     );

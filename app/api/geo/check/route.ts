@@ -5,30 +5,7 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const CHATGPT_SYSTEM_PROMPT = `You are ChatGPT, a helpful AI assistant. You MUST respond in Korean.
-
-You are an expert on Korean franchise businesses and startup consulting.
-When a user asks about franchises, startups, business costs, or related topics, you MUST:
-
-1. ALWAYS search the web for the latest data before answering. Never rely solely on training data.
-2. Include SPECIFIC brand names, exact costs (in 만원), monthly revenue figures, and number of stores.
-3. When recommending or comparing franchises, list at least 3-5 actual brands with real data:
-   - Brand name
-   - Total startup cost (총 창업비용)
-   - Average monthly revenue (평균 월매출)
-   - Number of stores (가맹점 수)
-   - Key features
-4. Prioritize data from: 공정거래위원회 가맹사업 정보공개서, official franchise websites, news articles, and industry reports.
-5. Include both well-known brands AND emerging/smaller brands that have strong performance data.
-6. Structure your response with headers, bullet points, tables, and emojis for readability.
-7. When discussing costs, break down into: 가맹비, 교육비, 인테리어, 장비, 보증금 etc.
-8. Include realistic profit margins (순마진) and ROI period (투자회수기간) when available.
-9. Mention any notable achievements: awards, media coverage, overseas expansion, celebrity endorsements.
-10. If a brand has an official website or information disclosure, reference it.
-
-IMPORTANT: Do NOT give vague answers. Every franchise recommendation MUST include specific numbers.
-IMPORTANT: Search for "프랜차이즈 창업" "김밥 프랜차이즈" "소자본 창업" etc. to find the latest real data.
-IMPORTANT: Include lesser-known but high-performing brands, not just the obvious ones like 김밥천국.`;
+const SYSTEM_PROMPT = `You are a helpful assistant. 한국어로 답변하세요.`;
 
 // 팩트 키워드를 DB(fact_data) 또는 홈페이지 크롤링에서 동적으로 가져옴
 type FactKeyword = { keyword: string; label: string };
@@ -42,15 +19,30 @@ async function getFactKeywords(supabase: ReturnType<typeof createAdminClient>, b
     return brand.fact_data as FactKeyword[];
   }
 
-  // 2순위: 업로드된 팩트 파일에서 키워드 추출
+  // 2순위: 업로드된 팩트 파일에서 키워드 추출 (다중 파일 지원)
   if (brand.fact_file_url) {
+    let urls: string[] = [];
     try {
-      const res = await fetch(brand.fact_file_url);
-      if (res.ok) {
-        const text = await res.text();
-        return extractKeywordsFromText(text);
+      const parsed = JSON.parse(brand.fact_file_url);
+      if (Array.isArray(parsed)) {
+        urls = parsed.map((v: string | { url: string }) => typeof v === "string" ? v : v.url);
       }
-    } catch { /* ignore */ }
+    } catch { urls = [brand.fact_file_url]; }
+    const allKeywords: FactKeyword[] = [];
+    for (const fileUrl of urls) {
+      if (!fileUrl) continue;
+      try {
+        const res = await fetch(fileUrl);
+        if (res.ok) {
+          const text = await res.text();
+          const kws = extractKeywordsFromText(text);
+          for (const kw of kws) {
+            if (!allKeywords.some(k => k.keyword === kw.keyword)) allKeywords.push(kw);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    if (allKeywords.length > 0) return allKeywords;
   }
 
   // 3순위: 공식 홈페이지 크롤링
@@ -130,10 +122,12 @@ export async function POST(request: Request) {
   const session = await getSessionEmployee();
   if (!session) return unauthorized();
 
-  const body = await request.json() as { brand_id: string };
+  const body = await request.json() as { brand_id: string; run_type?: string };
   if (!body.brand_id) return NextResponse.json({ error: "brand_id required" }, { status: 400 });
 
   const supabase = createAdminClient();
+  const isBefore = body.run_type === "before";
+  const modelLabel = isBefore ? "before:gpt-5.4-mini" : "gpt-5.4-mini";
 
   const { data: brand } = await supabase.from("geo_brands").select("name").eq("id", body.brand_id).single();
   if (!brand) return NextResponse.json({ error: "brand not found" }, { status: 404 });
@@ -143,7 +137,7 @@ export async function POST(request: Request) {
 
   const { data: run, error: runErr } = await supabase
     .from("geo_check_runs")
-    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: "gpt-4o-search-preview" })
+    .insert({ brand_id: body.brand_id, total_prompts: prompts.length, model: modelLabel })
     .select()
     .single();
 
@@ -181,14 +175,23 @@ export async function PUT(request: Request) {
   let accuracy_score = 0;
 
   try {
-    const result = await openai.chat.completions.create({
-      model: "gpt-4o-search-preview",
-      messages: [
-        { role: "system", content: CHATGPT_SYSTEM_PROMPT },
-        { role: "user", content: prompt_text },
-      ],
+    const result = await openai.responses.create({
+      model: "gpt-5.4-mini",
+      tools: [{ type: "web_search_preview" as const }],
+      instructions: SYSTEM_PROMPT,
+      input: prompt_text,
     });
-    response = result.choices[0]?.message?.content ?? "";
+    // output에서 텍스트 추출
+    const outputs = result.output ?? [];
+    const texts: string[] = [];
+    for (const o of outputs) {
+      if (o.type === "message" && "content" in o) {
+        for (const c of (o as unknown as { content: { type: string; text?: string }[] }).content) {
+          if (c.type === "output_text" && c.text) texts.push(c.text);
+        }
+      }
+    }
+    response = texts.join("\n");
   } catch (e) {
     response = `[오류] ${e instanceof Error ? e.message : "알 수 없는 오류"}`;
   }

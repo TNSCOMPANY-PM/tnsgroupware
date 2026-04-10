@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { logAudit } from "@/lib/auditLog";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** GET: 단일 계약 조회 (본인 계약만) */
 export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  _request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   try {
     const { id } = await params;
     const supabase = await createClient();
@@ -59,9 +61,10 @@ export async function GET(
 
 /** PATCH: 서명 (status=signed, signed_at=now) — 본인 계약만 가능 */
 export async function PATCH(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  _request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   try {
     const { id } = await params;
     const authClient = await createClient();

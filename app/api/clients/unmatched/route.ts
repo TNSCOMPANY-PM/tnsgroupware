@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /**
  * GET /api/clients/unmatched
@@ -7,6 +8,9 @@ import { NextResponse } from "next/server";
  * client_name별로 집계해 반환합니다.
  */
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
 
   const { data, error } = await supabase

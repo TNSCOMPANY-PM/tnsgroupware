@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 const DEFAULT_PASSWORD = "12345678";
 
@@ -16,6 +17,9 @@ function isValidEmail(email: string): boolean {
  * 주의: 비밀번호는 응답으로 반환하지 않습니다.
  */
 export async function GET(req: NextRequest) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

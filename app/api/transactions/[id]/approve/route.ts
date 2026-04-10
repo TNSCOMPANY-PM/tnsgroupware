@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { approveTransaction } from "@/lib/transactions";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { id } = await params;
   const body = await request.json();
   const { classification, clientName } = body as { classification?: string; clientName?: string };

@@ -84,6 +84,8 @@ export async function GET(request: NextRequest) {
       for (const dev of androidDevices.slice(0, 3)) {
         const iden = dev.iden;
         if (!iden) continue;
+
+        // 1단계: 스레드 목록에서 신한 입금 관련 스레드 ID 찾기
         const permRes = await fetch(`https://api.pushbullet.com/v2/permanents/${iden}_threads`, {
           headers,
           next: { revalidate: 0 },
@@ -96,21 +98,45 @@ export async function GET(request: NextRequest) {
         const rawThreads = await permRes.json();
         const threads = Array.isArray(rawThreads) ? rawThreads : (rawThreads as { threads?: PermanentsThread[] }).threads ?? [];
         smsThreadsFetched += threads.length;
+
+        // 신한 입금 관련 스레드 ID 수집
+        const shinhanThreadIds: string[] = [];
         for (const t of threads) {
           const latest = (t as PermanentsThread).latest;
-          if (!latest?.body || latest.direction !== "incoming") continue;
-          const text = latest.body;
-          if (!text.includes("신한") || !text.includes("입금")) continue;
-          const parsed = parseShinhanDepositSms(text);
-          if (parsed) {
-            const idenSms = `sms:${iden}:${(t as PermanentsThread).id ?? ""}:${latest.id ?? ""}`;
-            if (!parsedList.some((x) => x.iden === idenSms)) parsedList.push({ ...parsed, iden: idenSms });
-          } else {
-            console.warn("⚠️ [Pushbullet] 신한 입금 파싱 실패, 원문 일부:", text.slice(0, 120));
+          if (!latest?.body) continue;
+          if (latest.body.includes("신한") && latest.body.includes("입금")) {
+            const threadId = (t as PermanentsThread).id;
+            if (threadId) shinhanThreadIds.push(threadId);
+          }
+        }
+
+        // 2단계: 각 신한 입금 스레드의 전체 메시지 히스토리 조회
+        for (const threadId of shinhanThreadIds) {
+          try {
+            const threadRes = await fetch(`https://api.pushbullet.com/v2/permanents/${iden}_thread_${threadId}`, {
+              headers,
+              next: { revalidate: 0 },
+            });
+            if (!threadRes.ok) continue;
+            const threadData = await threadRes.json();
+            const messages: { body?: string; direction?: string; timestamp?: number; id?: string }[] =
+              Array.isArray(threadData) ? threadData : (threadData.thread ?? threadData.messages ?? threadData.smses ?? []);
+
+            for (const msg of messages) {
+              if (!msg.body || msg.direction === "outgoing") continue;
+              if (!msg.body.includes("신한") || !msg.body.includes("입금")) continue;
+              const parsed = parseShinhanDepositSms(msg.body);
+              if (parsed) {
+                const idenSms = `sms:${iden}:${threadId}:${msg.id ?? msg.timestamp ?? ""}`;
+                if (!parsedList.some((x) => x.iden === idenSms)) parsedList.push({ ...parsed, iden: idenSms });
+              }
+            }
+          } catch {
+            console.warn(`⚠️ [Pushbullet] thread ${threadId} 메시지 조회 실패`);
           }
         }
       }
-      if (smsThreadsFetched > 0) console.log(`📱 [SMS 스레드] ${smsThreadsFetched}개 스레드에서 신한 입금 파싱 반영`);
+      if (smsThreadsFetched > 0) console.log(`📱 [SMS 스레드] ${smsThreadsFetched}개 스레드 스캔, 파싱 ${parsedList.length}건`);
     } catch (permanentErr) {
       const msg = permanentErr instanceof Error ? permanentErr.message : String(permanentErr);
       if (!permanentsError) permanentsError = msg;
@@ -131,31 +157,34 @@ export async function GET(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // 중복 체크: Pushbullet iden 기준 (description의 pb:XXX 태그)
-    // iden이 DB에 없으면 무조건 신규 추가 — 날짜/금액 중복 여부 무관
-    const { data: existing, error: existingError } = await supabase
-      .from("finance")
-      .select("description")
-      .eq("type", "매출");
-
-    if (existingError) {
-      console.error("❌ [기존 데이터 조회 실패]:", existingError.message);
+    // 중복 체크: 전체 매출 기록에서 pb:iden + amount+date+time 로드
+    // Supabase 기본 limit=1000 제한 우회: 필요한 필드만 최소 로드 + 페이징
+    const allFinance: Record<string, unknown>[] = [];
+    let page = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data: chunk, error: chunkErr } = await supabase
+        .from("finance")
+        .select("amount, date, month, description")
+        .eq("type", "매출")
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (chunkErr) { console.error("❌ [기존 데이터 조회 실패]:", chunkErr.message); break; }
+      if (!chunk || chunk.length === 0) break;
+      allFinance.push(...chunk);
+      if (chunk.length < PAGE_SIZE) break;
+      page++;
     }
 
     const existingIdens = new Set<string>(
-      (existing ?? [])
-        .map((r: Record<string, unknown>) => {
+      allFinance
+        .map((r) => {
           const m = String(r.description ?? "").match(/pb:([a-zA-Z0-9._:-]+)/);
           return m ? m[1] : null;
         })
         .filter((v): v is string => v !== null)
     );
 
-    // amount+date+time 폴백 로드 (시간 있으면 시간까지, 없으면 amount+date만 비교)
-    const { data: existingFallback } = await supabase
-      .from("finance")
-      .select("amount, date, month, description")
-      .eq("type", "매출");
+    const existingFallback = allFinance;
 
     // description에서 raw 입금자 이름 추출 ("입금자: XXX t:" 패턴)
     const extractRawName = (desc: string): string => {
@@ -182,9 +211,26 @@ export async function GET(request: NextRequest) {
       )
     );
 
+    // 날짜 무관 중복 체크: amount+time+rawName (수동으로 월을 옮긴 경우 커버)
+    const fallbackDateless = new Set(
+      (existingFallback ?? [])
+        .map((r: Record<string, unknown>) => {
+          const desc = String(r.description ?? "");
+          const timeMatch = desc.match(/t:(\d{2}:\d{2})/);
+          if (!timeMatch) return null;
+          const rawName = extractRawName(desc);
+          return `${r.amount}_${timeMatch[1]}_${rawName}`;
+        })
+        .filter((v): v is string => v !== null)
+    );
+
     const toInsert = parsedList.filter((p) => {
       // iden이 DB에 있으면 명확한 중복
       if (p.iden && existingIdens.has(p.iden)) return false;
+      // 날짜 무관 중복: amount+time+rawName 일치하면 이미 존재 (월 이동된 건 커버)
+      if (p.time && p.client_name) {
+        if (fallbackDateless.has(`${p.amount}_${p.time}_${p.client_name}`)) return false;
+      }
       if (p.time) {
         // 시간 있으면 amount+date+time+rawName 모두 일치해야 중복
         if (fallbackWithTime.has(`${p.amount}_${p.date}_${p.time}_${p.client_name ?? ""}`)) return false;

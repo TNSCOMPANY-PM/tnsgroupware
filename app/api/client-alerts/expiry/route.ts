@@ -1,7 +1,11 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function GET(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { searchParams } = new URL(req.url);
   const userName = searchParams.get("userName");
 

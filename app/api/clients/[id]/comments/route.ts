@@ -1,10 +1,12 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  _req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { id } = await params;
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -17,9 +19,10 @@ export async function GET(
 }
 
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { id } = await params;
   const { author_name, content } = await req.json() as { author_name: string; content: string };
   if (!content?.trim()) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400 });
@@ -34,9 +37,10 @@ export async function POST(
 }
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   await params;
   const { commentId } = await req.json() as { commentId: string };
   const supabase = createAdminClient();

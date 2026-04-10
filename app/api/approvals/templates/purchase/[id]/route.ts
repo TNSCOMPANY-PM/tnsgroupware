@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 const ALLOWED_KEYS = [
   "name",
@@ -13,6 +14,9 @@ const ALLOWED_KEYS = [
 
 /** 비품구입 템플릿 수정 */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
   const body = await req.json();
@@ -33,6 +37,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 /** 비품구입 템플릿 삭제 */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const supabase = createAdminClient();
   const { id } = await params;
   const { error } = await supabase.from("approval_purchase_templates").delete().eq("id", id);

@@ -51,3 +51,24 @@ export async function PATCH(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(request: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const supabase = createAdminClient();
+  // 관련 데이터 삭제 (cascade로 처리되지 않는 경우 대비)
+  await supabase.from("geo_check_items").delete().in("run_id",
+    (await supabase.from("geo_check_runs").select("id").eq("brand_id", id)).data?.map(r => r.id) ?? []
+  );
+  await supabase.from("geo_check_runs").delete().eq("brand_id", id);
+  await supabase.from("geo_prompts").delete().eq("brand_id", id);
+  await supabase.from("aeo_keywords").delete().eq("brand_id", id);
+  const { error } = await supabase.from("geo_brands").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

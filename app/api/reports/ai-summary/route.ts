@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const body = await req.json() as {
     monthLabel: string;
     revenue: number;
@@ -42,11 +46,12 @@ export async function POST(req: Request) {
 - 미승인 원장이 5건 초과면 정산 처리 촉구 한 문장 포함
 - 마크다운 없이 일반 텍스트로`;
 
-  const res = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
+  const res = await anthropic.messages.create({
+    model: "claude-haiku-4-5",
     max_tokens: 500,
+    messages: [{ role: "user", content: prompt }],
   });
 
-  return NextResponse.json({ summary: res.choices[0]?.message?.content?.trim() ?? "" });
+  const text = res.content[0]?.type === "text" ? res.content[0].text : "";
+  return NextResponse.json({ summary: text.trim() });
 }

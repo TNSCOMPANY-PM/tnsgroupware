@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 const DEFAULT_PASSWORD = "12345678";
 
@@ -23,6 +24,9 @@ const CLEVEL_USERS = [
 ];
 
 export async function GET() {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -30,7 +34,7 @@ export async function GET() {
   try {
     admin = createAdminClient();
   } catch (e) {
-    return NextResponse.json({ ok: false, error: "SUPABASE_SERVICE_ROLE_KEY 미설정" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: `Service role key 미설정 (process.env.${"SUPABASE_SERVICE_ROLE_KEY"})` }, { status: 500 });
   }
 
   const results = [];

@@ -1,6 +1,7 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
+  "installCommand": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci",
   "regions": ["sin1"],
   "crons": [
     {
@@ -10,6 +11,14 @@
     {
       "path": "/api/cron/client-alerts",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/sync-pushbullet",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/frandoor-daily",
+      "schedule": "0 23 * * 0-4"
     }
   ]
 }

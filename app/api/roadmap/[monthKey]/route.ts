@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 type Params = { params: Promise<{ monthKey: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
   try {
     const { monthKey } = await params;
     const supabase = createAdminClient();
@@ -20,6 +23,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PUT(req: Request, { params }: Params) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
   try {
     const { monthKey } = await params;
     const { blocks } = await req.json();

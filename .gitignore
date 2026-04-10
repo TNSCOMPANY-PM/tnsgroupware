@@ -63,5 +63,9 @@ run-pb.ps1
 parse_finance_final.py
 scripts/test-chatbot.mjs
 
+# publish automation (login sessions - never commit)
+scripts/publish/.sessions/
+.tistory_token_cache
+
 # html exports
 26년*.html

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 
 /** 한국 법정 공휴일 fallback (nager.at API 실패 시) */
 const FALLBACK_HOLIDAYS: Record<number, string[]> = {
@@ -27,6 +28,9 @@ const FALLBACK_HOLIDAYS: Record<number, string[]> = {
 };
 
 export async function GET(req: Request) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? new Date().getFullYear());
 
