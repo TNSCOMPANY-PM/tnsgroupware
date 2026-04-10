@@ -1319,9 +1319,34 @@ ${aeoHtml}
                 } catch { alert("체크 실패"); }
                 setAeoAiRunning(false);
               }} disabled={aeoAiRunning || aeoKeywords.length === 0}>
-                {aeoAiRunning ? <><span className="animate-spin mr-1">⏳</span>체크 중...</> : <><Bot className="h-4 w-4 mr-1" />AEO 체크 실행</>}
+                {aeoAiRunning ? <><span className="animate-spin mr-1">⏳</span>체크 중...</> : <><Bot className="h-4 w-4 mr-1" />AEO 체크 실행 (AI 프록시)</>}
               </Button>
-              <p className="text-[10px] text-slate-400 text-center mt-1">키워드당 5~10초 소요</p>
+              <p className="text-[10px] text-slate-400 text-center mt-1">OpenAI web_search 기반 · 5~10초/키워드</p>
+
+              <div className="my-3 border-t border-dashed border-slate-200" />
+
+              <Button className="w-full" size="sm" variant="outline" onClick={async () => {
+                if (!selectedBrand || aeoKeywords.length === 0) return;
+                try {
+                  const res = await fetch("/api/geo/aeo-scan-queue", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ brand_id: selectedBrand.id, platform: aeoAiPlatform }),
+                  });
+                  const data = await res.json();
+                  if (data.queued) {
+                    alert(`실제 브라우저 스캔이 큐에 등록됐습니다.\n로컬 워커가 수 분 내에 처리하고, 완료 후 '최근 결과' 를 새로고침하면 반영됩니다.`);
+                  } else if (data.already_running) {
+                    alert(`이미 진행 중인 스캔이 있습니다 (${data.status})`);
+                  } else if (data.sql) {
+                    alert(`aeo_scan_queue 테이블이 없습니다. Supabase SQL Editor에서 supabase_migrations/aeo_scan_queue.sql 을 실행하세요.`);
+                  } else {
+                    alert(data.error || "요청 실패");
+                  }
+                } catch { alert("요청 실패"); }
+              }} disabled={aeoKeywords.length === 0}>
+                🌐 실제 브라우저 스캔 (Playwright)
+              </Button>
+              <p className="text-[10px] text-slate-400 text-center mt-1">로컬 Windows 워커가 실제 AI Overview/브리핑 DOM 파싱</p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">

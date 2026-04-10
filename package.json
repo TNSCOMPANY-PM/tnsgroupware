@@ -13,7 +13,12 @@
     "publish:auth": "tsx scripts/publish/auth-setup.ts",
     "publish:run": "tsx scripts/publish/run.ts",
     "publish:medium": "tsx scripts/publish/run.ts",
-    "publish:tistory": "tsx scripts/publish/run.ts"
+    "publish:tistory": "tsx scripts/publish/run.ts",
+    "aeo:scan": "tsx scripts/aeo-scan.ts",
+    "aeo:scan:google": "tsx scripts/aeo-scan.ts --platform=google",
+    "aeo:scan:naver": "tsx scripts/aeo-scan.ts --platform=naver",
+    "aeo:scan:debug": "tsx scripts/aeo-scan.ts --headful --debug --keywords=3",
+    "aeo:worker": "tsx scripts/aeo-scan-worker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.85.0",
