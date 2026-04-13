@@ -9,19 +9,41 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Claude 호출
-async function callClaude(prompt: string): Promise<string> {
-  const res = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 16000,
-    messages: [{ role: "user", content: prompt }],
-    system: `You are a professional blog content writer. 한국어로 작성.
+async function callClaude(prompt: string, platform: string): Promise<string> {
+  const systemByPlatform: Record<string, string> = {
+    naver: `You are a professional blog content writer. 한국어로 작성.
+
+CRITICAL RULES:
+1. Respond ONLY with a single JSON object. No text before or after the JSON.
+2. The "content" field must contain PLAIN TEXT ONLY. NO HTML tags whatsoever.
+   No <table>, <div>, <p>, <h2>, <strong>, <br> or any other HTML tag.
+   Use text markers (★, ■, ▶, |) for structure. Line breaks via \\n.
+3. Follow the [OUTPUT FORMAT] and [STRUCTURE] exactly as specified in the user prompt.
+4. NEVER use markdown syntax (##, **, -, etc.) either.`,
+    medium: `You are a franchise industry analyst writing in English for Medium.
+
+CRITICAL RULES:
+1. Respond ONLY with a single JSON object. No text before or after the JSON.
+2. The "content" field MUST be written ENTIRELY IN ENGLISH. Not Korean.
+3. Use HTML tags (<h2>, <p>, <table>) for formatting.
+4. Translate all Korean data to English. Include ₩ KRW and ~$USD for all amounts.
+5. Follow the [OUTPUT FORMAT] and [STRUCTURE] exactly as specified in the user prompt.`,
+  };
+
+  const defaultSystem = `You are a professional blog content writer. 한국어로 작성.
 
 CRITICAL RULES:
 1. Respond ONLY with a single JSON object. No text before or after the JSON.
 2. The "content" field MUST contain HTML, NOT markdown. Use <h2>, <p>, <div>, <table> tags.
 3. For frandoor/tistory channels: Use the og-wrap component classes (answer-box, info-box, stat-row, faq-item, conclusion-box, disclaimer, etc.) as specified in the prompt.
 4. NEVER use markdown syntax (##, **, -, etc.) inside the "content" field. Only HTML tags.
-5. Follow the [OUTPUT FORMAT] and [STRUCTURE] exactly as specified in the user prompt.`,
+5. Follow the [OUTPUT FORMAT] and [STRUCTURE] exactly as specified in the user prompt.`;
+
+  const res = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 16000,
+    messages: [{ role: "user", content: prompt }],
+    system: systemByPlatform[platform] ?? defaultSystem,
   });
   return res.content[0]?.type === "text" ? res.content[0].text : "";
 }
@@ -149,7 +171,7 @@ ${imageUrls.map((img, i) => `${i + 1}. ${img.name}: ${img.url}`).join("\n")}
 
   try {
     const provider = body.provider ?? "claude";
-    const raw = provider === "claude" ? await callClaude(prompt) : await callOpenAI(prompt, true);
+    const raw = provider === "claude" ? await callClaude(prompt, body.platform) : await callOpenAI(prompt, true);
 
     let parsed;
     try {
