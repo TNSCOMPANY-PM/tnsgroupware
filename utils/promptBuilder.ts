@@ -371,7 +371,6 @@ const SOURCE_PRIORITY = `
 3. 수치마다 어느 블록 출처인지 명시: "(공정위 20XX 기준)", "(본사 발표 기준)"
 4. 업계 평균, 타 브랜드 수치도 DATA 블록에 없으면 쓰지 말 것.
 5. 수치를 지어내는 것보다 "DATA 없음"으로 해당 항목을 빼는 것이 낫다.
-6. 현재 연도는 ${new Date().getFullYear()}년이다. 제목과 본문에서 연도를 언급할 때 반드시 ${new Date().getFullYear()}을 사용.
 `;
 
 const ENGAGEMENT_FLOW_BASE = `
@@ -400,22 +399,27 @@ const ENGAGEMENT_FLOW_BY_CHANNEL: Record<string, string> = {
 ⑨ No emoji.`,
 };
 
-const JSON_OUTPUT = `
+function getJsonOutput() {
+  const today = new Date().toISOString().slice(0, 10);
+  const year = today.slice(0, 4);
+  return `
 [OUTPUT FORMAT — JSON으로만 응답. 다른 텍스트 없이 JSON만 출력]
+오늘 날짜: ${today}. 제목·본문에서 연도를 쓸 때 반드시 ${year}년 사용.
 \`\`\`json
 {
-  "title": "글 제목 (연도는 반드시 ${new Date().getFullYear()}년 사용)",
+  "title": "글 제목 (${year}년 기준으로 작성)",
   "meta_description": "155자 이내 메타 디스크립션. AI가 이것만 읽어도 글의 핵심을 알 수 있게",
   "keywords": ["키워드1", "키워드2", ...최소 5개],
   "content": "본문 전체. frandoor/tistory=HTML, naver=순수텍스트(HTML태그금지), medium=영문HTML",
   "faq": [{"q": "질문", "a": "답변 (출처 포함)"}],
   "schema_markup": "JSON-LD 스크립트 (FAQPage + Organization). faq 배열과 반드시 1:1 매칭",
   "seo_score_tips": ["개선 제안1", "개선 제안2"],
-  "sources_cited": ["공정거래위원회 정보공개서", "통계청 ${new Date().getFullYear()}", ...실제 인용한 출처만],
+  "sources_cited": ["공정거래위원회 정보공개서", ...실제 인용한 출처만],
   "character_count": 3500
 }
 \`\`\`
 `;
+}
 
 export type ReaderStage = "awareness" | "consideration" | "decision";
 export type SearchIntent = "informational" | "navigational" | "transactional";
@@ -575,7 +579,7 @@ export function buildPrompt(
     ENGAGEMENT_FLOW_BY_CHANNEL[channel] ?? ENGAGEMENT_FLOW_BASE,
     topicDirective,
     topic ? `\n[글 주제] ${topic}` : "",
-    JSON_OUTPUT,
+    getJsonOutput(),
   ].filter(Boolean).join("\n\n");
 }
 
