@@ -1680,21 +1680,23 @@ ${aeoHtml}
                             <button onClick={() => { navigator.clipboard.writeText(blogResult.content ?? ""); alert("원본 HTML 복사됨"); }}
                               className="text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"><Copy className="h-3 w-3 inline mr-0.5" />원본 복사</button>
                           )}
-                          {activePreview === "tistory" && hasConverted && <>
+                          {activePreview === "tistory" && hasConverted && (() => {
+                            const chMeta = blogAllResults["tistory"] ?? blogResult;
+                            return <>
                             <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("티스토리 HTML 복사됨"); }}
                               className="text-[10px] px-2 py-0.5 rounded bg-orange-100 text-orange-700 hover:bg-orange-200"><Copy className="h-3 w-3 inline mr-0.5" />HTML 복사</button>
                             <button onClick={async () => {
                               if (!selectedBrand) return;
-                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "tistory", title: blogResult.title ?? "", content: convertedContent, meta_description: blogResult.meta_description, keywords: blogResult.keywords, faq: blogResult.faq, schema_markup: blogResult.schema_markup }) });
+                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "tistory", title: chMeta.title ?? "", content: convertedContent, meta_description: chMeta.meta_description, keywords: chMeta.keywords, faq: chMeta.faq, schema_markup: chMeta.schema_markup }) });
                               alert(res.ok ? "티스토리 초안 저장됨" : "저장 실패");
                             }} className="text-[10px] px-2 py-0.5 rounded bg-orange-50 text-orange-600 hover:bg-orange-100"><Download className="h-3 w-3 inline mr-0.5" />저장</button>
                             <button onClick={async () => {
-                              if (!convertedContent || !blogResult.title) return;
+                              if (!convertedContent || !chMeta.title) return;
                               if (!confirm("티스토리에 발행하시겠습니까?")) return;
                               try {
                                 const res = await fetch("/api/geo/tistory/publish", {
                                   method: "POST", headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ title: blogResult.title, content: convertedContent, tags: blogResult.keywords ?? [], visibility: 3 }),
+                                  body: JSON.stringify({ title: chMeta.title, content: convertedContent, tags: chMeta.keywords ?? [], visibility: 3 }),
                                 });
                                 const data = await res.json();
                                 if (res.ok && data.postUrl) {
@@ -1705,18 +1707,22 @@ ${aeoHtml}
                                 }
                               } catch { alert("발행 실패"); }
                             }} className="text-[10px] px-2 py-0.5 rounded bg-orange-500 text-white hover:bg-orange-600">티스토리 발행</button>
-                          </>}
-                          {activePreview === "naver" && hasConverted && <>
+                          </>;
+                          })()}
+                          {activePreview === "naver" && hasConverted && (() => {
+                            const chMeta = blogAllResults["naver"] ?? blogResult;
+                            return <>
                             <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("네이버 텍스트 복사됨"); }}
                               className="text-[10px] px-2 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200"><Copy className="h-3 w-3 inline mr-0.5" />복사</button>
                             <button onClick={async () => {
                               if (!selectedBrand) return;
-                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "naver", title: blogResult.title ?? "", content: convertedContent, meta_description: blogResult.meta_description, keywords: blogResult.keywords, faq: blogResult.faq }) });
+                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "naver", title: chMeta.title ?? "", content: convertedContent, meta_description: chMeta.meta_description, keywords: chMeta.keywords, faq: chMeta.faq }) });
                               alert(res.ok ? "네이버 초안 저장됨" : "저장 실패");
                             }} className="text-[10px] px-2 py-0.5 rounded bg-green-50 text-green-600 hover:bg-green-100"><Download className="h-3 w-3 inline mr-0.5" />저장</button>
                             <a href="https://blog.naver.com/MyBlog.naver" target="_blank" rel="noreferrer"
                               className="text-[10px] px-2 py-0.5 rounded bg-green-200 text-green-800 hover:bg-green-300">네이버 열기</a>
-                          </>}
+                          </>;
+                          })()}
                           {activePreview === "medium" && hasConverted && <>
                             <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("Markdown 복사됨"); }}
                               className="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"><Copy className="h-3 w-3 inline mr-0.5" />Markdown 복사</button>
