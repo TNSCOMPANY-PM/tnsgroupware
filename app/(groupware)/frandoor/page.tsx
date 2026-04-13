@@ -1566,22 +1566,50 @@ ${aeoHtml}
                   const isOriginal = activePreview === "frandoor";
                   const hasConverted = !isOriginal && !!convertedContent;
 
-                  // 변환 자동 트리거
+                  // 채널별 생성/변환 트리거
                   const triggerConvert = async (target: PreviewTab) => {
                     if (target === "frandoor" || blogConvertedResults[target] || blogConverting) return;
                     setBlogConverting(target);
                     try {
-                      const res = await fetch("/api/geo/blog-convert", {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          content: blogResult.content, title: blogResult.title ?? "",
-                          target, faq: blogResult.faq, keywords: blogResult.keywords,
-                          meta_description: blogResult.meta_description, schema_markup: blogResult.schema_markup,
-                        }),
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        setBlogConvertedResults(prev => ({ ...prev, [target]: data.converted_content }));
+                      if (target === "medium") {
+                        // Medium: 기존 blog-convert (영문 번역)
+                        const res = await fetch("/api/geo/blog-convert", {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            content: blogResult.content, title: blogResult.title ?? "",
+                            target, faq: blogResult.faq, keywords: blogResult.keywords,
+                            meta_description: blogResult.meta_description, schema_markup: blogResult.schema_markup,
+                          }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setBlogConvertedResults(prev => ({ ...prev, [target]: data.converted_content }));
+                        }
+                      } else {
+                        // tistory/naver: 앵글 로테이션으로 새 글 생성
+                        const otherTitles = Object.entries(blogConvertedResults)
+                          .filter(([, v]) => v)
+                          .map(([, v]) => { try { const m = v.match(/<title>([^<]*)<\/title>/); return m?.[1] ?? ""; } catch { return ""; } })
+                          .filter(Boolean);
+                        if (blogResult.title) otherTitles.unshift(blogResult.title);
+                        const res = await fetch("/api/geo/blog-generate", {
+                          method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            brand_id: selectedBrand!.id,
+                            platform: target,
+                            topic: blogTopic,
+                            provider: blogProvider,
+                            ref_links: blogRefLinks.filter(l => l.trim()),
+                            reader_stage: blogReaderStage,
+                            search_intent: blogSearchIntent,
+                            other_channels_titles: otherTitles,
+                          }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setBlogConvertedResults(prev => ({ ...prev, [target]: data.content ?? "" }));
+                          setBlogAllResults(prev => ({ ...prev, [target]: data }));
+                        }
                       }
                     } catch { /* ignore */ }
                     setBlogConverting(null);
@@ -1612,7 +1640,9 @@ ${aeoHtml}
                       {/* 프리뷰 영역 */}
                       <div className="max-h-[500px] overflow-y-auto">
                         {blogConverting === activePreview ? (
-                          <div className="p-8 text-center text-sm text-slate-400 animate-pulse">변환 중...</div>
+                          <div className="p-8 text-center text-sm text-slate-400 animate-pulse">
+                            {activePreview === "medium" ? "영문 번역 중..." : "채널별 앵글로 생성 중... (30초~1분)"}
+                          </div>
                         ) : blogViewMode === "preview" ? (
                           isOriginal ? (
                             <iframe
@@ -1620,7 +1650,7 @@ ${aeoHtml}
                               className="w-full border-0" style={{ height: 500 }} sandbox="allow-same-origin" />
                           ) : activePreview === "tistory" && hasConverted ? (
                             <iframe
-                              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:16px;font-family:-apple-system,'Segoe UI',sans-serif">${convertedContent}</body></html>`}
+                              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${OG_WRAP_CSS_INLINE}</head><body style="margin:16px;font-family:-apple-system,'Segoe UI',sans-serif">${convertedContent}</body></html>`}
                               className="w-full border-0" style={{ height: 500 }} sandbox="allow-same-origin" />
                           ) : activePreview === "naver" && hasConverted ? (
                             <div className="p-4">
@@ -1631,7 +1661,7 @@ ${aeoHtml}
                               <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono leading-relaxed">{convertedContent}</pre>
                             </div>
                           ) : !isOriginal ? (
-                            <div className="p-8 text-center text-sm text-slate-400">탭을 클릭하면 자동 변환됩니다</div>
+                            <div className="p-8 text-center text-sm text-slate-400">탭을 클릭하면 채널별 앵글로 새 글이 생성됩니다</div>
                           ) : null
                         ) : (
                           <div className="p-4">

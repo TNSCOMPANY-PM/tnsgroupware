@@ -33,7 +33,9 @@ export async function POST(request: Request) {
   }
 
   const rawUrl: string = data.tistory.url;
-  const fileId = rawUrl.slice(rawUrl.lastIndexOf("/") + 1, rawUrl.length - 4);
+  const filename = rawUrl.slice(rawUrl.lastIndexOf("/") + 1);
+  const dotIndex = filename.lastIndexOf(".");
+  const fileId = dotIndex > 0 ? filename.slice(0, dotIndex) : filename;
   const cdnUrl = `https://t1.daumcdn.net/cfile/tistory/${fileId}?original`;
 
   return NextResponse.json({ url: cdnUrl, originalUrl: rawUrl });
