@@ -167,25 +167,30 @@ export function getAnnualLeaveGranted(
   const joinDate = parseJoinDate(joinDateStr);
   if (!joinDate) return 0;
 
-  const yearStart = getYearStart(year);
-  const yearEnd = new Date(year, 11, 31);
+  // 입사일 기준 연차 부여: 가장 최근 입사 anniversary 시점의 근속연수로 계산
+  // 예: 입사 2025-02-01, 오늘 2026-04-14 → 최근 anniversary 2026-02-01 (1년차 → 15일)
+  //     입사 2019-07-09, 오늘 2026-04-14 → 최근 anniversary 2025-07-09 (6년차 → 17일)
 
-  // 해당 연도 중 입사한 경우: 해당 연도 근무 개월 수 기준
-  let monthsWorked: number;
-  if (joinDate > yearEnd) return 0;
-  if (joinDate > yearStart) {
-    monthsWorked = getMonthsWorked(joinDate, yearEnd) + 1;
-  } else {
-    monthsWorked = getMonthsWorked(joinDate, yearStart);
-  }
+  const now = new Date();
+  const today = new Date(year, now.getMonth(), now.getDate());
+  if (joinDate > today) return 0;
 
-  if (monthsWorked < 12) {
-    // 1년 미만: 1개월 개근 시 1일 (최대 11일)
-    return Math.min(monthsWorked, 11);
+  // 가장 최근 입사 anniversary 계산 (오늘 이전)
+  const thisYearAnniversary = new Date(year, joinDate.getMonth(), joinDate.getDate());
+  const lastAnniversary = thisYearAnniversary <= today
+    ? thisYearAnniversary
+    : new Date(year - 1, joinDate.getMonth(), joinDate.getDate());
+
+  const monthsAtAnniversary = getMonthsWorked(joinDate, lastAnniversary);
+
+  if (monthsAtAnniversary < 12) {
+    // 1년 미만: 오늘 기준 경과 개월 수 (최대 11일)
+    const monthsNow = getMonthsWorked(joinDate, today);
+    return Math.min(monthsNow, 11);
   }
 
   // 1년 이상: 기본 15일, 3년차부터 2년마다 1일 가산 (최대 25일) — 근로기준법
-  const yearsWorked = Math.floor(monthsWorked / 12);
+  const yearsWorked = Math.floor(monthsAtAnniversary / 12);
   const additionalDays = yearsWorked >= 1 ? Math.floor((yearsWorked - 1) / 2) : 0;
   return Math.min(15 + additionalDays, 25);
 }
