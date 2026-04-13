@@ -89,12 +89,49 @@ function convertToNaver(req: BlogConvertRequest): BlogConvertResult {
     elem.removeAttr("class").removeAttr("id").removeAttr("style");
   });
 
-  // 본문 HTML → 텍스트 추출 (태그 유지하되 단순화)
-  const bodyHtml = $("body").html() || $.html() || "";
-  const cleanHtml = bodyHtml
-    .replace(/<body[^>]*>/gi, "").replace(/<\/body>/gi, "")
-    .replace(/<html[^>]*>/gi, "").replace(/<\/html>/gi, "")
-    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, "")
+  // 본문 HTML → 순수 텍스트 추출 (모든 태그 제거)
+  // h2 → ★ 소제목, h3 → ▶ 소제목, table → | 구분자 텍스트
+  $("h2").each((_: number, el: any) => { $(el).replaceWith(`\n★ ${$(el).text().trim()}\n`); });
+  $("h3").each((_: number, el: any) => { $(el).replaceWith(`\n▶ ${$(el).text().trim()}\n`); });
+
+  // table → 텍스트 표
+  $("table").each((_: number, el: any) => {
+    const rows: string[] = [];
+    $(el).find("tr").each((_: number, tr: any) => {
+      const cells: string[] = [];
+      $(tr).find("th, td").each((_: number, cell: any) => { cells.push($(cell).text().trim()); });
+      rows.push(cells.join(" | "));
+    });
+    $(el).replaceWith("\n" + rows.join("\n") + "\n");
+  });
+
+  // info-box, warn → 텍스트 박스
+  $(".info-box, [class*='info']").each((_: number, el: any) => {
+    $(el).replaceWith(`\n[참고] ${$(el).text().trim()}\n`);
+  });
+  $(".warn, [class*='warn']").each((_: number, el: any) => {
+    $(el).replaceWith(`\n[주의] ${$(el).text().trim()}\n`);
+  });
+
+  // stat-row → 통계 텍스트
+  $(".stat-row").each((_: number, el: any) => {
+    const stats: string[] = [];
+    $(el).find(".stat-box").each((_: number, sb: any) => {
+      const num = $(sb).find(".num").text().trim();
+      const lbl = $(sb).find(".lbl").text().trim();
+      stats.push(`${lbl}: ${num}`);
+    });
+    $(el).replaceWith("\n" + stats.join(" | ") + "\n");
+  });
+
+  // source → 출처
+  $(".source, p.source").each((_: number, el: any) => {
+    $(el).replaceWith(`\n${$(el).text().trim()}\n`);
+  });
+
+  // 나머지 모든 태그에서 텍스트만 추출
+  const bodyText = ($("body").text() || $.text() || "")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   // FAQ → 단순 텍스트
@@ -106,7 +143,7 @@ function convertToNaver(req: BlogConvertRequest): BlogConvertResult {
   // 해시태그
   const hashtags = (req.keywords ?? []).map(k => `#${k.replace(/\s/g, "")}`).join(" ");
 
-  const result = `${topText}${cleanHtml}\n${faqText}\n${conclusionText}\n${disclaimerText}\n${hashtags}`.trim();
+  const result = `${topText}${bodyText}\n${faqText}\n${conclusionText}\n${disclaimerText}\n${hashtags}`.trim();
 
   return {
     converted_content: result,
