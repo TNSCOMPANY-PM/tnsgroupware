@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, Calendar, Phone, FileDown } from "lucide-react";
+import { Users, Calendar, Phone, FileDown, TreePalm } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface EmployeeFlipCardData {
@@ -18,6 +18,8 @@ export interface EmployeeFlipCardData {
   userId?: string;
   /** 퍼스널 컬러 (#rrggbb) */
   personalColor?: string | null;
+  /** 잔여 연차 */
+  remainingLeave?: number | null;
 }
 
 interface EmployeeFlipCardProps {
@@ -113,6 +115,19 @@ export function EmployeeFlipCard({ data, onClick, onRequestCertificate }: Employ
               <p className="text-base font-medium text-white/95">{data.contact}</p>
             </div>
           </div>
+          {data.remainingLeave != null && (
+            <div className="flex items-center gap-4">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+                <TreePalm className="size-5 text-emerald-300/90" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/50">잔여 연차</p>
+                <p className={cn("text-base font-medium", data.remainingLeave <= 3 ? "text-amber-300" : "text-white/95")}>
+                  {data.remainingLeave}일
+                </p>
+              </div>
+            </div>
+          )}
           {onRequestCertificate && (
             <div className="mt-auto pt-2">
               <button

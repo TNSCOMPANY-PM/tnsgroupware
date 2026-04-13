@@ -186,6 +186,28 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
   const [newEmployeeModalOpen, setNewEmployeeModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // 잔여연차 계산용 leave 데이터
+  const [leaveRequests, setLeaveRequests] = useState<{ applicant_id: string; leave_type: string; days: number; status: string; start_date: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/leaves").then(r => r.json()).then(d => { if (Array.isArray(d)) setLeaveRequests(d); }).catch(() => {});
+  }, []);
+
+  const leaveMap = useMemo(() => {
+    const year = new Date().getFullYear();
+    const annualTypes = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
+    const map: Record<string, number> = {};
+    for (const emp of employees) {
+      if (emp.role === "C레벨") continue;
+      const joinDateStr = emp.hire_date ? (emp.hire_date as string).replace(/\./g, "-") : null;
+      const granted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
+      const used = leaveRequests
+        .filter(r => r.applicant_id === emp.id && (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") && annualTypes.includes(r.leave_type) && (r.start_date ?? "").startsWith(String(year)))
+        .reduce((s, r) => s + (Number(r.days) || 0), 0);
+      map[emp.id] = granted - used;
+    }
+    return map;
+  }, [employees, leaveRequests]);
+
   const profile = useMemo(() => {
     if (!selectedEmployee) return null;
     return getProfileForEmployee(selectedEmployee);
@@ -193,10 +215,10 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
 
   const filteredCards = useMemo(() => {
     const visible = employees.filter((e) => e.emp_number !== "REDACTED_MASTER_EMP");
-    const cards = visible.map(employeeToCardData);
+    const cards = visible.map(e => ({ ...employeeToCardData(e), remainingLeave: leaveMap[e.id] ?? null }));
     if (deptFilter === "all") return cards;
     return cards.filter((c) => c.departmentKey === deptFilter);
-  }, [employees, deptFilter]);
+  }, [employees, deptFilter, leaveMap]);
 
   const cLevelCards = useMemo(
     () => filteredCards
