@@ -1658,6 +1658,23 @@ ${aeoHtml}
                               const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "tistory", title: blogResult.title ?? "", content: convertedContent, meta_description: blogResult.meta_description, keywords: blogResult.keywords, faq: blogResult.faq, schema_markup: blogResult.schema_markup }) });
                               alert(res.ok ? "티스토리 초안 저장됨" : "저장 실패");
                             }} className="text-[10px] px-2 py-0.5 rounded bg-orange-50 text-orange-600 hover:bg-orange-100"><Download className="h-3 w-3 inline mr-0.5" />저장</button>
+                            <button onClick={async () => {
+                              if (!convertedContent || !blogResult.title) return;
+                              if (!confirm("티스토리에 발행하시겠습니까?")) return;
+                              try {
+                                const res = await fetch("/api/geo/tistory/publish", {
+                                  method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ title: blogResult.title, content: convertedContent, tags: blogResult.keywords ?? [], visibility: 3 }),
+                                });
+                                const data = await res.json();
+                                if (res.ok && data.postUrl) {
+                                  alert(`발행 완료!\n${data.postUrl}`);
+                                  window.open(data.postUrl, "_blank");
+                                } else {
+                                  alert(data.error === "TISTORY_TOKEN_EXPIRED" ? "티스토리 인증이 만료됐습니다. 재인증이 필요합니다." : `발행 실패: ${data.error || "알 수 없는 오류"}`);
+                                }
+                              } catch { alert("발행 실패"); }
+                            }} className="text-[10px] px-2 py-0.5 rounded bg-orange-500 text-white hover:bg-orange-600">티스토리 발행</button>
                           </>}
                           {activePreview === "naver" && hasConverted && <>
                             <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("네이버 텍스트 복사됨"); }}
