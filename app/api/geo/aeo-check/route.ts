@@ -20,10 +20,12 @@ async function searchGoogle(query: string): Promise<{ title: string; link: strin
   } catch { return []; }
 }
 
-// 우리 도메인 목록
+// 우리 도메인 목록 (부분 문자열 매칭이므로 너무 짧은 패턴 금지)
 const OUR_DOMAINS = [
   "frandoor.co.kr",
-  "frandoor",
+  "frandoor.tistory.com",
+  "blog.naver.com/frandoor",
+  "medium.com/@frandoor",
   "50gimbab.frandoor.co.kr",
   "hanshinudong.frandoor.co.kr",
   "jangsajang.frandoor.co.kr",
