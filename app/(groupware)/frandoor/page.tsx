@@ -72,9 +72,13 @@ export default function GeoPage() {
   const [mainTab, setMainTab] = useState<"check" | "seo" | "aeo" | "blog">("check");
   const [aeoAiRunning, setAeoAiRunning] = useState(false);
   const [aeoAiPlatform, setAeoAiPlatform] = useState<"google" | "naver">("google");
-  const [aeoAiResults, setAeoAiResults] = useState<{ keyword: string; platform: string; cited: boolean; our_mentions: string[]; ai_summary: string; source_urls: string[] }[] | null>(null);
+  type AeoAiRun = { id: string; platform: string; total_keywords: number; cited_count: number; score: number; created_at: string; results: AeoAiResultItem[] };
+  type AeoAiResultItem = { keyword: string; platform: string; cited: boolean; our_mentions: string[]; ai_summary: string; source_urls: string[] };
+  const [aeoAiRuns, setAeoAiRuns] = useState<AeoAiRun[]>([]);
+  const [aeoAiSelectedRun, setAeoAiSelectedRun] = useState<AeoAiRun | null>(null);
+  const [aeoAiResults, setAeoAiResults] = useState<AeoAiResultItem[] | null>(null);
   const [aeoAiScore, setAeoAiScore] = useState<{ cited_count: number; total: number; score: number } | null>(null);
-  const [aeoAiDetail, setAeoAiDetail] = useState<{ keyword: string; ai_summary: string; source_urls: string[]; cited: boolean; our_mentions: string[] } | null>(null);
+  const [aeoAiDetail, setAeoAiDetail] = useState<AeoAiResultItem | null>(null);
   type AeoKeyword = { id: string; keyword: string; sort_order: number };
   type AeoResult = {
     keyword: string; keyword_id: string; platform: string;
@@ -1047,19 +1051,19 @@ ${aeoHtml}
             if (aeoKeywords.length === 0) {
               try { const res = await fetch(`/api/geo/aeo-check?brand_id=${selectedBrand.id}`); if (res.ok) setAeoKeywords(await res.json()); } catch { /* ignore */ }
             }
-            // 최근 AEO 결과 로드
-            if (!aeoAiResults) {
-              try {
-                const res = await fetch(`/api/geo/aeo-check?brand_id=${selectedBrand.id}&type=history&platform=aeo_${aeoAiPlatform}`);
-                if (res.ok) {
-                  const runs = await res.json();
-                  if (runs.length > 0 && runs[0].results) {
-                    setAeoAiResults(runs[0].results);
-                    setAeoAiScore({ cited_count: runs[0].cited_count, total: runs[0].total_keywords, score: runs[0].score });
-                  }
+            // AEO 체크 기록 로드
+            try {
+              const res = await fetch(`/api/geo/aeo-check?brand_id=${selectedBrand.id}&type=history&platform=aeo_${aeoAiPlatform}`);
+              if (res.ok) {
+                const runs = await res.json();
+                setAeoAiRuns(runs);
+                if (!aeoAiSelectedRun && runs.length > 0 && runs[0].results) {
+                  setAeoAiSelectedRun(runs[0]);
+                  setAeoAiResults(runs[0].results);
+                  setAeoAiScore({ cited_count: runs[0].cited_count, total: runs[0].total_keywords, score: runs[0].score });
                 }
-              } catch { /* ignore */ }
-            }
+              }
+            } catch { /* ignore */ }
           }
         }}
           className={cn("px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0",
@@ -1314,7 +1318,7 @@ ${aeoHtml}
               </div>
               <Button className="w-full" size="sm" onClick={async () => {
                 if (!selectedBrand || aeoKeywords.length === 0 || aeoAiRunning) return;
-                setAeoAiRunning(true); setAeoAiResults(null); setAeoAiScore(null);
+                setAeoAiRunning(true); setAeoAiResults(null); setAeoAiScore(null); setAeoAiSelectedRun(null);
                 try {
                   const res = await fetch("/api/geo/aeo-ai-check", {
                     method: "POST", headers: { "Content-Type": "application/json" },
@@ -1324,6 +1328,11 @@ ${aeoHtml}
                   if (data.results) {
                     setAeoAiResults(data.results);
                     setAeoAiScore({ cited_count: data.cited_count, total: data.total_keywords, score: data.score });
+                    // 기록 목록 새로고침
+                    try {
+                      const hRes = await fetch(`/api/geo/aeo-check?brand_id=${selectedBrand.id}&type=history&platform=aeo_${aeoAiPlatform}`);
+                      if (hRes.ok) { const runs = await hRes.json(); setAeoAiRuns(runs); if (runs.length > 0) setAeoAiSelectedRun(runs[0]); }
+                    } catch { /* ignore */ }
                   } else { alert(data.error || "체크 실패"); }
                 } catch { alert("체크 실패"); }
                 setAeoAiRunning(false);
@@ -1384,6 +1393,30 @@ ${aeoHtml}
                 <div className="bg-white rounded-xl border border-slate-200 p-4 text-center">
                   <p className="text-[10px] text-slate-400 uppercase">플랫폼</p>
                   <p className="text-lg font-bold mt-1">{aeoAiPlatform === "google" ? "Google AI" : "네이버 AI"}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 체크 기록 */}
+            {aeoAiRuns.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="text-xs font-semibold text-slate-700 mb-2">체크 기록</h3>
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                  {aeoAiRuns.map(run => (
+                    <button key={run.id} onClick={() => {
+                      setAeoAiSelectedRun(run);
+                      setAeoAiResults(run.results);
+                      setAeoAiScore({ cited_count: run.cited_count, total: run.total_keywords, score: run.score });
+                    }}
+                      className={cn("shrink-0 px-3 py-2 rounded-lg text-xs transition-colors border",
+                        aeoAiSelectedRun?.id === run.id
+                          ? "bg-purple-50 border-purple-300 text-purple-700 font-semibold"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      )}>
+                      <div className="font-medium">{run.created_at.slice(5, 10)}</div>
+                      <div className={cn("text-[10px]", run.score > 0 ? "text-purple-500" : "text-slate-400")}>{run.score}% · {run.cited_count}/{run.total_keywords}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
