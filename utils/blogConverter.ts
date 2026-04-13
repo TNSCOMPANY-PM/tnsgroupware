@@ -1,8 +1,9 @@
 import * as cheerio from "cheerio";
+import Anthropic from "@anthropic-ai/sdk";
 import type { BlogConvertRequest, BlogConvertResult } from "@/types/blogConvert";
 import { OG_WRAP_CSS } from "@/constants/blogCssTemplate";
 
-export function convertForPlatform(req: BlogConvertRequest): BlogConvertResult {
+export async function convertForPlatform(req: BlogConvertRequest): Promise<BlogConvertResult> {
   switch (req.target) {
     case "tistory": return convertToTistory(req);
     case "naver": return convertToNaver(req);
@@ -151,125 +152,58 @@ function convertToNaver(req: BlogConvertRequest): BlogConvertResult {
   };
 }
 
-// ── Medium 변환 (HTML → Markdown) ──
-function convertToMedium(req: BlogConvertRequest): BlogConvertResult {
+// ── Medium 변환 (한국어 HTML → 영문 마크다운, Claude 번역) ──
+async function convertToMedium(req: BlogConvertRequest): Promise<BlogConvertResult> {
   const $ = cheerio.load(req.content ?? "", {});
-
-  // style, script 제거
   $("style, script, link").remove();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function htmlToMd(el: any): string {
-    let md = "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    el.contents().each((_: number, node: any) => {
-      if (node.type === "text") {
-        md += $(node).text();
-        return;
-      }
-      const $n = $(node);
-      const tag = (node.tagName ?? "").toLowerCase();
+  // HTML → 순수 한국어 텍스트 추출 (번역 입력용)
+  const koreanText = ($("body").text() || $.text() || "").replace(/\n{3,}/g, "\n\n").trim();
 
-      switch (tag) {
-        case "h1": md += `\n# ${$n.text().trim()}\n\n`; break;
-        case "h2": md += `\n## ${$n.text().trim()}\n\n`; break;
-        case "h3": md += `\n### ${$n.text().trim()}\n\n`; break;
-        case "p": {
-          const cls = $n.attr("class") ?? "";
-          if (cls.includes("preview") || cls.includes("source")) {
-            md += `*${$n.text().trim()}*\n\n`;
-          } else {
-            md += `${htmlToMd($n).trim()}\n\n`;
-          }
-          break;
-        }
-        case "br": md += "\n"; break;
-        case "strong": case "b": md += `**${$n.text().trim()}**`; break;
-        case "em": case "i": md += `*${$n.text().trim()}*`; break;
-        case "a": md += `[${$n.text().trim()}](${$n.attr("href") ?? ""})`; break;
-        case "img": md += `![${$n.attr("alt") ?? ""}](${$n.attr("src") ?? ""})\n\n`; break;
-        case "blockquote": md += `> ${$n.text().trim()}\n\n`; break;
-        case "ul":
-          $n.children("li").each((_: number, li: any) => { md += `- ${$(li).text().trim()}\n`; });
-          md += "\n"; break;
-        case "ol":
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          $n.children("li").each((j: number, li: any) => { md += `${j + 1}. ${$(li).text().trim()}\n`; });
-          md += "\n"; break;
-        case "table": {
-          const rows: string[][] = [];
-          $n.find("tr").each((_: number, tr: any) => {
-            const cells: string[] = [];
-            $(tr).find("th, td").each((_: number, cell: any) => { cells.push($(cell).text().trim()); });
-            rows.push(cells);
-          });
-          if (rows.length > 0) {
-            md += "\n| " + rows[0].join(" | ") + " |\n";
-            md += "| " + rows[0].map(() => "---").join(" | ") + " |\n";
-            for (let r = 1; r < rows.length; r++) {
-              md += "| " + rows[r].join(" | ") + " |\n";
-            }
-            md += "\n";
-          }
-          break;
-        }
-        case "hr": md += "\n---\n\n"; break;
-        case "div": {
-          const cls = $n.attr("class") ?? "";
-          if (cls.includes("answer-box")) {
-            const a = $n.find(".a").text().trim();
-            const detail = $n.find(".detail").text().trim();
-            md += `\n> ${a}\n> ${detail}\n\n`;
-          } else if (cls.includes("conclusion-box")) {
-            const body = $n.find(".body").text().trim();
-            const cta = $n.find(".cta").text().trim();
-            md += `\n---\n\n**${body}**\n\n${cta}\n\n`;
-          } else if (cls.includes("info-box")) {
-            md += `\n> ${$n.text().trim()}\n\n`;
-          } else if (cls.includes("warn")) {
-            md += `\n> ⚠️ ${$n.text().trim()}\n\n`;
-          } else if (cls.includes("stat-row")) {
-            $n.find(".stat-box").each((_: number, sb: any) => {
-              const num = $(sb).find(".num").text().trim();
-              const lbl = $(sb).find(".lbl").text().trim();
-              md += `- **${num}** ${lbl}\n`;
-            });
-            md += "\n";
-          } else if (cls.includes("faq-item")) {
-            const q = $n.find(".faq-q").text().trim();
-            const a = $n.find(".faq-a").text().trim();
-            md += `\n### ${q}\n\n${a}\n\n`;
-          } else if (cls.includes("disclaimer")) {
-            md += `\n---\n\n*${$n.text().trim()}*\n\n`;
-          } else {
-            md += htmlToMd($n);
-          }
-          break;
-        }
-        default: md += htmlToMd($n); break;
-      }
-    });
-    return md;
+  // FAQ 텍스트
+  let faqText = "";
+  if (req.faq && req.faq.length > 0) {
+    faqText = "\n\n[FAQ]\n" + req.faq.map(f => `Q: ${f.q}\nA: ${f.a}`).join("\n\n");
   }
 
-  let markdown = `# ${req.title ?? ""}\n\n`;
-  if (req.meta_description) {
-    markdown += `> ${req.meta_description}\n\n`;
-  }
-  markdown += htmlToMd($.root());
+  const fullKorean = `제목: ${req.title ?? ""}\n요약: ${req.meta_description ?? ""}\n\n${koreanText}${faqText}`;
 
-  // FAQ가 본문에 없으면 추가
-  if (req.faq && req.faq.length > 0 && !markdown.includes("자주 묻는 질문")) {
-    markdown += "\n## Frequently Asked Questions\n\n";
-    for (const f of req.faq) {
-      markdown += `### ${f.q}\n\n${f.a}\n\n`;
-    }
+  // Claude API로 영문 번역
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      converted_content: `<!-- ANTHROPIC_API_KEY not set — English translation unavailable -->\n\n${fullKorean}`,
+      platform_meta: { subtitle: req.meta_description ?? "" },
+    };
   }
 
-  markdown = markdown.replace(/\n{3,}/g, "\n\n").trim();
+  const anthropic = new Anthropic({ apiKey });
+  const msg = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8000,
+    messages: [{
+      role: "user",
+      content: `Translate the following Korean franchise business article to fluent, professional English for Medium publication.
+
+Translation rules:
+- ALL output must be in English. Not a single Korean sentence.
+- 만원 amounts: show both ₩ and ~$USD (1 USD ≈ 1,350 KRW). Example: ₩65 million (~$48,000 USD)
+- 가맹금 → Franchise Fee, 교육비 → Training Fee, 인테리어 → Interior/Renovation
+- 보증금 → Deposit, 로열티 → Royalty, 실투자금 → Actual Cash Investment
+- 공정거래위원회 → Korea Fair Trade Commission (KFTC)
+- Keep all numbers exact. Don't round.
+- Output as Markdown (## for h2, ### for h3, | for tables, **bold**, > blockquote).
+- Natural, analytical English — not literal translation. Write for readers unfamiliar with Korean franchise market.
+
+Korean article:
+${fullKorean}`,
+    }],
+  });
+
+  const english = msg.content[0]?.type === "text" ? msg.content[0].text : "";
 
   return {
-    converted_content: markdown,
+    converted_content: english || `<!-- Translation failed -->\n\n${fullKorean}`,
     platform_meta: { subtitle: req.meta_description ?? "" },
   };
 }

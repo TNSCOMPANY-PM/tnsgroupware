@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = convertForPlatform(body);
+    const result = await convertForPlatform(body);
     return NextResponse.json(result);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "변환 실패";
