@@ -93,7 +93,7 @@ export default function GeoPage() {
   const [aeoResults, setAeoResults] = useState<AeoResult[] | null>(null);
   const [aeoPlatform, setAeoPlatform] = useState<"google" | "naver">("google");
   const [aeoScore, setAeoScore] = useState<{ cited_count: number; total: number; score: number } | null>(null);
-  const [blogPlatform, setBlogPlatform] = useState<"tistory" | "naver" | "frandoor" | "medium">("tistory");
+  const [blogPlatform, setBlogPlatform] = useState<"tistory" | "naver" | "frandoor" | "medium">("frandoor");
   const [blogTopic, setBlogTopic] = useState("");
   const [blogProvider, setBlogProvider] = useState<"openai" | "gemini" | "claude">("claude");
   const [blogReaderStage, setBlogReaderStage] = useState<"awareness" | "consideration" | "decision">("decision");
