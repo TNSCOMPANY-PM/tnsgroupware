@@ -186,10 +186,17 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
   const [newEmployeeModalOpen, setNewEmployeeModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 잔여연차 계산용 leave 데이터
+  // 잔여연차 계산용 leave + granted 데이터
   const [leaveRequests, setLeaveRequests] = useState<{ applicant_id: string; leave_type: string; days: number; status: string; start_date: string }[]>([]);
+  const [grantedLeaves, setGrantedLeaves] = useState<{ user_id: string; days: number; year: number }[]>([]);
   useEffect(() => {
-    fetch("/api/leaves").then(r => r.json()).then(d => { if (Array.isArray(d)) setLeaveRequests(d); }).catch(() => {});
+    Promise.all([
+      fetch("/api/leaves").then(r => r.json()).then(d => Array.isArray(d) ? d : []).catch(() => []),
+      fetch("/api/granted-leaves").then(r => r.json()).then(d => Array.isArray(d) ? d : []).catch(() => []),
+    ]).then(([leaves, grants]) => {
+      setLeaveRequests(leaves);
+      setGrantedLeaves(grants);
+    });
   }, []);
 
   const leaveMap = useMemo(() => {
@@ -199,14 +206,17 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
     for (const emp of employees) {
       if (emp.role === "C레벨") continue;
       const joinDateStr = emp.hire_date ? (emp.hire_date as string).replace(/\./g, "-") : null;
-      const granted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
+      const legalGranted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
+      const adjustment = grantedLeaves
+        .filter(g => g.user_id === emp.id && g.year === year)
+        .reduce((s, g) => s + (Number(g.days) || 0), 0);
       const used = leaveRequests
-        .filter(r => r.applicant_id === emp.id && (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") && annualTypes.includes(r.leave_type) && (r.start_date ?? "").startsWith(String(year)))
+        .filter(r => r.applicant_id === emp.id && (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") && annualTypes.includes(r.leave_type))
         .reduce((s, r) => s + (Number(r.days) || 0), 0);
-      map[emp.id] = granted - used;
+      map[emp.id] = legalGranted + adjustment - used;
     }
     return map;
-  }, [employees, leaveRequests]);
+  }, [employees, leaveRequests, grantedLeaves]);
 
   const profile = useMemo(() => {
     if (!selectedEmployee) return null;
