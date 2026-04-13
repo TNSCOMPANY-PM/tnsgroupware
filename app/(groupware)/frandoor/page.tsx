@@ -1754,9 +1754,12 @@ ${aeoHtml}
                 <Sparkles className="h-4 w-4 inline mr-1" />글 생성 설정
               </h2>
               <div className="space-y-3">
-                {/* 원본 생성 안내 */}
-                <div className="bg-blue-50 rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-blue-700">frandoor 원본으로 생성 → 하단에서 채널별 변환</p>
+                {/* 생성 방식 안내 */}
+                <div className="bg-blue-50 rounded-lg px-3 py-2 space-y-1">
+                  <p className="text-[10px] font-semibold text-blue-800">AI 중복 콘텐츠 방지 — 진입 질문 자동 로테이션</p>
+                  <p className="text-[10px] text-blue-700">주제에 따라 채널별 앵글이 자동 배분됩니다:</p>
+                  <p className="text-[10px] text-blue-600">💰 얼마 드냐(비용) / 📈 얼마 남냐(수익) / ⚖️ 왜 이걸 해야 하냐(비교)</p>
+                  <p className="text-[10px] text-blue-500">예) 비용 주제 → frandoor:비용 / 티스토리:수익 / 네이버:비교</p>
                 </div>
 
                 {/* AI 프로바이더 */}
@@ -1864,7 +1867,11 @@ ${aeoHtml}
                       body: JSON.stringify({ brand_id: selectedBrand.id, platform: "frandoor", topic: blogTopic, provider: blogProvider, ref_links: refLinks, reader_stage: blogReaderStage, search_intent: blogSearchIntent }),
                     });
                     const data = await res.json();
-                    setBlogResult(data);
+                    if (!res.ok) {
+                      setBlogResult({ error: data.error || `생성 실패 (${res.status})` });
+                    } else {
+                      setBlogResult(data);
+                    }
                   } catch {
                     setBlogResult({ error: "생성 실패. 다시 시도해주세요." });
                   }

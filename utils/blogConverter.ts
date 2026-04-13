@@ -83,31 +83,9 @@ function convertToNaver(req: BlogConvertRequest): BlogConvertResult {
     disclaimer.remove();
   }
 
-  // class, id 속성 제거
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  $("*").each((_: number, el: any) => {
-    const elem = $(el);
-    elem.removeAttr("class").removeAttr("id").removeAttr("style");
-  });
-
-  // 본문 HTML → 순수 텍스트 추출 (모든 태그 제거)
-  // h2 → ★ 소제목, h3 → ▶ 소제목, table → | 구분자 텍스트
-  $("h2").each((_: number, el: any) => { $(el).replaceWith(`\n★ ${$(el).text().trim()}\n`); });
-  $("h3").each((_: number, el: any) => { $(el).replaceWith(`\n▶ ${$(el).text().trim()}\n`); });
-
-  // table → 텍스트 표
-  $("table").each((_: number, el: any) => {
-    const rows: string[] = [];
-    $(el).find("tr").each((_: number, tr: any) => {
-      const cells: string[] = [];
-      $(tr).find("th, td").each((_: number, cell: any) => { cells.push($(cell).text().trim()); });
-      rows.push(cells.join(" | "));
-    });
-    $(el).replaceWith("\n" + rows.join("\n") + "\n");
-  });
-
+  // class 기반 커스텀 컴포넌트를 먼저 텍스트 마커로 치환 (class 제거 전에 수행)
   // info-box, warn → 텍스트 박스
-  $(".info-box, [class*='info']").each((_: number, el: any) => {
+  $(".info-box, [class*='info-box']").each((_: number, el: any) => {
     $(el).replaceWith(`\n[참고] ${$(el).text().trim()}\n`);
   });
   $(".warn, [class*='warn']").each((_: number, el: any) => {
@@ -128,6 +106,29 @@ function convertToNaver(req: BlogConvertRequest): BlogConvertResult {
   // source → 출처
   $(".source, p.source").each((_: number, el: any) => {
     $(el).replaceWith(`\n${$(el).text().trim()}\n`);
+  });
+
+  // class, id 속성 제거 (커스텀 컴포넌트 치환 이후)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $("*").each((_: number, el: any) => {
+    const elem = $(el);
+    elem.removeAttr("class").removeAttr("id").removeAttr("style");
+  });
+
+  // 본문 HTML → 순수 텍스트 추출 (모든 태그 제거)
+  // h2 → ★ 소제목, h3 → ▶ 소제목, table → | 구분자 텍스트
+  $("h2").each((_: number, el: any) => { $(el).replaceWith(`\n★ ${$(el).text().trim()}\n`); });
+  $("h3").each((_: number, el: any) => { $(el).replaceWith(`\n▶ ${$(el).text().trim()}\n`); });
+
+  // table → 텍스트 표
+  $("table").each((_: number, el: any) => {
+    const rows: string[] = [];
+    $(el).find("tr").each((_: number, tr: any) => {
+      const cells: string[] = [];
+      $(tr).find("th, td").each((_: number, cell: any) => { cells.push($(cell).text().trim()); });
+      rows.push(cells.join(" | "));
+    });
+    $(el).replaceWith("\n" + rows.join("\n") + "\n");
   });
 
   // 나머지 모든 태그에서 텍스트만 추출

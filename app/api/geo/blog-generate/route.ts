@@ -97,6 +97,7 @@ export async function POST(request: Request) {
     search_intent?: SearchIntent;
     provider?: "openai" | "gemini" | "claude";
     ref_links?: string[];
+    other_channels_titles?: string[];
   };
 
   if (!body.brand_id || !body.platform || !body.topic?.trim()) {
@@ -157,6 +158,15 @@ ${refInput}
     prompt += `\n\n[REFERENCE TONE — 아래 분석 결과의 말투·구조를 반드시 반영]\n${refAnalysis}`;
   }
 
+  // 다른 채널에서 이미 생성된 제목이 있으면 중복 회피 지시 추가
+  const otherTitles = (body.other_channels_titles ?? []).filter(t => t.trim());
+  if (otherTitles.length > 0) {
+    prompt += `\n\n[중복 회피 — 다른 채널에서 이미 발행된 글 제목]
+아래 제목들과 절대 겹치지 않는 제목·소제목·도입부를 사용하세요.
+같은 수치를 쓰더라도 관점과 서술 방식을 완전히 다르게 하세요.
+${otherTitles.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
+  }
+
   // 브랜드 이미지 URL을 프롬프트에 추가
   if (imageUrls.length > 0) {
     prompt += `\n\n[BRAND IMAGES — 아래 이미지를 본문에 적절히 삽입. <!-- IMAGE --> 주석 대신 실제 <img> 태그 사용]
@@ -171,6 +181,9 @@ ${imageUrls.map((img, i) => `${i + 1}. ${img.name}: ${img.url}`).join("\n")}
 
   try {
     const provider = body.provider ?? "claude";
+    if (provider === "gemini") {
+      return NextResponse.json({ error: "Gemini 프로바이더는 아직 지원하지 않습니다" }, { status: 400 });
+    }
     const raw = provider === "claude" ? await callClaude(prompt, body.platform) : await callOpenAI(prompt, true);
 
     let parsed;
@@ -183,7 +196,7 @@ ${imageUrls.map((img, i) => `${i + 1}. ${img.name}: ${img.url}`).join("\n")}
 
     return NextResponse.json({
       ...parsed,
-      provider: body.provider ?? "openai",
+      provider,
       platform: body.platform,
       brand_name: brand.name,
       reader_stage: readerStage,
