@@ -69,3 +69,5 @@ scripts/publish/.sessions/
 
 # html exports
 26년*.html
+blog-generator/output/
+blog-renderer/output/

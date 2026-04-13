@@ -46,17 +46,12 @@ async function callOpenAI(prompt: string, withSearch = true): Promise<string> {
 }
 
 // 1단계: GPT 웹검색으로 공정위 공식 데이터 수집
-async function fetchOfficialData(brandName: string, topic?: string): Promise<OfficialData | null> {
+async function fetchOfficialData(brandName: string): Promise<OfficialData | null> {
   try {
-    const isComparison = topic && /vs|비교|차이|경쟁/.test(topic);
-    const competitorPart = isComparison
-      ? `\n또한 동일 업종 프랜차이즈 상위 3~5개 브랜드의 동일 항목도 함께 검색하여 competitors 배열에 포함.`
-      : "";
-
     const prompt = `"${brandName}" 프랜차이즈에 대해 공정거래위원회 정보공개서, 통계청, 한국프랜차이즈산업협회 공식 자료에서 아래 항목을 검색하여 JSON으로 반환.
-찾을 수 없는 항목은 null. 수치를 지어내지 말 것.${competitorPart}
+찾을 수 없는 항목은 null. 수치를 지어내지 말 것. 타 브랜드 정보는 검색하지 말 것.
 
-{"source_year":"기준연도","stores_total":가맹점수,"avg_monthly_revenue":평균매출만원,"cost_total":창업총비용만원,"franchise_fee":가맹금만원,"education_fee":교육비만원,"deposit":보증금만원,"closure_rate":폐점률퍼센트,"industry_avg_revenue":동종업종평균매출만원,"industry_avg_cost":동종업종평균창업비용만원,"sources":["참조URL"]${isComparison ? ',"competitors":[{"name":"브랜드명","stores_total":수,"avg_monthly_revenue":수,"cost_total":수,"source_year":"연도"}]' : ""}}
+{"source_year":"기준연도","stores_total":가맹점수,"avg_monthly_revenue":평균매출만원,"cost_total":창업총비용만원,"franchise_fee":가맹금만원,"education_fee":교육비만원,"deposit":보증금만원,"closure_rate":폐점률퍼센트,"industry_avg_revenue":동종업종평균매출만원,"industry_avg_cost":동종업종평균창업비용만원,"sources":["참조URL"]}
 JSON만 출력.`;
 
     const raw = await callOpenAI(prompt, true);
@@ -132,7 +127,7 @@ ${refInput}
   const readerStage = body.reader_stage ?? "decision";
   const searchIntent = body.search_intent ?? "transactional";
   // 1단계: GPT 웹검색으로 공정위 공식 데이터 수집
-  const officialData = await fetchOfficialData(brand.name, body.topic);
+  const officialData = await fetchOfficialData(brand.name);
 
   let prompt = buildPrompt(body.platform, brandData, readerStage, searchIntent, body.topic.trim(), officialData ?? undefined);
 
