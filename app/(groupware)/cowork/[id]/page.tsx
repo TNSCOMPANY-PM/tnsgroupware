@@ -21,6 +21,21 @@ import {
 import { format, parseISO, isBefore, differenceInDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay } from "date-fns";
 import { ko } from "date-fns/locale";
 
+// ─── Linkify helper ──────────────────────────────────────────────────────────
+const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
+function Linkify({ children, className }: { children: string; className?: string }) {
+  const parts = children.split(URL_RE);
+  return (
+    <span className={className}>
+      {parts.map((part, i) =>
+        URL_RE.test(part)
+          ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>
+          : part
+      )}
+    </span>
+  );
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Member = { id: string; employee_id: string; employee_name: string; role: string };
 type Task = {
@@ -679,7 +694,7 @@ export default function CoworkDetailPage() {
                           {post.pinned && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">고정</span>}
                           <h3 className="text-sm font-semibold text-slate-800 truncate">{post.title}</h3>
                         </div>
-                        {post.content && <p className="text-xs text-slate-500 mt-1 line-clamp-2 whitespace-pre-wrap">{post.content}</p>}
+                        {post.content && <p className="text-xs text-slate-500 mt-1 line-clamp-2 whitespace-pre-wrap"><Linkify>{post.content}</Linkify></p>}
                         {post.image_url && <img src={post.image_url} alt="" className="mt-2 rounded-lg max-h-24 object-cover" />}
                       </div>
                       <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-400 shrink-0 mt-0.5" />
@@ -713,7 +728,7 @@ export default function CoworkDetailPage() {
               <img src={selectedPost.image_url} alt="" className="rounded-lg max-h-64 object-cover mt-2" />
             )}
             {selectedPost.content && (
-              <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-4 mt-2">{selectedPost.content}</div>
+              <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-4 mt-2"><Linkify>{selectedPost.content}</Linkify></div>
             )}
 
             {/* 댓글 */}
@@ -726,7 +741,7 @@ export default function CoworkDetailPage() {
                       <span className="text-xs font-semibold text-slate-700">{c.author_name}</span>
                       <span className="text-[10px] text-slate-400">{format(parseISO(c.created_at), "MM.dd HH:mm", { locale: ko })}</span>
                     </div>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.content}</p>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap"><Linkify>{c.content}</Linkify></p>
                   </div>
                 ))}
               </div>
