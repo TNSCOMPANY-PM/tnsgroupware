@@ -1210,22 +1210,30 @@ ${aeoHtml}
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">키워드별 {aeoPlatform === "naver" ? "네이버" : "구글"} 노출 결과</h3>
                 <div className="space-y-3">
-                  {aeoResults.map((r, i) => (
+                  {aeoResults.map((r, i) => {
+                    const a = r as Record<string, unknown>;
+                    const blogCited = (a.blog_cited ?? a.naver_blog_cited ?? false) as boolean;
+                    const webCited = (a.web_cited ?? a.naver_web_cited ?? false) as boolean;
+                    const bestRank = (a.best_rank ?? a.naver_best_rank ?? 999) as number;
+                    const blogResults = (a.blog_results ?? a.naver_blog_results ?? []) as AeoResult["blog_results"];
+                    const webResults = (a.web_results ?? a.naver_web_results ?? []) as AeoResult["web_results"];
+                    const ourUrls = (a.our_urls ?? a.naver_our_urls ?? []) as string[];
+                    return (
                     <div key={i} className="border border-slate-200 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-semibold text-slate-700">{r.keyword}</span>
                         <div className="flex gap-1">
-                          {r.blog_cited && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 font-medium">{aeoPlatform === "naver" ? "블로그" : ""} 노출</span>}
-                          {r.web_cited && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{aeoPlatform === "naver" ? "웹문서" : "구글"} 노출</span>}
-                          {!r.blog_cited && !r.web_cited && <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 text-red-500 font-medium">미노출</span>}
-                          {r.best_rank < 999 && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium">{r.best_rank}위</span>}
+                          {blogCited && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 font-medium">{aeoPlatform === "naver" ? "블로그" : ""} 노출</span>}
+                          {webCited && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{aeoPlatform === "naver" ? "웹문서" : "구글"} 노출</span>}
+                          {!blogCited && !webCited && <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 text-red-500 font-medium">미노출</span>}
+                          {bestRank < 999 && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium">{bestRank}위</span>}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {/* 블로그 결과 */}
                         <div>
                           <p className="text-[9px] text-slate-400 font-semibold mb-1">{aeoPlatform === "naver" ? "블로그 TOP 5" : ""}</p>
-                          {r.blog_results.slice(0, 5).map((b, j) => (
+                          {blogResults.slice(0, 5).map((b, j) => (
                             <div key={j} className={cn("flex items-start gap-1 py-0.5", b.is_ours && "bg-emerald-50 -mx-1 px-1 rounded")}>
                               <span className="text-[9px] text-slate-400 w-3 shrink-0">{b.rank}</span>
                               <a href={b.link} target="_blank" rel="noreferrer" className={cn("text-[10px] truncate hover:underline", b.is_ours ? "text-emerald-600 font-medium" : "text-slate-600")}>
@@ -1237,7 +1245,7 @@ ${aeoHtml}
                         {/* 웹문서 결과 */}
                         <div>
                           <p className="text-[9px] text-slate-400 font-semibold mb-1">{aeoPlatform === "naver" ? "웹문서 TOP 5" : "구글 검색 TOP 10"}</p>
-                          {r.web_results.slice(0, 5).map((w, j) => (
+                          {webResults.slice(0, 5).map((w, j) => (
                             <div key={j} className={cn("flex items-start gap-1 py-0.5", w.is_ours && "bg-emerald-50 -mx-1 px-1 rounded")}>
                               <span className="text-[9px] text-slate-400 w-3 shrink-0">{w.rank}</span>
                               <a href={w.link} target="_blank" rel="noreferrer" className={cn("text-[10px] truncate hover:underline", w.is_ours ? "text-emerald-600 font-medium" : "text-slate-600")}>
@@ -1247,13 +1255,14 @@ ${aeoHtml}
                           ))}
                         </div>
                       </div>
-                      {r.our_urls.length > 0 && (
+                      {ourUrls.length > 0 && (
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                          <p className="text-[9px] text-emerald-600 font-medium">우리 콘텐츠: {r.our_urls.map(u => u.replace(/https?:\/\//, "").slice(0, 35)).join(", ")}</p>
+                          <p className="text-[9px] text-emerald-600 font-medium">우리 콘텐츠: {ourUrls.map(u => u.replace(/https?:\/\//, "").slice(0, 35)).join(", ")}</p>
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : aeoRunning ? (
