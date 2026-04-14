@@ -165,7 +165,7 @@ export const PROFILE_KIM_DONGKYUN: EmployeeDetailProfile = {
     salaryAccount: "-",
     salaryType: "연봉",
   },
-  leave: { granted: 18, used: 0, remaining: 18 },
+  leave: { granted: 0, used: 0, remaining: 0 },
   sidebar: {
     reportLine: "-",
     reportDepartment: "마케팅사업부",
@@ -221,7 +221,7 @@ export const PROFILE_SIM_KYUSUNG: EmployeeDetailProfile = {
     salaryAccount: "-",
     salaryType: "연봉",
   },
-  leave: { granted: 15, used: 0, remaining: 15 },
+  leave: { granted: 0, used: 0, remaining: 0 },
   sidebar: {
     reportLine: "-",
     reportDepartment: "마케팅사업부",
@@ -274,7 +274,7 @@ export const PROFILE_KIM_JEONGSEOP: EmployeeDetailProfile = {
     salaryAccount: "-",
     salaryType: "월급",
   },
-  leave: { granted: 15, used: 0, remaining: 15 },
+  leave: { granted: 0, used: 0, remaining: 0 },
   sidebar: {
     reportLine: "-",
     reportDepartment: "마케팅사업부",
@@ -327,7 +327,7 @@ export const PROFILE_KIM_YONGJUN: EmployeeDetailProfile = {
     contractEnd: "-",
   },
   payroll: { salaryAccount: "-", salaryType: "연봉" },
-  leave: { granted: 15, used: 0, remaining: 15 },
+  leave: { granted: 0, used: 0, remaining: 0 },
   sidebar: {
     reportLine: "-",
     reportDepartment: "마케팅사업부",

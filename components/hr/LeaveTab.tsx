@@ -313,8 +313,7 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
       (r) =>
         r.applicantId === currentUserId &&
         r.status === "승인_완료" &&
-        ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
-        r.startDate.startsWith(String(filterYear))
+        ANNUAL_LEAVE_TYPES.includes(r.leaveType)
     )
     .reduce((s, r) => s + r.days, 0);
   const grantedDays = getGrantedDaysForUser(currentUserId, filterYear);
@@ -500,8 +499,7 @@ function LeaveOverviewTab({
       (r) =>
         r.applicantId === currentUserId &&
         r.status === "승인_완료" &&
-        ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
-        r.startDate.startsWith(String(filterYear))
+        ANNUAL_LEAVE_TYPES.includes(r.leaveType)
     )
     .reduce((s, r) => s + r.days, 0);
   const grantedDays = getGrantedDaysForUser(currentUserId, filterYear);
