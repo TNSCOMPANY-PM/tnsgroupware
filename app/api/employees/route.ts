@@ -9,7 +9,7 @@ export async function GET() {
 
   try {
     const supabase = createAdminClient();
-    const { data, error } = await supabase.from("employees").select("*").eq("employment_status", "재직").neq("emp_number", "REDACTED_MASTER_EMP").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("employees").select("*").eq("employment_status", "재직").neq("name", "마스터").order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json(

@@ -224,7 +224,7 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
   }, [selectedEmployee]);
 
   const filteredCards = useMemo(() => {
-    const visible = employees.filter((e) => e.emp_number !== "REDACTED_MASTER_EMP");
+    const visible = employees.filter((e) => e.name !== "마스터");
     const cards = visible.map(e => ({ ...employeeToCardData(e), remainingLeave: leaveMap[e.id] ?? null }));
     if (deptFilter === "all") return cards;
     return cards.filter((c) => c.departmentKey === deptFilter);
