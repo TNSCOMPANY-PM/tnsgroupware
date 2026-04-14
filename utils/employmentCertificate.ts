@@ -18,7 +18,7 @@ const PURPOSE_LABELS: Record<string, string> = {
 };
 
 /** 대표이사 법인 인감 — 전통 한국 직인 스타일 (2중 원, 외곽 회사명, 중앙 대표이사) */
-const SEAL_SVG = `<span class="seal-wrap" style="display:inline-block;width:80px;height:80px;vertical-align:middle;margin-left:8px;opacity:0.92"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+const SEAL_SVG = `<span class="seal-wrap" style="display:inline-block;vertical-align:middle;margin-left:8px;opacity:0.92"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
   <!-- 외곽 이중 테두리 -->
   <circle cx="100" cy="100" r="95" fill="none" stroke="#b91c1c" stroke-width="4"/>
   <circle cx="100" cy="100" r="86" fill="none" stroke="#b91c1c" stroke-width="2"/>
@@ -125,7 +125,7 @@ export function buildCertificateHTML(
     .foot p { margin: 4px 0; font-size: 11px; }
     .foot .date { font-weight: 600; }
     .seal-wrap { display: inline-block; margin-left: 10px; vertical-align: middle; }
-    .seal-wrap svg { width: 48px; height: 48px; }
+    .seal-wrap svg { width: 64px; height: 64px; }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#fff;">
@@ -325,7 +325,7 @@ export function buildCareerCertificateHTML(
       gap: 2px;
     }
     .seal-wrap { display: inline-block; margin-left: 8px; vertical-align: middle; }
-    .seal-wrap svg { width: 52px; height: 52px; }
+    .seal-wrap svg { width: 64px; height: 64px; }
   </style>
 </head>
 <body>

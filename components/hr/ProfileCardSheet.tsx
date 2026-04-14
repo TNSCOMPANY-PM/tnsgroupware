@@ -106,7 +106,10 @@ export function ProfileCardSheet({
         const { getAnnualLeaveGranted } = await import("@/utils/leaveCalculator");
         const year = new Date().getFullYear();
         const joinDate = profile.employment.joinDate;
-        const joinStr = joinDate?.replace(/\.\s*/g, "-").replace(/-$/, "") ?? "";
+        // "2021년 1월 25일" or "2021. 1. 25" or "2021-01-25" 모두 대응
+        const joinStr = joinDate
+          ?.replace(/년\s*/g, "-").replace(/월\s*/g, "-").replace(/일/g, "")
+          .replace(/\.\s*/g, "-").replace(/-$/, "").trim() ?? "";
         const legal = joinStr ? getAnnualLeaveGranted(joinStr, year) : 15;
         const adj = grantsRes.filter((g: { user_id: string; year: number }) => g.user_id === profile.id && g.year === year)
           .reduce((s: number, g: { days: number }) => s + Number(g.days), 0);
