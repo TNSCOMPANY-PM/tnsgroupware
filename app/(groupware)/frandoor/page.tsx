@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Plus, Play, Trash2, ChevronRight, CheckCircle2, XCircle, TrendingUp, Bot, Search, MessageCircle, Download, Upload, FileText, Copy, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OG_WRAP_CSS as OG_WRAP_CSS_INLINE } from "@/constants/blogCssTemplate";
+import { FACT_LABEL_ENUM } from "@/utils/factSchema";
+import DualSourceSection from "@/components/frandoor/DualSourceSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +62,7 @@ export default function GeoPage() {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [runs, setRuns] = useState<CheckRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [extractProgress, setExtractProgress] = useState("");
   const [addBrandOpen, setAddBrandOpen] = useState(false);
   const [addPromptOpen, setAddPromptOpen] = useState(false);
   const [runningCheck, setRunningCheck] = useState(false);
@@ -2135,7 +2138,10 @@ ${aeoHtml}
             </a>
           </div>
 
-          {/* 팩트 데이터 관리 */}
+          {/* 팩트 이중 소스 (docx + public) */}
+          {selectedBrand && <DualSourceSection brand={selectedBrand} />}
+
+          {/* 팩트 데이터 관리 (legacy) */}
           {(() => {
             type FactFile = { url: string; name: string };
             const factFiles: FactFile[] = (() => {
@@ -2201,14 +2207,51 @@ ${aeoHtml}
                         if (!selectedBrand) return;
                         const btn = document.getElementById("extract-btn");
                         if (btn) btn.textContent = "추출 중...";
+                        setExtractProgress("");
                         try {
-                          const res = await fetch("/api/geo/extract-facts", {
+                          const res = await fetch("/api/geo/extract-facts?stream=1", {
                             method: "POST", headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ brand_id: selectedBrand.id }),
                           });
-                          const data = await res.json();
+                          if (!res.body) throw new Error("stream unavailable");
+                          const reader = res.body.getReader();
+                          const decoder = new TextDecoder();
+                          let buffer = "";
+                          let data: { ok?: boolean; error?: string; keywords_count?: number; chunks_processed?: number; has_official_data?: boolean; from_cache?: boolean; validation_issues?: { label: string; keyword: string; issue: string; severity: string }[] } = {};
+                          for (;;) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            buffer += decoder.decode(value, { stream: true });
+                            const parts = buffer.split("\n\n");
+                            buffer = parts.pop() ?? "";
+                            for (const part of parts) {
+                              const line = part.split("\n").find(l => l.startsWith("data: "));
+                              if (!line) continue;
+                              try {
+                                const ev = JSON.parse(line.slice(6));
+                                if (ev.stage === "start") setExtractProgress(`파일 ${ev.total_files}개 처리 시작`);
+                                else if (ev.stage === "cache_check") setExtractProgress(ev.hit ? "캐시 HIT — 즉시 반환" : "캐시 MISS — 추출 진행");
+                                else if (ev.stage === "parse") setExtractProgress(`파싱 ${ev.current}/${ev.total}: ${ev.name}${ev.scan ? " (스캔 PDF)" : ""}`);
+                                else if (ev.stage === "parse_skip") setExtractProgress(`⚠ ${ev.name}: ${ev.reason}`);
+                                else if (ev.stage === "official_search") setExtractProgress("공정위 웹검색 중...");
+                                else if (ev.stage === "prescan") setExtractProgress(`프리스캔 (${Math.round(ev.chars / 1000)}k자)`);
+                                else if (ev.stage === "extract") setExtractProgress(`청크 ${ev.chunks_processed}개 처리 완료`);
+                                else if (ev.stage === "validate") setExtractProgress(`검증 중 (이슈 ${ev.issues}건)`);
+                                else if (ev.stage === "save") setExtractProgress("DB 저장 중...");
+                                else if (ev.stage === "done") data = { ok: true, ...ev.result };
+                                else if (ev.stage === "error") data = { ok: false, error: ev.error };
+                              } catch { /* ignore */ }
+                            }
+                          }
+                          setExtractProgress("");
                           if (data.ok) {
-                            alert(`팩트 추출 완료!\n키워드 ${data.keywords_count}개 추출${data.has_official_data ? "\n공정위 자료 포함" : ""}`);
+                            const issues = (data.validation_issues ?? []) as { label: string; keyword: string; issue: string; severity: string }[];
+                            const errCount = issues.filter(x => x.severity === "error").length;
+                            const warnCount = issues.filter(x => x.severity === "warning").length;
+                            const issueMsg = issues.length > 0
+                              ? `\n\n⚠ 검증 이슈 ${issues.length}건 (에러 ${errCount}, 경고 ${warnCount}):\n` + issues.slice(0, 5).map(x => `  - ${x.label}: ${x.issue}${x.keyword ? ` (${x.keyword})` : ""}`).join("\n")
+                              : "";
+                            alert(`팩트 추출 완료!\n키워드 ${data.keywords_count}개 추출${data.chunks_processed ? ` (청크 ${data.chunks_processed}개)` : ""}${data.has_official_data ? "\n공정위 자료 포함" : ""}${data.from_cache ? "\n(캐시 HIT)" : ""}${issueMsg}`);
                             const bRes = await fetch("/api/geo/brands");
                             if (bRes.ok) { const brands = await bRes.json(); const updated = brands.find((b: Brand) => b.id === selectedBrand.id); if (updated) setSelectedBrand(updated); }
                           } else { alert(data.error || "추출 실패"); }
@@ -2225,6 +2268,9 @@ ${aeoHtml}
                           <span className="text-[10px] text-emerald-500">✓ {editable.length}개 키워드 DB 저장됨</span>
                         );
                       })()}
+                      {extractProgress && (
+                        <span className="text-[10px] text-violet-500 animate-pulse">{extractProgress}</span>
+                      )}
                     </div>
                     {/* 팩트 리스트 편집 테이블 */}
                     {selectedBrand?.fact_data && Array.isArray(selectedBrand.fact_data) && (() => {
@@ -2253,19 +2299,37 @@ ${aeoHtml}
                       return (
                         <div className="mt-2 rounded-lg border border-slate-200 p-2 space-y-1 max-h-52 overflow-y-auto">
                           <p className="text-[10px] text-slate-500 font-semibold mb-1">팩트 리스트 (클릭 수정)</p>
-                          {editable.map((f, i) => (
-                            <div key={i} className="flex items-center gap-1 text-[10px]">
-                              <input type="text" value={f.label}
-                                onChange={e => updateFact(i, { label: e.target.value })}
-                                className="border border-slate-200 rounded px-1 py-0.5 w-28 shrink-0 text-[10px]" />
-                              <input type="text" value={f.keyword}
-                                onChange={e => updateFact(i, { keyword: e.target.value })}
-                                className="border border-slate-200 rounded px-1 py-0.5 flex-1 text-[10px]" />
-                              <button onClick={() => removeFact(i)} className="text-red-400 hover:text-red-600 shrink-0 p-0.5">
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
+                          {editable.map((f, i) => {
+                            const isEnum = (FACT_LABEL_ENUM as readonly string[]).includes(f.label);
+                            return (
+                              <div key={i} className="flex items-center gap-1 text-[10px]">
+                                <select value={isEnum ? f.label : ""}
+                                  onChange={e => updateFact(i, { label: e.target.value })}
+                                  className={cn("border rounded px-1 py-0.5 w-28 shrink-0 text-[10px] bg-white", isEnum ? "border-slate-200" : "border-amber-400 bg-amber-50")}
+                                  title={isEnum ? f.label : `enum 외 라벨: ${f.label}`}>
+                                  {!isEnum && <option value="">{`⚠ ${f.label}`}</option>}
+                                  {FACT_LABEL_ENUM.map(l => <option key={l} value={l}>{l}</option>)}
+                                </select>
+                                <input type="text" value={f.keyword}
+                                  onChange={e => updateFact(i, { keyword: e.target.value })}
+                                  className="border border-slate-200 rounded px-1 py-0.5 flex-1 text-[10px]" />
+                                <button onClick={() => removeFact(i)} className="text-red-400 hover:text-red-600 shrink-0 p-0.5">
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          <button
+                            onClick={async () => {
+                              if (!selectedBrand) return;
+                              const internal = (selectedBrand.fact_data as { label: string; keyword: string }[]).filter(d => INTERNAL.includes(d.label));
+                              const newEditable = [...editable, { label: FACT_LABEL_ENUM[0], keyword: "" }];
+                              const newFd = [...newEditable, ...internal];
+                              await fetch("/api/geo/brands", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedBrand.id, fact_data: newFd }) });
+                              setSelectedBrand({ ...selectedBrand, fact_data: newFd as Brand["fact_data"] });
+                              setBrands(prev => prev.map(b => b.id === selectedBrand.id ? { ...b, fact_data: newFd as Brand["fact_data"] } : b));
+                            }}
+                            className="mt-1 text-[10px] text-violet-500 hover:text-violet-700">+ 항목 추가</button>
                         </div>
                       );
                     })()}

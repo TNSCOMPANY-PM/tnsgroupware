@@ -4,6 +4,7 @@ import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildPrompt, buildBrandDataFromFacts, type Channel, type ReaderStage, type SearchIntent, type OfficialData } from "@/utils/promptBuilder";
+import { loadDualSourceBlocks, DUAL_SOURCE_RULES } from "@/utils/dualSourceBlocks";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -164,7 +165,18 @@ ${refInput}
     officialData = await fetchOfficialData(brand.name);
   }
 
+  // ── 이중 소스 블록 (brand_source_doc 이 있으면 새 시스템) ──
+  const dual = await loadDualSourceBlocks(supabase, body.brand_id);
+  const useDualSource = dual.hasDocx;
+
   let prompt = buildPrompt(body.platform, brandData, readerStage, searchIntent, body.topic.trim(), officialData ?? undefined);
+
+  if (useDualSource) {
+    prompt += `\n\n${dual.docxSource}\n\n${dual.publicFacts}\n\n${dual.diffsAuto}\n\n${DUAL_SOURCE_RULES}`;
+    if (dual.diffCount > 0) {
+      prompt += `\n\n[필수 섹션] [DIFFS_AUTO] 에 나열된 ${dual.diffCount}개 항목 각각에 대해 "왜 다른가?" 소제목의 별도 섹션을 본문에 반드시 포함하라.`;
+    }
+  }
 
   if (refAnalysis) {
     prompt += `\n\n[REFERENCE TONE — 아래 분석 결과의 말투·구조를 반드시 반영]\n${refAnalysis}`;
@@ -196,7 +208,8 @@ ${imageUrls.map((img, i) => `${i + 1}. ${img.name}: ${img.url}`).join("\n")}
     if (provider === "gemini") {
       return NextResponse.json({ error: "Gemini 프로바이더는 아직 지원하지 않습니다" }, { status: 400 });
     }
-    const raw = provider === "claude" ? await callClaude(prompt, body.platform) : await callOpenAI(prompt, true);
+    // 이중 소스 모드는 웹검색 금지 — 이미 수집된 PUBLIC_FACTS 만 사용
+    const raw = provider === "claude" ? await callClaude(prompt, body.platform) : await callOpenAI(prompt, !useDualSource);
 
     let parsed;
     try {
