@@ -115,10 +115,12 @@ export async function POST(request: Request) {
   if (!brand) return NextResponse.json({ error: "브랜드를 찾을 수 없습니다" }, { status: 404 });
 
   // fact_data에서 BrandData 구조 생성
-  const factKeywords = (brand.fact_data && Array.isArray(brand.fact_data))
-    ? brand.fact_data.filter((d: { label: string }) => d.label !== "__raw_text__" && d.label !== "__blog_ref_links__" && d.label !== "__brand_plan__" && d.label !== "__brand_images__")
-    : [];
-  const brandData = buildBrandDataFromFacts(brand.name, factKeywords, brand.landing_url);
+  const allFacts = (brand.fact_data && Array.isArray(brand.fact_data)) ? brand.fact_data as { label: string; keyword: string }[] : [];
+  const INTERNAL_LABELS = ["__raw_text__", "__blog_ref_links__", "__brand_plan__", "__brand_images__", "__official_data__"];
+  const factKeywords = allFacts.filter(d => !INTERNAL_LABELS.includes(d.label));
+  const rawTextEntry = allFacts.find(d => d.label === "__raw_text__");
+  const rawText = rawTextEntry ? rawTextEntry.keyword : undefined;
+  const brandData = buildBrandDataFromFacts(brand.name, factKeywords, brand.landing_url, rawText);
 
   // 브랜드 이미지 URL 목록 추출
   const imageEntry = (brand.fact_data ?? []).find((d: { label: string }) => d.label === "__brand_images__");
@@ -152,8 +154,15 @@ ${refInput}
   // 프롬프트 빌드
   const readerStage = body.reader_stage ?? "decision";
   const searchIntent = body.search_intent ?? "transactional";
-  // 1단계: GPT 웹검색으로 공정위 공식 데이터 수집
-  const officialData = await fetchOfficialData(brand.name);
+  // 공정위 데이터: DB 캐시 우선, 없으면 웹검색
+  let officialData: OfficialData | null = null;
+  const officialEntry = allFacts.find(d => d.label === "__official_data__");
+  if (officialEntry) {
+    try { officialData = JSON.parse(officialEntry.keyword) as OfficialData; } catch { /* ignore */ }
+  }
+  if (!officialData) {
+    officialData = await fetchOfficialData(brand.name);
+  }
 
   let prompt = buildPrompt(body.platform, brandData, readerStage, searchIntent, body.topic.trim(), officialData ?? undefined);
 

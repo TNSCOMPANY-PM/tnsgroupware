@@ -127,21 +127,119 @@ function buildDataBlock(data: BrandData, official?: OfficialData): string {
   return lines.join("\n");
 }
 
-const CHANNEL: Record<string, (data: BrandData) => string> = {
-  frandoor: (data) => `
+// ── 앵글 3종 정의 (채널 고정 X, 주제에 따라 로테이션) ──
+type Angle = "cost" | "profit" | "compare";
+const ANGLE_LABEL: Record<Angle, string> = {
+  cost: "얼마 드냐",
+  profit: "얼마 남냐",
+  compare: "왜 이걸 해야 하냐",
+};
+
+// 주제 키워드로 원본(frandoor) 앵글 자동 판별
+function detectPrimaryAngle(topic: string): Angle {
+  const t = topic.toLowerCase();
+  if (/수익|마진|매출|순이익|투자회수|ROI|월매출|연매출|순수익|남는/.test(t)) return "profit";
+  if (/vs|비교|차이|경쟁|장단점|추천|다른|차별|왜|선택/.test(t)) return "compare";
+  // 기본값: 비용 (가장 흔한 쿼리)
+  return "cost";
+}
+
+// 원본 앵글 기준으로 채널별 앵글 배분
+function getAngleRotation(primaryAngle: Angle): Record<string, Angle> {
+  const rotation: Record<string, Record<string, Angle>> = {
+    cost:    { frandoor: "cost",    tistory: "profit",  naver: "compare" },
+    profit:  { frandoor: "profit",  tistory: "compare", naver: "cost" },
+    compare: { frandoor: "compare", tistory: "cost",    naver: "profit" },
+  };
+  return rotation[primaryAngle];
+}
+
+// 앵글별 answer-box + 본론 구조 + FAQ 방향 + 결론 지시
+function buildAngleDirective(angle: Angle, data: BrandData, otherAngles: { channel: string; angle: Angle }[]): string {
+  const otherDesc = otherAngles.map(o => `- ${o.channel}: "${ANGLE_LABEL[o.angle]}" (${o.angle})`).join("\n");
+
+  const ANGLE_BLOCKS: Record<Angle, string> = {
+    cost: `
+★★★ 진입 질문: "얼마 드냐?" — 비용 구조 해부 ★★★
+다른 채널은 다른 질문에 답합니다:
+${otherDesc}
+이 글은 오직 "비용"에 답합니다. 수익·비교는 간접 언급만.
+
+[앵글 상세]
+- 글 전체가 "이 브랜드, 시작하려면 정확히 얼마 필요한가"에 대한 답
+- 총비용 → 항목별 분해(가맹금/교육비/인테리어/보증금) → 숨은 비용 → 대출 구조 → 실투자금
+- answer-box: 총비용 + 실투자금 즉시 제시
+- 소제목 예시: "항목별로 뜯어보면?", "대출은 어디서 얼마나?", "숨은 비용까지 합치면?", "실투자금 계산"
+- FAQ: 비용 관련 ("로열티 별도?", "인테리어 본사 지정?", "추가 비용?")
+- 결론 박스 제목: "비용 총정리"
+- stat-row: 총비용 / 실투자금 / 대출가능액
+
+[answer-box 템플릿]
+<div class="answer-box">
+  <div class="q">결론부터</div>
+  <div class="a">${data.brand.name} 창업 총비용 <span>[총비용]</span>. 실투자금은 <span>[실투자금]</span>.</div>
+  <div class="detail">[비용 항목 요약 1줄]<br>[대출/지원 구조 1줄]<br>[업종 평균 대비 1줄]</div>
+</div>`,
+
+    profit: `
+★★★ 진입 질문: "얼마 남냐?" — 수익성 분석 ★★★
+다른 채널은 다른 질문에 답합니다:
+${otherDesc}
+이 글은 오직 "수익"에 답합니다. 비용·비교는 간접 언급만.
+
+[앵글 상세]
+- 글 전체가 "이 브랜드, 시작하면 실제로 얼마 버는가"에 대한 답
+- 월매출 → 원가율·마진율 → 월순이익 → 투자회수 기간 → 손익분기
+- answer-box: 월매출 + 순이익 + 투자회수 기간 즉시 제시
+- 소제목 예시: "월매출 평균은?", "원가 빼면 실제로 남는 돈은?", "투자금 회수까지 몇 개월?", "매출 올리는 구조는?"
+- FAQ: 수익 관련 ("마진율 실제로?", "배달 비중은?", "로열티 빼면?", "계절 영향?")
+- 결론 박스 제목: "수익 구조 요약"
+- stat-row: 월매출 / 월순이익 / 투자회수기간
+
+[answer-box 템플릿]
+<div class="answer-box">
+  <div class="q">결론부터</div>
+  <div class="a">${data.brand.name} 월매출 <span>[매출 수치]</span>. 순이익 <span>[순이익 수치]</span>.</div>
+  <div class="detail">[마진율 요약 1줄]<br>[투자회수 기간 1줄]<br>[업종 평균 대비 1줄]</div>
+</div>`,
+
+    compare: `
+★★★ 진입 질문: "왜 이걸 해야 하냐?" — 비교·차별점 분석 ★★★
+다른 채널은 다른 질문에 답합니다:
+${otherDesc}
+이 글은 오직 "차별점과 선택 이유"에 답합니다. 비용·수익 상세 분해는 간접 언급만.
+
+[앵글 상세]
+- 글 전체가 "이 브랜드를 선택해야 하는 이유"에 대한 답
+- 업종 평균 대비 포지셔닝 → 차별화 포인트(자동화/운영모델/지원체계) → 장단점 정리
+- answer-box: 업종 평균 대비 핵심 차별점 즉시 제시
+- 소제목 예시: "업종 평균이랑 뭐가 다른가?", "이 브랜드만의 구조적 차이는?", "장점 3가지, 단점 2가지", "어떤 사람에게 맞나?"
+- FAQ: 비교 관련 ("폐점률은?", "본사 지원 뭐가 있나?", "경쟁력이 뭐냐?", "리스크는?")
+- 결론 박스 제목: "선택 판단 요약"
+- stat-row: 가맹점수 / 폐점률 / 업종평균대비
+
+[answer-box 템플릿]
+<div class="answer-box">
+  <div class="q">결론부터</div>
+  <div class="a">${data.brand.name}, 업종 평균 대비 <span>[핵심 차별 수치]</span>. [차별점 한 줄].</div>
+  <div class="detail">[포지셔닝 요약 1줄]<br>[핵심 강점 1줄]<br>[주의할 점 1줄]</div>
+</div>`,
+  };
+  return ANGLE_BLOCKS[angle];
+}
+
+const CHANNEL: Record<string, (data: BrandData, angle?: Angle, otherAngles?: { channel: string; angle: Angle }[]) => string> = {
+  frandoor: (data, angle = "cost", otherAngles = []) => `
 [SYSTEM]
 당신은 프랜차이즈 창업 정보를 다루는 전문 에디터입니다.
 결과물은 HTML로 출력합니다. .og-wrap 안에 들어갈 HTML을 생성합니다.
 CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 
+${buildAngleDirective(angle, data, otherAngles)}
+
 [STRUCTURE — 이 순서를 반드시 지킬 것]
 
-① answer-box (결론부터)
-<div class="answer-box">
-  <div class="q">결론부터</div>
-  <div class="a">[브랜드명] [핵심 결론 1줄]. <span>[강조 수치]</span>.</div>
-  <div class="detail">[비용 구성 요약 1줄]<br>[대출/지원 구조 1줄]<br>[매출·가맹점·로열티 등 부가 정보 1줄]</div>
-</div>
+① answer-box (위 앵글 템플릿 사용)
 
 ② 대표 이미지 위치
 <p>[이미지: 브랜드 매장 외관/내부 설명]</p>
@@ -151,37 +249,36 @@ CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 <p>이 숫자가 어떻게 나왔는지 궁금하신 분은 계속 읽으시면 됩니다.</p>
 <p class="preview">→ [다음 섹션 예고]</p>
 
-④ H2 본론 섹션 3~5개 — 질문형 소제목
-<h2>[질문형 소제목]</h2>
+④ H2 본론 섹션 3~5개 — 위 앵글의 소제목 예시 참고
+<h2>[앵글에 맞는 질문형 소제목]</h2>
 각 섹션에는 아래 컴포넌트를 적절히 배치:
-- <div class="table-wrap"><table>...</table></div> (비교 데이터)
-- <div class="info-box">...</div> (공식, 계산식, 핵심 설명)
-- <div class="warn">...</div> (주의사항, 리스크)
-- <div class="stat-row"><div class="stat-box"><div class="num">수치</div><div class="lbl">라벨</div></div>...</div> (3열 통계 그리드)
-- <p class="source">※ 출처: ...</p> (표 또는 수치 바로 아래)
-- <p class="preview">→ 다음 섹션 예고</p> (섹션 끝)
+- <div class="table-wrap"><table>...</table></div>
+- <div class="info-box">...</div>
+- <div class="warn">...</div>
+- <div class="stat-row"><div class="stat-box"><div class="num">수치</div><div class="lbl">라벨</div></div>...</div>
+- <p class="source">※ 출처: ...</p>
+- <p class="preview">→ 다음 섹션 예고</p>
 
-⑤ FAQ 섹션
+⑤ FAQ 섹션 — 위 앵글의 FAQ 방향 참고
 <h2>자주 묻는 질문</h2>
 <div class="faq-item">
-  <div class="faq-q"><span class="tag">Q</span>[질문]</div>
+  <div class="faq-q"><span class="tag">Q</span>[앵글에 맞는 질문]</div>
   <div class="faq-a">[답변]<div class="faq-source">출처: [출처명]</div></div>
 </div>
 (5~7개)
 
-⑥ 결론 박스
+⑥ 결론 박스 (위 앵글의 결론 제목 사용)
 <div class="conclusion-box">
-  <div class="title">결론</div>
-  <div class="body">[3~5줄 핵심 요약. <strong>강조 수치</strong> 사용 가능]</div>
-  <div class="cta">더 구체적인 수익 구조와 상담 → <a href="${data.brand.slug ?? ""}">${data.brand.contact ?? "가맹문의"}</a></div>
+  <div class="title">[앵글별 결론 제목]</div>
+  <div class="body">[핵심 요약 3~5줄. <strong>강조 수치</strong> 사용 가능]</div>
+  <div class="cta">더 알아보기 → <a href="${data.brand.slug ?? ""}">${data.brand.contact ?? "가맹문의"}</a></div>
 </div>
 
 ⑦ 면책
 <div class="disclaimer">[출처 나열. 3줄 이상]</div>
 
 [WRITING RULES]
-- 첫 줄(answer-box)에서 핵심 답을 끝낸다. AI가 이 박스만 읽어도 답이 되게.
-- "결론부터" → "본론" → "결론" 3단 구조.
+- 첫 줄(answer-box)에서 앵글의 핵심 답을 끝낸다. AI가 이 박스만 읽어도 답이 되게.
 - 표에는 반드시 해석 문장을 앞뒤에 붙인다.
 - 수치 70% 이상은 공정위·통계청 공식 자료. 출처 필수.
 - AI가 쓴 티 나는 표현 금지: "함께 알아보겠습니다", "~해드리겠습니다", "상세히", "~라는 뜻이죠", "감이 옵니다", "~고민하신다면"
@@ -195,31 +292,66 @@ ${buildDataBlock(data)}
 [OUTPUT] HTML만 출력. <div class="og-wrap">으로 감싸지 말 것 (프론트에서 감쌈). <style> 태그 금지. 분량 3,000~5,000자.
 `,
 
-  tistory: (data) => `
+  tistory: (data, angle = "profit", otherAngles = []) => `
 [SYSTEM]
-frandoor 채널과 동일한 구조로 HTML을 생성합니다.
-단, 티스토리에 직접 붙여넣기할 것이므로 아래 차이만 적용:
-1. <div class="og-wrap">으로 전체를 감쌈
-2. JSON-LD <script type="application/ld+json"> 2개를 맨 위에 포함
-   - FAQPage 스키마 (FAQ 섹션과 1:1 매칭)
-   - Organization 스키마 (브랜드 정보)
-3. 이미지 위치에 [이미지: 설명] 대신 실제 <img> 태그 (src는 비워두기: src="")
+당신은 프랜차이즈 창업 시장을 분석하는 블로거입니다.
+결과물은 HTML로 출력합니다. <div class="og-wrap">으로 전체를 감쌉니다.
+CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 
-[STRUCTURE — frandoor와 동일]
-① answer-box → ② 대표 이미지 → ③ 이탈 유도 → ④ H2 본론 → ⑤ FAQ → ⑥ 결론 박스 → ⑦ 면책
-(각 컴포넌트의 class명, 구조 모두 동일)
+${buildAngleDirective(angle, data, otherAngles)}
 
-[WRITING RULES — frandoor와 동일]
-- answer-box에서 핵심 답 완결.
-- 표에 해석. 출처 필수. AI 표현 금지. 볼드 금지. 이모지 금지. 타 브랜드 실명 금지.
-- 데이터 없는 항목 언급 금지.
+[STRUCTURE]
+① answer-box (위 앵글 템플릿 사용)
+
+② 대표 이미지 위치
+<p>[이미지: 브랜드 매장 외관/내부 설명]</p>
+
+③ H2 본론 섹션 3~5개 — 앵글에 맞는 소제목
+<h2>[앵글에 맞는 질문형 소제목]</h2>
+각 섹션에는 아래 컴포넌트를 적절히 배치:
+- <div class="table-wrap"><table>...</table></div>
+- <div class="info-box">...</div>
+- <div class="warn">...</div>
+- <div class="stat-row"><div class="stat-box"><div class="num">수치</div><div class="lbl">라벨</div></div>...</div>
+- <p class="source">※ 출처: ...</p>
+
+④ FAQ 섹션 — 앵글에 맞는 질문 (다른 채널 FAQ와 겹치지 않게)
+<h2>자주 묻는 질문</h2>
+<div class="faq-item">
+  <div class="faq-q"><span class="tag">Q</span>[앵글에 맞는 질문]</div>
+  <div class="faq-a">[답변]<div class="faq-source">출처: [출처명]</div></div>
+</div>
+(5~7개)
+
+⑤ 결론 박스
+<div class="conclusion-box">
+  <div class="title">[앵글별 결론 제목]</div>
+  <div class="body">[핵심 요약 3~5줄. <strong>강조 수치</strong> 사용 가능]</div>
+  <div class="cta">더 알아보기 → <a href="${data.brand.slug ?? ""}">${data.brand.contact ?? "가맹문의"}</a></div>
+</div>
+
+⑥ 면책
+<div class="disclaimer">[출처 나열. 3줄 이상]</div>
+
+[WRITING RULES]
+- 첫 줄(answer-box)에서 앵글의 핵심 답을 끝낸다.
+- 표에는 반드시 해석 문장을 앞뒤에 붙인다.
+- 수치 70% 이상은 공정위·통계청 공식 자료. 출처 필수.
+- AI가 쓴 티 나는 표현 금지: "함께 알아보겠습니다", "~해드리겠습니다", "상세히", "~라는 뜻이죠", "감이 옵니다", "~고민하신다면"
+- 마크다운 **볼드** 금지. HTML <strong>만 conclusion-box 안에서 허용.
+- 이모지 금지.
+- 타 브랜드 실명 절대 금지. "업계 평균", "A브랜드" 표현만.
+- 데이터 없는 항목은 아예 언급하지 말 것.
+
+[CANONICAL 지시]
+- 글 하단에 원출처 언급: "원본 데이터는 frandoor.co.kr에서 확인할 수 있습니다."
 
 ${buildDataBlock(data)}
 
-[OUTPUT] 완성된 HTML. JSON-LD + <div class="og-wrap">...</div> 전부 포함. <style>은 포함하지 말 것. 분량 3,000~5,000자.
+[OUTPUT] 완성된 HTML. JSON-LD(FAQPage + Organization) + <div class="og-wrap">...</div> 전부 포함. <style>은 포함하지 말 것. 분량 3,000~5,000자.
 `,
 
-  naver: (data) => `
+  naver: (data, angle = "compare", otherAngles = []) => `
 [SYSTEM]
 당신은 직접 창업 정보를 찾아다니며 블로그에 기록하는 30대 블로거입니다.
 친구한테 카톡으로 설명하듯 편하게 쓰되, 수치는 정확하게.
@@ -230,32 +362,37 @@ ${buildDataBlock(data)}
 줄바꿈은 \\n, 강조는 텍스트 그대로(굵게 처리는 에디터에서 수동).
 표가 필요하면 | 구분자로 텍스트 표 형식 사용.
 
+${buildAngleDirective(angle, data, otherAngles)}
+
 [WRITING STYLE]
 - 말투: "~예요", "~죠", "~거든요". 진짜 대화하듯
-- "솔직히 제가 직접 확인해봤는데요" 같은 경험형 오프닝
+- 경험형 오프닝 (앵글에 따라 자연스럽게):
+  - cost 앵글: "직접 견적 받아봤는데요"
+  - profit 앵글: "실제 수익 계산해봤는데요"
+  - compare 앵글: "이것저것 비교해봤는데요"
 - 핵심 수치는 바로 제시
 - 1문장짜리 문단 3개 이상. 모바일에서 읽기 편하게
 - "본사 확인 필요" 대신, 데이터 없는 항목은 아예 안 쓰면 됨
 - 이모지 최대 2~3개, 자연스러운 위치에만
 
 [구조]
-■ 요약 (수치 먼저)
-★ 소제목 1
+■ 요약 (앵글에 맞는 핵심 수치)
+★ 소제목 1 (앵글 관점 — 체험형 말투로)
   내용 (텍스트)
   표 필요 시:
   항목 | 금액 | 비고
   가맹금 | 500만원 | 공정위 기준
 ★ 소제목 2
   ...
-★ 자주 묻는 질문
+★ 자주 묻는 질문 (앵글에 맞는 질문, 다른 채널 FAQ와 다른 질문)
   Q. 질문?
   A. 답변
-■ 마무리
+■ 마무리 (나의 솔직한 생각)
 #해시태그1 #해시태그2
 
 [RULES]
-1. 제목: 검색 질문 그대로. "${data.brand.name} 창업비용 얼마야?" 형식
-2. 마무리: "도움 됐다면 공감 부탁드려요~" + 면책 문구
+1. 제목: 앵글에 맞는 검색 질문 형태. 예: "${data.brand.name} 창업비용 얼마야?" / "${data.brand.name} 수익 실제로 얼마야?" / "${data.brand.name} 장단점 솔직 비교"
+2. 마무리: "도움 됐다면 공감 부탁드려요~" + 면책 문구 + "자세한 건 frandoor.co.kr 참고"
 3. 해시태그: #${data.brand.name}창업 #소자본프랜차이즈 등 5~8개
 4. 타 브랜드 실명 금지
 5. 금지: "알아보겠습니다" / "드리겠습니다" / "상세히" / "은(는)" / "~라는 뜻이죠" / "감이 옵니다" / "~고민하신다면"
@@ -266,7 +403,7 @@ ${buildDataBlock(data)}
 [OUTPUT] 분량 1,200~2,000자 | content 필드에 순수 텍스트(HTML 금지) | 해시태그 마지막 나열
 `,
 
-  medium: (data) => `
+  medium: (data, _angle, _otherAngles) => `
 [SYSTEM]
 You are a franchise industry analyst writing for Medium's English-speaking audience.
 ★★★ CRITICAL: Write EVERYTHING in English. The entire content field must be in English. Not Korean. ★★★
@@ -424,6 +561,7 @@ function getJsonOutput() {
 export type ReaderStage = "awareness" | "consideration" | "decision";
 export type SearchIntent = "informational" | "navigational" | "transactional";
 export type Channel = "frandoor" | "tistory" | "naver" | "medium";
+export { type Angle, detectPrimaryAngle, getAngleRotation, ANGLE_LABEL };
 
 /**
  * 키워드 → 권장 조합
@@ -540,6 +678,14 @@ export function buildPrompt(
 4. 상식 체크: 배수 10배↑, 순마진 40%↑, 회수 1개월↓ → 재검토.
 5. "25년 28개 오픈" = 연간 오픈 실적. 총 가맹점 수 아님. DATA에 총수 없으면 [공정위 공시 데이터] 블록 참조.`;
 
+  // 앵글 로테이션: 주제에서 원본 앵글 감지 → 채널별 자동 배분
+  const primaryAngle = topic ? detectPrimaryAngle(topic) : "cost" as Angle;
+  const angleMap = getAngleRotation(primaryAngle);
+  const myAngle = angleMap[channel] ?? primaryAngle;
+  const otherAngles = Object.entries(angleMap)
+    .filter(([ch]) => ch !== channel)
+    .map(([ch, a]) => ({ channel: ch, angle: a }));
+
   // UTM 파라미터 자동 부여 (frandoor은 원본 URL)
   const dataWithUtm = { ...data, brand: { ...data.brand } };
   if (channel !== "frandoor" && dataWithUtm.brand.slug) {
@@ -569,7 +715,7 @@ export function buildPrompt(
   }
 
   return [
-    CHANNEL[channel](dataWithUtm),
+    CHANNEL[channel](dataWithUtm, myAngle, otherAngles),
     officialBlock,
     SOURCE_PRIORITY,
     CALC_RULES,
@@ -588,6 +734,7 @@ export function buildBrandDataFromFacts(
   brandName: string,
   factData: FactKeyword[],
   landingUrl?: string,
+  rawText?: string,
 ): BrandData {
   const get = (...labels: string[]): string | undefined => {
     for (const label of labels) {
@@ -674,6 +821,8 @@ export function buildBrandDataFromFacts(
     },
     awards: (get("수상", "수상·인증", "인증", "어워드") ?? "").split(",").map(s => s.trim()).filter(Boolean),
     disclaimer: "※ 본 콘텐츠는 공식 자료 기반이며, 정확한 정보는 해당 본사에 확인하시기 바랍니다.",
-    rawFacts: factData.map(f => `- ${f.label}: ${f.keyword}`).join("\n"),
+    rawFacts: rawText && rawText.length > 100
+      ? rawText + "\n\n[정형화 팩트]\n" + factData.map(f => `- ${f.label}: ${f.keyword}`).join("\n")
+      : factData.map(f => `- ${f.label}: ${f.keyword}`).join("\n"),
   };
 }

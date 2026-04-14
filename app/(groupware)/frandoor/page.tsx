@@ -2218,10 +2218,57 @@ ${aeoHtml}
                         className="text-[10px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 hover:bg-violet-100 font-medium">
                         팩트 추출
                       </button>
-                      {selectedBrand?.fact_data && Array.isArray(selectedBrand.fact_data) && selectedBrand.fact_data.filter((d: { label: string }) => d.label !== "__raw_text__").length > 0 && (
-                        <span className="text-[10px] text-emerald-500">✓ {selectedBrand.fact_data.filter((d: { label: string }) => d.label !== "__raw_text__").length}개 키워드 DB 저장됨</span>
-                      )}
+                      {selectedBrand?.fact_data && Array.isArray(selectedBrand.fact_data) && (() => {
+                        const INTERNAL = ["__raw_text__", "__blog_ref_links__", "__brand_plan__", "__brand_images__", "__official_data__"];
+                        const editable = selectedBrand.fact_data.filter((d: { label: string }) => !INTERNAL.includes(d.label));
+                        return editable.length > 0 && (
+                          <span className="text-[10px] text-emerald-500">✓ {editable.length}개 키워드 DB 저장됨</span>
+                        );
+                      })()}
                     </div>
+                    {/* 팩트 리스트 편집 테이블 */}
+                    {selectedBrand?.fact_data && Array.isArray(selectedBrand.fact_data) && (() => {
+                      const INTERNAL = ["__raw_text__", "__blog_ref_links__", "__brand_plan__", "__brand_images__", "__official_data__"];
+                      const editable = selectedBrand.fact_data.filter((d: { label: string }) => !INTERNAL.includes(d.label)) as { label: string; keyword: string }[];
+                      if (editable.length === 0) return null;
+                      const updateFact = async (idx: number, patch: Partial<{ label: string; keyword: string }>) => {
+                        if (!selectedBrand) return;
+                        const internal = (selectedBrand.fact_data as { label: string; keyword: string }[]).filter(d => INTERNAL.includes(d.label));
+                        const newEditable = [...editable];
+                        newEditable[idx] = { ...newEditable[idx], ...patch };
+                        const newFd = [...newEditable, ...internal];
+                        await fetch("/api/geo/brands", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedBrand.id, fact_data: newFd }) });
+                        setSelectedBrand({ ...selectedBrand, fact_data: newFd as Brand["fact_data"] });
+                        setBrands(prev => prev.map(b => b.id === selectedBrand.id ? { ...b, fact_data: newFd as Brand["fact_data"] } : b));
+                      };
+                      const removeFact = async (idx: number) => {
+                        if (!selectedBrand) return;
+                        const internal = (selectedBrand.fact_data as { label: string; keyword: string }[]).filter(d => INTERNAL.includes(d.label));
+                        const newEditable = editable.filter((_, i) => i !== idx);
+                        const newFd = [...newEditable, ...internal];
+                        await fetch("/api/geo/brands", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedBrand.id, fact_data: newFd }) });
+                        setSelectedBrand({ ...selectedBrand, fact_data: newFd as Brand["fact_data"] });
+                        setBrands(prev => prev.map(b => b.id === selectedBrand.id ? { ...b, fact_data: newFd as Brand["fact_data"] } : b));
+                      };
+                      return (
+                        <div className="mt-2 rounded-lg border border-slate-200 p-2 space-y-1 max-h-52 overflow-y-auto">
+                          <p className="text-[10px] text-slate-500 font-semibold mb-1">팩트 리스트 (클릭 수정)</p>
+                          {editable.map((f, i) => (
+                            <div key={i} className="flex items-center gap-1 text-[10px]">
+                              <input type="text" value={f.label}
+                                onChange={e => updateFact(i, { label: e.target.value })}
+                                className="border border-slate-200 rounded px-1 py-0.5 w-28 shrink-0 text-[10px]" />
+                              <input type="text" value={f.keyword}
+                                onChange={e => updateFact(i, { keyword: e.target.value })}
+                                className="border border-slate-200 rounded px-1 py-0.5 flex-1 text-[10px]" />
+                              <button onClick={() => removeFact(i)} className="text-red-400 hover:text-red-600 shrink-0 p-0.5">
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <p className="text-[10px] text-slate-400">
