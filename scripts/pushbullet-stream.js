@@ -32,6 +32,7 @@ function loadEnv() {
 loadEnv();
 
 const PUSHBULLET_API_KEY = process.env.PUSHBULLET_API_KEY;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET?.trim();
 const LOCAL_WEBHOOK  = "http://localhost:3000/api/webhook/deposit";
 const VERCEL_WEBHOOK = "https://tnsgroupware.vercel.app/api/webhook/deposit";
 const FORCE_WEBHOOK_URL = process.env.WEBHOOK_URL || null;
@@ -93,6 +94,18 @@ function saveFailQueue(queue) {
   } catch {}
 }
 
+// 영구 실패 DLQ — 수동 복구용
+const DLQ_FILE = path.join(__dirname, ".pb_dlq.json");
+function appendToDlq(item) {
+  try {
+    const dlq = fs.existsSync(DLQ_FILE) ? JSON.parse(fs.readFileSync(DLQ_FILE, "utf-8")) : [];
+    dlq.push({ ...item, deadAt: Date.now() });
+    fs.writeFileSync(DLQ_FILE, JSON.stringify(dlq, null, 2));
+  } catch (e) {
+    console.error("DLQ 기록 실패:", e.message);
+  }
+}
+
 // { iden, smsText, retries, lastAttempt }
 let failQueue = loadFailQueue();
 
@@ -124,22 +137,30 @@ function postToWebhook(url, smsText, iden) {
     const isHttps = urlObj.protocol === "https:";
     const lib = isHttps ? https : require("http");
 
+    const headers = {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+    };
+    if (WEBHOOK_SECRET) headers["Authorization"] = `Bearer ${WEBHOOK_SECRET}`;
+
     const req = lib.request(
       {
         hostname: urlObj.hostname,
         port: urlObj.port || (isHttps ? 443 : 80),
         path: urlObj.pathname,
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(body),
-        },
+        headers,
         timeout: 15000,
       },
       (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
+          // 3xx 리다이렉트 = 미들웨어 auth 걸림 등. JSON 파싱 시도 전에 분리.
+          if (res.statusCode >= 300 && res.statusCode < 400) {
+            reject(new Error(`HTTP ${res.statusCode} 리다이렉트 (Location: ${res.headers.location ?? "?"}) — webhook 경로가 미들웨어 차단 중일 수 있음`));
+            return;
+          }
           try {
             const json = JSON.parse(data);
             if (res.statusCode === 200 && json.ok) {
@@ -148,7 +169,7 @@ function postToWebhook(url, smsText, iden) {
               reject(new Error(`HTTP ${res.statusCode}: ${json.error ?? data}`));
             }
           } catch {
-            reject(new Error(`파싱 실패: ${data}`));
+            reject(new Error(`HTTP ${res.statusCode} 파싱 실패: ${data.slice(0, 120)}`));
           }
         });
       }
@@ -234,7 +255,8 @@ async function processFailQueue() {
     }
 
     if (item.retries >= FAIL_MAX_RETRIES) {
-      log.error(`최대 재시도 초과, 영구 실패: ${item.iden} (${item.retries}회 시도)`);
+      log.error(`최대 재시도 초과, DLQ 이동: ${item.iden} (${item.retries}회 시도) — .pb_dlq.json 확인`);
+      appendToDlq(item);
       continue;
     }
 

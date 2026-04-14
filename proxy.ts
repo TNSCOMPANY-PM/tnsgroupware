@@ -5,7 +5,7 @@ import {
   getMasterCookieName,
 } from "./utils/masterAuth";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/api/webhook", "/api/cron"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
