@@ -42,7 +42,7 @@ ${docxExcerpt.slice(0, 3000)}`;
 
   const msg = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 500,
+    max_tokens: 1000,
     system: SYSTEM,
     messages: [{ role: "user", content: userMsg }],
   });
