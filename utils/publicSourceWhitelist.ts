@@ -25,6 +25,33 @@ export const PUBLIC_SOURCE_WHITELIST = [
   "mk.co.kr",
   "seoul.co.kr",
   "sentv.co.kr",
+
+  // 경제·산업 언론 (소형 브랜드 fallback)
+  "sedaily.com",                // 서울경제
+  "etnews.com",                 // 전자신문
+  "edaily.co.kr",               // 이데일리
+  "fnnews.com",                 // 파이낸셜뉴스
+  "mt.co.kr",                   // 머니투데이
+  "asiae.co.kr",                // 아시아경제
+  "biz.chosun.com",             // 조선비즈
+  "biz.heraldcorp.com",         // 헤럴드경제
+  "businesspost.co.kr",         // 비즈니스포스트
+  "ajunews.com",                // 아주경제
+  "mediapen.com",
+  "nocutnews.co.kr",
+  "ytn.co.kr",
+  "kbs.co.kr",
+  "sbs.co.kr",
+  "mbn.co.kr",
+  "chosun.com",
+  "donga.com",
+  "joongang.co.kr",
+
+  // 프랜차이즈·창업 전문 매체
+  "kfa.or.kr",                  // 한국프랜차이즈산업협회
+  "foodbank.co.kr",             // 식품외식경제
+  "foodnews.co.kr",             // 식품저널
+  "jangup.com",                 // 창업경영신문
 ] as const;
 
 export type PublicSourceDomain = typeof PUBLIC_SOURCE_WHITELIST[number];
