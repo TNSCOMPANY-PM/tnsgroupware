@@ -92,6 +92,35 @@ export function ProfileCardSheet({
   const documentsSectionRef = useRef<HTMLDivElement>(null);
   const { setOverride, setEmploymentPayrollOverride } = useProfileOverrides();
 
+  // 실제 연차 데이터 동적 로드
+  const [dynamicLeave, setDynamicLeave] = useState<{ granted: number; used: number; remaining: number } | null>(null);
+  useEffect(() => {
+    if (!open || !profile || profile.role === "C레벨") return;
+    setDynamicLeave(null);
+    (async () => {
+      try {
+        const [leavesRes, grantsRes] = await Promise.all([
+          fetch("/api/leaves").then(r => r.json()).then(d => Array.isArray(d) ? d : []),
+          fetch("/api/granted-leaves").then(r => r.json()).then(d => Array.isArray(d) ? d : []),
+        ]);
+        const { getAnnualLeaveGranted } = await import("@/utils/leaveCalculator");
+        const year = new Date().getFullYear();
+        const joinDate = profile.employment.joinDate;
+        const joinStr = joinDate?.replace(/\.\s*/g, "-").replace(/-$/, "") ?? "";
+        const legal = joinStr ? getAnnualLeaveGranted(joinStr, year) : 15;
+        const adj = grantsRes.filter((g: { user_id: string; year: number }) => g.user_id === profile.id && g.year === year)
+          .reduce((s: number, g: { days: number }) => s + Number(g.days), 0);
+        const annualTypes = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
+        const used = leavesRes
+          .filter((r: { applicant_id: string; status: string; leave_type: string }) =>
+            r.applicant_id === profile.id && (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") && annualTypes.includes(r.leave_type))
+          .reduce((s: number, r: { days: number }) => s + (Number(r.days) || 0), 0);
+        const granted = legal + adj;
+        setDynamicLeave({ granted, used, remaining: granted - used });
+      } catch { /* ignore */ }
+    })();
+  }, [open, profile]);
+
   useEffect(() => {
     if (open && isOwnProfile && focusDocumentsSection && documentsSectionRef.current) {
       documentsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -158,6 +187,7 @@ export function ProfileCardSheet({
                     onOpenEdit={isOwnProfile ? () => setEditModalOpen(true) : undefined}
                     onOpenEmploymentPayrollEdit={isCLevel ? () => setEmploymentPayrollModalOpen(true) : undefined}
                     onRequestLeaveTab={onRequestLeaveTab}
+                    dynamicLeave={dynamicLeave}
                   />
                 </TabsContent>
                 <TabsContent value="work" className="m-0 p-6 data-[state=inactive]:hidden">
@@ -704,6 +734,7 @@ function HrInfoTab({
   onOpenEdit,
   onOpenEmploymentPayrollEdit,
   onRequestLeaveTab,
+  dynamicLeave,
 }: {
   profile: EmployeeDetailProfile;
   isOwnProfile: boolean;
@@ -712,8 +743,10 @@ function HrInfoTab({
   onOpenEdit?: () => void;
   onOpenEmploymentPayrollEdit?: () => void;
   onRequestLeaveTab?: () => void;
+  dynamicLeave?: { granted: number; used: number; remaining: number } | null;
 }) {
-  const { organization, personal, employment, payroll, leave } = profile;
+  const { organization, personal, employment, payroll, leave: staticLeave } = profile;
+  const leave = dynamicLeave ?? staticLeave;
   // 재직증명서
   const [issuePurpose, setIssuePurpose] = useState<string>("");
   const [purposeError, setPurposeError] = useState(false);
