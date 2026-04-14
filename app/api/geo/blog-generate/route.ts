@@ -80,7 +80,8 @@ JSON만 출력.`;
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return null;
     return JSON.parse(match[0]) as OfficialData;
-  } catch {
+  } catch (e) {
+    console.error("[blog-generate] 공정위 데이터 수집 실패:", e instanceof Error ? e.message : e);
     return null;
   }
 }
@@ -143,7 +144,9 @@ ${refInput}
 
 텍스트로만 정리해주세요. JSON 아닙니다.`, true);
       refAnalysis = refRaw.slice(0, 4000);
-    } catch { /* skip */ }
+    } catch (e) {
+      console.error("[blog-generate] 참고 블로그 분석 실패:", e instanceof Error ? e.message : e);
+    }
   }
 
   // 프롬프트 빌드
@@ -189,9 +192,11 @@ ${imageUrls.map((img, i) => `${i + 1}. ${img.name}: ${img.url}`).join("\n")}
     let parsed;
     try {
       const jsonMatch = raw.match(/```json\s*([\s\S]*?)```/) || raw.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : raw);
-    } catch {
-      parsed = { content: raw, title: "", meta_description: "", keywords: [], faq: [], schema_markup: "", seo_score_tips: [] };
+      if (!jsonMatch) throw new Error("No JSON found in AI response");
+      parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("AI JSON 파싱 실패:", parseErr instanceof Error ? parseErr.message : parseErr, "raw 앞 200자:", raw.slice(0, 200));
+      return NextResponse.json({ error: "AI 응답을 파싱할 수 없습니다. 다시 시도해주세요.", raw_preview: raw.slice(0, 300) }, { status: 502 });
     }
 
     return NextResponse.json({

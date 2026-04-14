@@ -8,7 +8,15 @@ export async function POST(request: Request) {
   const session = await getSessionEmployee();
   if (!session) return unauthorized();
 
-  const accessToken = await getAccessToken();
+  let accessToken: string;
+  try {
+    accessToken = await getAccessToken();
+  } catch (e) {
+    if (e instanceof Error && e.message === "TISTORY_TOKEN_EXPIRED") {
+      return NextResponse.json({ error: "TISTORY_TOKEN_EXPIRED" }, { status: 401 });
+    }
+    return NextResponse.json({ error: "토큰 조회 실패" }, { status: 500 });
+  }
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
 

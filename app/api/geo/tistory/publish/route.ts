@@ -18,7 +18,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const accessToken = await getAccessToken();
+  let accessToken: string;
+  try {
+    accessToken = await getAccessToken();
+  } catch (e) {
+    if (e instanceof Error && e.message === "TISTORY_TOKEN_EXPIRED") {
+      return NextResponse.json({ error: "TISTORY_TOKEN_EXPIRED" }, { status: 401 });
+    }
+    return NextResponse.json({ error: "토큰 조회 실패" }, { status: 500 });
+  }
 
   const params = new URLSearchParams({
     access_token: accessToken,

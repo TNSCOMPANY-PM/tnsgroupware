@@ -1587,10 +1587,9 @@ ${aeoHtml}
                         }
                       } else {
                         // tistory/naver: 앵글 로테이션으로 새 글 생성
-                        const otherTitles = Object.entries(blogConvertedResults)
-                          .filter(([, v]) => v)
-                          .map(([, v]) => { try { const m = v.match(/<title>([^<]*)<\/title>/); return m?.[1] ?? ""; } catch { return ""; } })
-                          .filter(Boolean);
+                        const otherTitles = Object.entries(blogAllResults)
+                          .filter(([ch, v]) => ch !== target && v?.title)
+                          .map(([, v]) => v.title as string);
                         if (blogResult.title) otherTitles.unshift(blogResult.title);
                         const res = await fetch("/api/geo/blog-generate", {
                           method: "POST", headers: { "Content-Type": "application/json" },
