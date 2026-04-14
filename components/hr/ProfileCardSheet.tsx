@@ -764,6 +764,15 @@ function HrInfoTab({
   const [isDownloading, setIsDownloading] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
 
+  const logIssuance = async (certType: "employment" | "career", purpose: string, lang: string, seal: string, memoText: string) => {
+    try {
+      await fetch("/api/certificate-issuances", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employee_id: profile.id, employee_name: profile.name, certificate_type: certType, purpose, language: lang, seal_type: seal, memo: memoText }),
+      });
+    } catch { /* ignore */ }
+  };
+
   const handleDownload = async () => {
     if (!issuePurpose) { setPurposeError(true); return; }
     setPurposeError(false);
@@ -778,6 +787,7 @@ function HrInfoTab({
         language,
         memo: memo.trim(),
       });
+      await logIssuance("employment", issuePurpose, language, sealType, memo.trim());
       setToastVisible(true);
       setTimeout(() => setToastVisible(false), 4000);
     } finally {
@@ -791,6 +801,7 @@ function HrInfoTab({
     setIsCareerDownloading(true);
     try {
       await downloadCareerCertificate(profile, { purposeKey: careerPurpose, sealType: careerSealType, memo: careerMemo.trim() });
+      await logIssuance("career", careerPurpose, "ko", careerSealType, careerMemo.trim());
       setToastVisible(true);
       setTimeout(() => setToastVisible(false), 4000);
     } finally {

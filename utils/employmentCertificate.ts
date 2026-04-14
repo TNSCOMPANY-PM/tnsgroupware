@@ -17,14 +17,31 @@ const PURPOSE_LABELS: Record<string, string> = {
   personal: "개인 소장",
 };
 
-/** 대표이사 인장: 빨간 원형, 중앙 "대표이사", 상단 호에 회사명 */
-const SEAL_SVG = `<span class="seal-wrap"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="50" cy="50" r="46" fill="#b91c1c" stroke="#9f1239" stroke-width="1"/>
-  <text x="50" y="52" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="16" font-weight="bold" font-family="Pretendard, Malgun Gothic, sans-serif">대표이사</text>
-  <path id="sealArc" d="M 12,28 A 38,38 0 0 1 88,28" fill="none"/>
-  <text fill="white" font-size="8" font-weight="600" font-family="Pretendard, Malgun Gothic, sans-serif">
-    <textPath href="#sealArc" startOffset="50%" text-anchor="middle">티앤에스컴퍼니 주식회사</textPath>
+/** 대표이사 법인 인감 — 전통 한국 직인 스타일 (2중 원, 외곽 회사명, 중앙 대표이사) */
+const SEAL_SVG = `<span class="seal-wrap" style="display:inline-block;width:80px;height:80px;vertical-align:middle;margin-left:8px;opacity:0.92"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- 외곽 이중 테두리 -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#b91c1c" stroke-width="4"/>
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#b91c1c" stroke-width="2"/>
+  <!-- 중앙 사각 구획 -->
+  <rect x="32" y="62" width="136" height="76" rx="4" fill="none" stroke="#b91c1c" stroke-width="2"/>
+  <!-- 대표이사 중앙 텍스트 -->
+  <text x="100" y="108" text-anchor="middle" dominant-baseline="middle" fill="#b91c1c" font-size="38" font-weight="900" font-family="'Noto Serif KR', 'Batang', serif" letter-spacing="8">대표이사</text>
+  <!-- 상단 호: 주식회사 -->
+  <path id="sealArcTop" d="M 30,75 A 82,82 0 0 1 170,75" fill="none"/>
+  <text fill="#b91c1c" font-size="16" font-weight="700" font-family="'Noto Serif KR', 'Batang', serif" letter-spacing="3">
+    <textPath href="#sealArcTop" startOffset="50%" text-anchor="middle">주 식 회 사</textPath>
   </text>
+  <!-- 하단 호: 회사명 -->
+  <path id="sealArcBottom" d="M 25,140 A 82,82 0 0 0 175,140" fill="none"/>
+  <text fill="#b91c1c" font-size="14" font-weight="700" font-family="'Noto Serif KR', 'Batang', serif" letter-spacing="2">
+    <textPath href="#sealArcBottom" startOffset="50%" text-anchor="middle">티 앤 에 스 컴 퍼 니</textPath>
+  </text>
+  <!-- 미세 질감 (인감 느낌) -->
+  <circle cx="100" cy="100" r="93" fill="url(#sealNoise)" opacity="0.06"/>
+  <defs>
+    <filter id="sealNoiseF"><feTurbulence baseFrequency="0.9" numOctaves="4" seed="3"/></filter>
+    <pattern id="sealNoise" width="100%" height="100%"><rect width="200" height="200" filter="url(#sealNoiseF)"/></pattern>
+  </defs>
 </svg></span>`;
 
 function maskResidentId(id: string): string {

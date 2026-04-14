@@ -21,6 +21,7 @@ const AnnualLeavePromotionTab = dynamic(() => import("@/components/hr/AnnualLeav
 const LabourLawVerificationDashboard = dynamic(() => import("@/components/hr/LabourLawVerificationDashboard").then((m) => ({ default: m.LabourLawVerificationDashboard })), { ssr: false });
 const ContractSendTab = dynamic(() => import("@/components/hr/ContractSendTab").then((m) => ({ default: m.ContractSendTab })), { ssr: false });
 const ContractManageTab = dynamic(() => import("@/components/hr/ContractManageTab").then((m) => ({ default: m.ContractManageTab })), { ssr: false });
+const CertificateHistoryTab = dynamic(() => import("@/components/hr/CertificateHistoryTab").then((m) => ({ default: m.CertificateHistoryTab })), { ssr: false });
 import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
 import { createEmployee } from "./actions";
 import { useSearchParams } from "next/navigation";
@@ -126,6 +127,15 @@ function HRPageContent() {
               연차 현황
             </TabsTrigger>
           )}
+          {isCLevel && (
+            <TabsTrigger
+              value="cert-history"
+              className="flex-1 gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <FileSignature className="size-4" />
+              발행 내역
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="members">
@@ -158,6 +168,12 @@ function HRPageContent() {
             <section className="pt-6">
               <LabourLawVerificationDashboard />
             </section>
+          </TabsContent>
+        )}
+
+        {isCLevel && (
+          <TabsContent value="cert-history">
+            <CertificateHistoryTab />
           </TabsContent>
         )}
 
