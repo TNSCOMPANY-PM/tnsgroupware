@@ -1,4 +1,3 @@
-import { xlsxBufferToText } from "./factExtractorXlsx";
 import { createHash } from "crypto";
 
 export type ParseMeta = {
@@ -60,15 +59,6 @@ export async function parseFileWithMeta(url: string, filename: string): Promise<
       return { text, size, hash, isScanPdf: false };
     } catch (e) {
       console.error(`DOCX 파싱 실패 (${filename}):`, e);
-      return { text: "", size, hash, isScanPdf: false };
-    }
-  }
-
-  if (ext === "xlsx" || ext === "xls") {
-    try {
-      return { text: xlsxBufferToText(buf), size, hash, isScanPdf: false };
-    } catch (e) {
-      console.error(`Excel 파싱 실패 (${filename}):`, e);
       return { text: "", size, hash, isScanPdf: false };
     }
   }
