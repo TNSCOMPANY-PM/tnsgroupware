@@ -134,7 +134,7 @@ function buildDataBlock(data: BrandData, official?: OfficialData): string {
   return lines.join("\n");
 }
 
-// ── 앵글 3종 정의 (채널 고정 X, 주제에 따라 로테이션) ──
+// ── 앵글 3종 정의 (주 앵글: 주제에서 추출, 모든 채널 공유) ──
 type Angle = "cost" | "profit" | "compare";
 const ANGLE_LABEL: Record<Angle, string> = {
   cost: "얼마 드냐",
@@ -142,7 +142,7 @@ const ANGLE_LABEL: Record<Angle, string> = {
   compare: "왜 이걸 해야 하냐",
 };
 
-// 주제 키워드로 원본(frandoor) 앵글 자동 판별
+// 주제 키워드로 주 앵글 자동 판별 (3채널 공유)
 function detectPrimaryAngle(topic: string): Angle {
   const t = topic.toLowerCase();
   if (/수익|마진|매출|순이익|투자회수|ROI|월매출|연매출|순수익|남는/.test(t)) return "profit";
@@ -151,33 +151,66 @@ function detectPrimaryAngle(topic: string): Angle {
   return "cost";
 }
 
-// 원본 앵글 기준으로 채널별 앵글 배분
-function getAngleRotation(primaryAngle: Angle): Record<string, Angle> {
-  const rotation: Record<string, Record<string, Angle>> = {
-    cost:    { frandoor: "cost",    tistory: "profit",  naver: "compare" },
-    profit:  { frandoor: "profit",  tistory: "compare", naver: "cost" },
-    compare: { frandoor: "compare", tistory: "cost",    naver: "profit" },
-  };
-  return rotation[primaryAngle];
+// ── 하위 프레임 (주 앵글 유지, 채널별 세부 초점만 분산) ──
+type SubFrame = "A" | "B" | "C";
+
+// 채널 → 하위 프레임 고정 매핑
+const CHANNEL_SUBFRAME: Record<string, SubFrame> = {
+  frandoor: "A",
+  tistory: "B",
+  naver: "C",
+  medium: "A",
+};
+
+// 주 앵글별 하위 프레임 3종 정의
+const SUBFRAME_BY_ANGLE: Record<Angle, Record<SubFrame, { label: string; focus: string; subtitleHint: string }>> = {
+  cost: {
+    A: { label: "총비용 분해", focus: "총비용과 항목별(가맹금·교육비·보증금·인테리어) 세부 금액 중심", subtitleHint: "항목별로 뜯어보면?, 숨은 비용까지 합치면?" },
+    B: { label: "자금 조달·실투자금", focus: "대출 구조·무이자 지원·실투자금 계산·회수 구조 중심", subtitleHint: "대출은 어디서 얼마나?, 실투자금 계산" },
+    C: { label: "장기 유지비·운영비", focus: "월 고정비·재계약·리모델링·장기 유지비 중심", subtitleHint: "매달 나가는 고정비는?, 재계약·리모델링 비용" },
+  },
+  profit: {
+    A: { label: "매출·마진 구조", focus: "월매출 구성·원가율·순마진율 중심", subtitleHint: "월매출 평균은?, 원가 빼면 실제로 남는 돈은?" },
+    B: { label: "투자회수·손익분기", focus: "회수기간·손익분기 시점·대출 상환 반영 현금흐름 중심", subtitleHint: "투자금 회수까지 몇 개월?, 대출 상환까지 넣으면?" },
+    C: { label: "수익 모델·매출 확대 구조", focus: "매출 올리는 구조(자동화·배달·시간대 비중) 중심", subtitleHint: "매출 올리는 구조는?, 시간대별·채널별 비중" },
+  },
+  compare: {
+    A: { label: "비용 대조", focus: "초기 창업비용·항목별 금액 대조 중심", subtitleHint: "초기 자금은 어디가 유리한가?, 항목별 비용 하나하나 따져보면?" },
+    B: { label: "수익·회수 대조", focus: "월매출·마진·투자회수·리스크 대조 중심", subtitleHint: "월매출·회수기간으로 보면?, 수익 구조 어디가 안정적인가?" },
+    C: { label: "진입·운영 대조", focus: "시작 난이도·운영 부담·지원 체계·리스크 대조 중심", subtitleHint: "혼자 시작할 수 있나?, 운영 부담은 어디가 더 큰가?" },
+  },
+};
+
+// 채널별 하위 프레임 맵 반환 (주 앵글은 3채널 공유)
+function getSubFrameRotation(): Record<string, SubFrame> {
+  return { ...CHANNEL_SUBFRAME };
 }
 
 // 앵글별 answer-box + 본론 구조 + FAQ 방향 + 결론 지시
-function buildAngleDirective(angle: Angle, data: BrandData, otherAngles: { channel: string; angle: Angle }[]): string {
-  const otherDesc = otherAngles.map(o => `- ${o.channel}: "${ANGLE_LABEL[o.angle]}" (${o.angle})`).join("\n");
+function buildAngleDirective(
+  angle: Angle,
+  subFrame: SubFrame,
+  data: BrandData,
+  otherChannelFrames: { channel: string; frame: SubFrame }[],
+): string {
+  const mine = SUBFRAME_BY_ANGLE[angle][subFrame];
+  const otherDesc = otherChannelFrames
+    .map(o => {
+      const f = SUBFRAME_BY_ANGLE[angle][o.frame];
+      return `- ${o.channel}: "${f.label}" — ${f.focus}`;
+    })
+    .join("\n");
 
   const ANGLE_BLOCKS: Record<Angle, string> = {
     cost: `
-★★★ 진입 질문: "얼마 드냐?" — 비용 구조 해부 ★★★
-다른 채널은 다른 질문에 답합니다:
-${otherDesc}
-이 글은 오직 "비용"에 답합니다. 수익·비교는 간접 언급만.
+★★★ 주 앵글: "얼마 드냐?" — 비용 구조 해부 ★★★
+이 주 앵글은 3채널 전체가 공유합니다. 글의 주제는 동일하게 "비용"입니다.
+수익·차별점은 주제에서 벗어나므로 간접 언급만.
 
 [앵글 상세]
 - 글 전체가 "이 브랜드, 시작하려면 정확히 얼마 필요한가"에 대한 답
 - 총비용 → 항목별 분해(가맹금/교육비/인테리어/보증금) → 숨은 비용 → 대출 구조 → 실투자금
 - answer-box: 총비용 + 실투자금 즉시 제시
-- 소제목 예시: "항목별로 뜯어보면?", "대출은 어디서 얼마나?", "숨은 비용까지 합치면?", "실투자금 계산"
-- FAQ: 비용 관련 ("로열티 별도?", "인테리어 본사 지정?", "추가 비용?")
 - 결론 박스 제목: "비용 총정리"
 - stat-row: 총비용 / 실투자금 / 대출가능액
 
@@ -189,17 +222,14 @@ ${otherDesc}
 </div>`,
 
     profit: `
-★★★ 진입 질문: "얼마 남냐?" — 수익성 분석 ★★★
-다른 채널은 다른 질문에 답합니다:
-${otherDesc}
-이 글은 오직 "수익"에 답합니다. 비용·비교는 간접 언급만.
+★★★ 주 앵글: "얼마 남냐?" — 수익성 분석 ★★★
+이 주 앵글은 3채널 전체가 공유합니다. 글의 주제는 동일하게 "수익"입니다.
+비용·차별점은 주제에서 벗어나므로 간접 언급만.
 
 [앵글 상세]
 - 글 전체가 "이 브랜드, 시작하면 실제로 얼마 버는가"에 대한 답
 - 월매출 → 원가율·마진율 → 월순이익 → 투자회수 기간 → 손익분기
 - answer-box: 월매출 + 순이익 + 투자회수 기간 즉시 제시
-- 소제목 예시: "월매출 평균은?", "원가 빼면 실제로 남는 돈은?", "투자금 회수까지 몇 개월?", "매출 올리는 구조는?"
-- FAQ: 수익 관련 ("마진율 실제로?", "배달 비중은?", "로열티 빼면?", "계절 영향?")
 - 결론 박스 제목: "수익 구조 요약"
 - stat-row: 월매출 / 월순이익 / 투자회수기간
 
@@ -211,38 +241,50 @@ ${otherDesc}
 </div>`,
 
     compare: `
-★★★ 진입 질문: "왜 이걸 해야 하냐?" — 비교·차별점 분석 ★★★
-다른 채널은 다른 질문에 답합니다:
-${otherDesc}
-이 글은 오직 "차별점과 선택 이유"에 답합니다. 비용·수익 상세 분해는 간접 언급만.
+★★★ 주 앵글: "왜 이걸 해야 하냐?" — 비교·차별점 분석 ★★★
+이 주 앵글은 3채널 전체가 공유합니다. 글의 주제는 동일하게 "비교·차별점"입니다.
+비용·수익 상세 분해는 주제에서 벗어나므로 간접 언급만.
 
 [앵글 상세]
-- 글 전체가 "이 브랜드를 선택해야 하는 이유"에 대한 답
-- 업종 평균 대비 포지셔닝 → 차별화 포인트(자동화/운영모델/지원체계) → 장단점 정리
-- answer-box: 업종 평균 대비 핵심 차별점 즉시 제시
-- 소제목 예시: "업종 평균이랑 뭐가 다른가?", "이 브랜드만의 구조적 차이는?", "장점 3가지, 단점 2가지", "어떤 사람에게 맞나?"
-- FAQ: 비교 관련 ("폐점률은?", "본사 지원 뭐가 있나?", "경쟁력이 뭐냐?", "리스크는?")
+- 글 전체가 "비교 대상과 이 브랜드 중 무엇을 선택해야 하는가"에 대한 답
+- 주제에 제시된 비교 대상이 있으면 (예: "개인창업 vs 프랜차이즈") 그 대상 그대로 비교 축으로 사용
+- 대등 비교 대상이 없으면 "업종 평균" 축으로 비교
+- answer-box: 비교 축 기준 핵심 차별 수치 즉시 제시
 - 결론 박스 제목: "선택 판단 요약"
-- stat-row: 가맹점수 / 폐점률 / 업종평균대비
+- stat-row: 비교 축 핵심 3개 수치
 
 [answer-box 템플릿]
 <div class="answer-box">
   <div class="q">결론부터</div>
-  <div class="a">${data.brand.name}, 업종 평균 대비 <span>[핵심 차별 수치]</span>. [차별점 한 줄].</div>
+  <div class="a">${data.brand.name}, 비교 대상 대비 <span>[핵심 차별 수치]</span>. [차별점 한 줄].</div>
   <div class="detail">[포지셔닝 요약 1줄]<br>[핵심 강점 1줄]<br>[주의할 점 1줄]</div>
 </div>`,
   };
-  return ANGLE_BLOCKS[angle];
+
+  const subFrameBlock = `
+[SUB-FRAME LOCK — 이 채널 전용 하위 프레임]
+주 앵글(${ANGLE_LABEL[angle]})은 3채널 모두 동일. 글 주제·핵심 질문·결론 축 유지.
+이 채널은 "${mine.label}" 하위 프레임으로 같은 주제를 다룹니다.
+중심 초점: ${mine.focus}
+소제목 힌트: ${mine.subtitleHint}
+
+다른 채널의 하위 프레임 (겹치지 말 것):
+${otherDesc}
+
+글 전체 주제는 주 앵글에 맞춰 유지하되, 본론 소제목·데이터 선택·결론 포인트·FAQ 질문을 위 "${mine.label}" 하위 프레임 관점으로 구성하라.
+주제가 명시한 비교 대상(예: "개인창업 vs 프랜차이즈")이 있으면 모든 채널이 그 비교 대상을 그대로 유지한다. 하위 프레임은 비교 기준을 바꿀 뿐, 비교 대상 자체를 바꾸지 않는다.`;
+
+  return ANGLE_BLOCKS[angle] + "\n" + subFrameBlock;
 }
 
-const CHANNEL: Record<string, (data: BrandData, angle?: Angle, otherAngles?: { channel: string; angle: Angle }[]) => string> = {
-  frandoor: (data, angle = "cost", otherAngles = []) => `
+const CHANNEL: Record<string, (data: BrandData, angle?: Angle, subFrame?: SubFrame, otherChannelFrames?: { channel: string; frame: SubFrame }[]) => string> = {
+  frandoor: (data, angle = "cost", subFrame = "A", otherChannelFrames = []) => `
 [SYSTEM]
 당신은 프랜차이즈 창업 정보를 다루는 전문 에디터입니다.
 결과물은 HTML로 출력합니다. .og-wrap 안에 들어갈 HTML을 생성합니다.
 CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 
-${buildAngleDirective(angle, data, otherAngles)}
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames)}
 
 [STRUCTURE — 이 순서를 반드시 지킬 것]
 
@@ -299,13 +341,13 @@ ${buildDataBlock(data)}
 [OUTPUT] HTML만 출력. <div class="og-wrap">으로 감싸지 말 것 (프론트에서 감쌈). <style> 태그 금지. 분량 3,000~5,000자.
 `,
 
-  tistory: (data, angle = "profit", otherAngles = []) => `
+  tistory: (data, angle = "cost", subFrame = "B", otherChannelFrames = []) => `
 [SYSTEM]
 당신은 프랜차이즈 창업 시장을 분석하는 블로거입니다.
 결과물은 HTML로 출력합니다. <div class="og-wrap">으로 전체를 감쌉니다.
 CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 
-${buildAngleDirective(angle, data, otherAngles)}
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames)}
 
 [STRUCTURE]
 ① answer-box (위 앵글 템플릿 사용)
@@ -358,7 +400,7 @@ ${buildDataBlock(data)}
 [OUTPUT] 완성된 HTML. JSON-LD(FAQPage + Organization) + <div class="og-wrap">...</div> 전부 포함. <style>은 포함하지 말 것. 분량 3,000~5,000자.
 `,
 
-  naver: (data, angle = "compare", otherAngles = []) => `
+  naver: (data, angle = "cost", subFrame = "C", otherChannelFrames = []) => `
 [SYSTEM]
 당신은 직접 창업 정보를 찾아다니며 블로그에 기록하는 30대 블로거입니다.
 친구한테 카톡으로 설명하듯 편하게 쓰되, 수치는 정확하게.
@@ -369,7 +411,7 @@ ${buildDataBlock(data)}
 줄바꿈은 \\n, 강조는 텍스트 그대로(굵게 처리는 에디터에서 수동).
 표가 필요하면 | 구분자로 텍스트 표 형식 사용.
 
-${buildAngleDirective(angle, data, otherAngles)}
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames)}
 
 [WRITING STYLE]
 - 말투: "~예요", "~죠", "~거든요". 진짜 대화하듯
@@ -410,7 +452,7 @@ ${buildDataBlock(data)}
 [OUTPUT] 분량 1,200~2,000자 | content 필드에 순수 텍스트(HTML 금지) | 해시태그 마지막 나열
 `,
 
-  medium: (data, _angle, _otherAngles) => `
+  medium: (data, _angle, _subFrame, _otherChannelFrames) => `
 [SYSTEM]
 You are a franchise industry analyst writing for Medium's English-speaking audience.
 ★★★ CRITICAL: Write EVERYTHING in English. The entire content field must be in English. Not Korean. ★★★
@@ -568,7 +610,7 @@ function getJsonOutput() {
 export type ReaderStage = "awareness" | "consideration" | "decision";
 export type SearchIntent = "informational" | "navigational" | "transactional";
 export type Channel = "frandoor" | "tistory" | "naver" | "medium";
-export { type Angle, detectPrimaryAngle, getAngleRotation, ANGLE_LABEL };
+export { type Angle, type SubFrame, detectPrimaryAngle, getSubFrameRotation, SUBFRAME_BY_ANGLE, ANGLE_LABEL };
 
 /**
  * 키워드 → 권장 조합
@@ -685,13 +727,15 @@ export function buildPrompt(
 4. 상식 체크: 배수 10배↑, 순마진 40%↑, 회수 1개월↓ → 재검토.
 5. "25년 28개 오픈" = 연간 오픈 실적. 총 가맹점 수 아님. DATA에 총수 없으면 [공정위 공시 데이터] 블록 참조.`;
 
-  // 앵글 로테이션: 주제에서 원본 앵글 감지 → 채널별 자동 배분
+  // 주 앵글: 주제에서 감지 → 3채널 모두 공유 (주제 유지)
+  // 하위 프레임: 채널별로 다르게 할당 → 세부 초점만 분산 (중복 방지)
   const primaryAngle = topic ? detectPrimaryAngle(topic) : "cost" as Angle;
-  const angleMap = getAngleRotation(primaryAngle);
-  const myAngle = angleMap[channel] ?? primaryAngle;
-  const otherAngles = Object.entries(angleMap)
-    .filter(([ch]) => ch !== channel)
-    .map(([ch, a]) => ({ channel: ch, angle: a }));
+  const myAngle = primaryAngle;
+  const subFrameMap = getSubFrameRotation();
+  const mySubFrame = subFrameMap[channel] ?? "A";
+  const otherChannelFrames = Object.entries(subFrameMap)
+    .filter(([ch]) => ch !== channel && ch !== "medium")
+    .map(([ch, frame]) => ({ channel: ch, frame }));
 
   // UTM 파라미터 자동 부여 (frandoor은 원본 URL)
   const dataWithUtm = { ...data, brand: { ...data.brand } };
@@ -722,7 +766,7 @@ export function buildPrompt(
   }
 
   return [
-    CHANNEL[channel](dataWithUtm, myAngle, otherAngles),
+    CHANNEL[channel](dataWithUtm, myAngle, mySubFrame, otherChannelFrames),
     officialBlock,
     SOURCE_PRIORITY,
     CALC_RULES,
