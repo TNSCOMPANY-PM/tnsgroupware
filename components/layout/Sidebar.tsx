@@ -16,6 +16,7 @@ import {
   MessageCircle,
   FolderKanban,
   Radar,
+  PenTool,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/calendar",   label: "캘린더",    icon: CalendarDays },
   { href: "/approvals",  label: "전자결재",  icon: ClipboardCheck },
   { href: "/frandoor",   label: "Frandoor",   icon: Radar },
+  { href: "/content",    label: "콘텐츠 발행", icon: PenTool },
   { href: "/reports",    label: "보고서",    icon: FileBarChart },
   { href: "/hr",         label: "HR",        icon: Users },
 ] as const;

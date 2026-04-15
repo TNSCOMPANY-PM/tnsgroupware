@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Plus, Play, Trash2, ChevronRight, CheckCircle2, XCircle, TrendingUp, Bot, Search, MessageCircle, Download, Upload, FileText, Copy, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OG_WRAP_CSS as OG_WRAP_CSS_INLINE } from "@/constants/blogCssTemplate";
@@ -70,7 +71,7 @@ export default function GeoPage() {
   const [selectedRun, setSelectedRun] = useState<CheckRun | null>(null);
   const [runPage, setRunPage] = useState(0);
   const [checkTab, setCheckTab] = useState<"regular" | "before">("regular");
-  const [mainTab, setMainTab] = useState<"check" | "seo" | "aeo" | "blog">("check");
+  const [mainTab, setMainTab] = useState<"check" | "seo" | "aeo" | "history">("check");
   const [aeoAiRunning, setAeoAiRunning] = useState(false);
   const [aeoAiPlatform, setAeoAiPlatform] = useState<"google" | "naver">("google");
   type AeoAiRun = { id: string; platform: string; total_keywords: number; cited_count: number; score: number; created_at: string; results: AeoAiResultItem[] };
@@ -94,20 +95,12 @@ export default function GeoPage() {
   const [aeoResults, setAeoResults] = useState<AeoResult[] | null>(null);
   const [aeoPlatform, setAeoPlatform] = useState<"google" | "naver">("google");
   const [aeoScore, setAeoScore] = useState<{ cited_count: number; total: number; score: number } | null>(null);
-  const [blogPlatform, setBlogPlatform] = useState<"tistory" | "naver" | "frandoor" | "medium">("frandoor");
-  const [blogTopic, setBlogTopic] = useState("");
-  const [blogProvider, setBlogProvider] = useState<"openai" | "gemini" | "claude">("claude");
-  const [blogReaderStage, setBlogReaderStage] = useState<"awareness" | "consideration" | "decision">("decision");
-  const [blogSearchIntent, setBlogSearchIntent] = useState<"informational" | "navigational" | "transactional">("transactional");
-  const [blogGenerating, setBlogGenerating] = useState(false);
-  type BlogResultType = { title?: string; meta_description?: string; keywords?: string[]; content?: string; faq?: { q: string; a: string }[]; schema_markup?: string; seo_score_tips?: string[]; sources_cited?: string[]; character_count?: number; error?: string };
-  const [blogResult, setBlogResult] = useState<BlogResultType | null>(null);
-  const [blogAllResults, setBlogAllResults] = useState<Record<string, BlogResultType>>({});
-  const [blogAllGenerating, setBlogAllGenerating] = useState(false);
-  const [blogConverting, setBlogConverting] = useState<string | null>(null);
-  const [blogConvertedResults, setBlogConvertedResults] = useState<Record<string, string>>({});
-  const [blogViewMode, setBlogViewMode] = useState<"preview" | "html">("preview");
-  const [blogRefLinks, setBlogRefLinks] = useState<string[]>(["", "", "", "", ""]);
+  type BrandPost = {
+    id: string; channel: string; title: string; status: string;
+    target_date: string | null; published_url: string | null; created_at: string;
+    content_type?: string;
+  };
+  const [brandPosts, setBrandPosts] = useState<BrandPost[]>([]);
 
   // D0~D3 설명
   const DEPTH_DESC: Record<string, string> = {
@@ -1070,20 +1063,16 @@ ${aeoHtml}
           className={cn("px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0",
             mainTab === "aeo" ? "border-purple-500 text-purple-600" : "border-transparent text-slate-400 hover:text-slate-600"
           )}><Bot className="h-3.5 w-3.5 inline mr-1" />AEO 체크</button>
-        <button onClick={() => {
-          setMainTab("blog");
+        <button onClick={async () => {
+          setMainTab("history");
           if (selectedBrand) {
-            if (selectedBrand?.fact_data && Array.isArray(selectedBrand.fact_data)) {
-              const refEntry = selectedBrand.fact_data.find((d: { label: string }) => d.label === "__blog_ref_links__");
-              if (refEntry) {
-                try { const links = JSON.parse((refEntry as { keyword: string }).keyword); const padded = [...links, "", "", "", "", ""].slice(0, 5); setBlogRefLinks(padded); } catch { setBlogRefLinks(["", "", "", "", ""]); }
-              } else { setBlogRefLinks(["", "", "", "", ""]); }
-            } else { setBlogRefLinks(["", "", "", "", ""]); }
+            const res = await fetch(`/api/geo/blog-drafts?brand_id=${selectedBrand.id}`);
+            if (res.ok) setBrandPosts(await res.json());
           }
         }}
           className={cn("px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0",
-            mainTab === "blog" ? "border-violet-500 text-violet-600" : "border-transparent text-slate-400 hover:text-slate-600"
-          )}><FileText className="h-3.5 w-3.5 inline mr-1" />블로그 작성</button>
+            mainTab === "history" ? "border-violet-500 text-violet-600" : "border-transparent text-slate-400 hover:text-slate-600"
+          )}><FileText className="h-3.5 w-3.5 inline mr-1" />발행 이력</button>
         {mainTab === "check" && <>
           <div className="w-px h-4 bg-slate-200 mx-1 shrink-0" />
           <button onClick={() => { setCheckTab("regular"); setRunPage(0); }}
@@ -1096,7 +1085,7 @@ ${aeoHtml}
             )}>BEFORE</button>
         </>}
         <span className="hidden lg:block ml-auto text-[10px] text-slate-400 whitespace-nowrap">
-          {mainTab === "seo" ? "네이버 검색 노출 순위 모니터링" : mainTab === "aeo" ? "AI 답변(AI Overview·CLOVA X) 인용 여부 체크" : mainTab === "blog" ? "SEO·AEO·GEO 최적화 콘텐츠 생성" : checkTab === "before" ? "서비스 이용 전 현황 기록용" : "정기 모니터링 기록"}
+          {mainTab === "seo" ? "네이버 검색 노출 순위 모니터링" : mainTab === "aeo" ? "AI 답변(AI Overview·CLOVA X) 인용 여부 체크" : mainTab === "history" ? "이 브랜드로 발행된 콘텐츠 이력 (읽기 전용)" : checkTab === "before" ? "서비스 이용 전 현황 기록용" : "정기 모니터링 기록"}
         </span>
       </div>
 
@@ -1500,459 +1489,63 @@ ${aeoHtml}
         </div>
       )}
 
-      {mainTab === "blog" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 좌측: 블로그 생성 결과 */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* 원본 결과 표시 */}
-            {false && (
-              <div></div>
-            )}
-
-            {blogResult ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-700">생성 결과 {blogResult.character_count ? `(${blogResult.character_count}자)` : ""}</h2>
-                  <div className="flex gap-2">
-                    <button onClick={async () => {
-                      if (!selectedBrand) return;
-                      const today = new Date().toISOString().slice(0, 10);
-                      const res = await fetch("/api/geo/blog-drafts", {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          brand_id: selectedBrand.id, channel: "frandoor",
-                          title: blogResult.title ?? "", content: blogResult.content ?? "",
-                          meta_description: blogResult.meta_description ?? "",
-                          keywords: blogResult.keywords ?? [], faq: blogResult.faq ?? [],
-                          schema_markup: blogResult.schema_markup ?? "", target_date: today,
-                        }),
-                      });
-                      if (res.ok) alert("저장 완료");
-                      else alert("저장 실패");
-                    }} className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1"><Download className="h-3 w-3" />저장하기</button>
-                    <button onClick={() => { navigator.clipboard.writeText(blogResult.content ?? ""); alert("본문 복사됨"); }}
-                      className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"><Copy className="h-3 w-3" />본문 복사</button>
-                    {blogResult.schema_markup && (
-                      <button onClick={() => { navigator.clipboard.writeText(blogResult.schema_markup ?? ""); alert("스키마 복사됨"); }}
-                        className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"><Copy className="h-3 w-3" />스키마 복사</button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 제목 + 메타 */}
-                {blogResult.title && (
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <p className="text-xs text-slate-400 mb-1">제목</p>
-                    <p className="text-base font-bold text-slate-800">{blogResult.title}</p>
-                    {blogResult.meta_description && <p className="text-xs text-slate-500 mt-2">{blogResult.meta_description}</p>}
-                    {blogResult.keywords && blogResult.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {blogResult.keywords.map((kw, i) => <span key={i} className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{kw}</span>)}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 통합 프리뷰 패널 */}
-                {(() => {
-                  type PreviewTab = "frandoor" | "tistory" | "naver" | "medium";
-                  const tabs: { key: PreviewTab; label: string; color: string }[] = [
-                    { key: "frandoor", label: "원본", color: "blue" },
-                    { key: "tistory", label: "티스토리", color: "orange" },
-                    { key: "naver", label: "네이버", color: "green" },
-                    { key: "medium", label: "Medium", color: "slate" },
-                  ];
-                  const activePreview = blogPlatform as PreviewTab;
-                  const convertedContent = blogConvertedResults[activePreview] ?? null;
-                  const isOriginal = activePreview === "frandoor";
-                  const hasConverted = !isOriginal && !!convertedContent;
-
-                  // 채널별 생성/변환 트리거
-                  const triggerConvert = async (target: PreviewTab) => {
-                    if (target === "frandoor" || blogConvertedResults[target] || blogConverting) return;
-                    setBlogConverting(target);
-                    try {
-                      if (target === "medium") {
-                        // Medium: 기존 blog-convert (영문 번역)
-                        const res = await fetch("/api/geo/blog-convert", {
-                          method: "POST", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            content: blogResult.content, title: blogResult.title ?? "",
-                            target, faq: blogResult.faq, keywords: blogResult.keywords,
-                            meta_description: blogResult.meta_description, schema_markup: blogResult.schema_markup,
-                          }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          setBlogConvertedResults(prev => ({ ...prev, [target]: data.converted_content }));
-                        }
-                      } else {
-                        // tistory/naver: 앵글 로테이션으로 새 글 생성
-                        const otherTitles = Object.entries(blogAllResults)
-                          .filter(([ch, v]) => ch !== target && v?.title)
-                          .map(([, v]) => v.title as string);
-                        if (blogResult.title) otherTitles.unshift(blogResult.title);
-                        const res = await fetch("/api/geo/blog-generate", {
-                          method: "POST", headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            brand_id: selectedBrand!.id,
-                            platform: target,
-                            topic: blogTopic,
-                            provider: blogProvider,
-                            ref_links: blogRefLinks.filter(l => l.trim()),
-                            reader_stage: blogReaderStage,
-                            search_intent: blogSearchIntent,
-                            other_channels_titles: otherTitles,
-                          }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          setBlogConvertedResults(prev => ({ ...prev, [target]: data.content ?? "" }));
-                          setBlogAllResults(prev => ({ ...prev, [target]: data }));
-                        }
-                      }
-                    } catch { /* ignore */ }
-                    setBlogConverting(null);
-                  };
-
-                  return (
-                    <div className="border border-slate-200 rounded-lg overflow-hidden">
-                      {/* 플랫폼 탭 */}
-                      <div className="flex items-center bg-slate-50 border-b border-slate-200">
-                        {tabs.map(t => (
-                          <button key={t.key} onClick={() => { setBlogPlatform(t.key); if (t.key !== "frandoor") triggerConvert(t.key); }}
-                            className={cn("flex-1 text-[10px] font-medium py-2 border-b-2 transition-colors",
-                              activePreview === t.key ? `border-${t.color}-500 text-${t.color}-600 bg-white` : "border-transparent text-slate-400 hover:text-slate-600"
-                            )}>
-                            {t.label}
-                            {t.key !== "frandoor" && blogConvertedResults[t.key] && " ✓"}
-                            {blogConverting === t.key && " ..."}
-                          </button>
-                        ))}
-                        <div className="flex gap-1 px-2">
-                          <button onClick={() => setBlogViewMode("preview")}
-                            className={cn("text-[9px] px-2 py-0.5 rounded", blogViewMode === "preview" ? "bg-slate-900 text-white" : "text-slate-400")}>미리보기</button>
-                          <button onClick={() => setBlogViewMode("html")}
-                            className={cn("text-[9px] px-2 py-0.5 rounded", blogViewMode === "html" ? "bg-slate-900 text-white" : "text-slate-400")}>코드</button>
-                        </div>
-                      </div>
-
-                      {/* 프리뷰 영역 */}
-                      <div className="max-h-[500px] overflow-y-auto">
-                        {blogConverting === activePreview ? (
-                          <div className="p-8 text-center text-sm text-slate-400 animate-pulse">
-                            {activePreview === "medium" ? "영문 번역 중..." : "채널별 앵글로 생성 중... (30초~1분)"}
-                          </div>
-                        ) : blogViewMode === "preview" ? (
-                          isOriginal ? (
-                            <iframe
-                              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${OG_WRAP_CSS_INLINE}</head><body style="margin:16px;font-family:-apple-system,'Segoe UI',sans-serif"><div class="og-wrap">${blogResult.content ?? ""}</div></body></html>`}
-                              className="w-full border-0" style={{ height: 500 }} sandbox="allow-same-origin" />
-                          ) : activePreview === "tistory" && hasConverted ? (
-                            <iframe
-                              srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${OG_WRAP_CSS_INLINE}</head><body style="margin:16px;font-family:-apple-system,'Segoe UI',sans-serif">${convertedContent}</body></html>`}
-                              className="w-full border-0" style={{ height: 500 }} sandbox="allow-same-origin" />
-                          ) : activePreview === "naver" && hasConverted ? (
-                            <div className="p-4">
-                              <pre className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{convertedContent}</pre>
-                            </div>
-                          ) : activePreview === "medium" && hasConverted ? (
-                            <div className="p-4 prose prose-sm max-w-none">
-                              <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono leading-relaxed">{convertedContent}</pre>
-                            </div>
-                          ) : !isOriginal ? (
-                            <div className="p-8 text-center text-sm text-slate-400">탭을 클릭하면 채널별 앵글로 새 글이 생성됩니다</div>
-                          ) : null
-                        ) : (
-                          <div className="p-4">
-                            <pre className="text-[11px] text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-                              {isOriginal ? blogResult.content : (convertedContent ?? "변환 결과 없음")}
-                            </pre>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 복사 버튼 바 */}
-                      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-t border-slate-200">
-                        <span className="text-[10px] text-slate-400">{blogResult.character_count ? `${blogResult.character_count}자` : ""}</span>
-                        <div className="flex gap-1">
-                          {isOriginal && (
-                            <button onClick={() => { navigator.clipboard.writeText(blogResult.content ?? ""); alert("원본 HTML 복사됨"); }}
-                              className="text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"><Copy className="h-3 w-3 inline mr-0.5" />원본 복사</button>
-                          )}
-                          {activePreview === "tistory" && hasConverted && (() => {
-                            const chMeta = blogAllResults["tistory"] ?? blogResult;
-                            return <>
-                            <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("티스토리 HTML 복사됨"); }}
-                              className="text-[10px] px-2 py-0.5 rounded bg-orange-100 text-orange-700 hover:bg-orange-200"><Copy className="h-3 w-3 inline mr-0.5" />HTML 복사</button>
-                            <button onClick={async () => {
-                              if (!selectedBrand) return;
-                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "tistory", title: chMeta.title ?? "", content: convertedContent, meta_description: chMeta.meta_description, keywords: chMeta.keywords, faq: chMeta.faq, schema_markup: chMeta.schema_markup }) });
-                              alert(res.ok ? "티스토리 초안 저장됨" : "저장 실패");
-                            }} className="text-[10px] px-2 py-0.5 rounded bg-orange-50 text-orange-600 hover:bg-orange-100"><Download className="h-3 w-3 inline mr-0.5" />저장</button>
-                            <button onClick={async () => {
-                              if (!convertedContent || !chMeta.title) return;
-                              if (!confirm("티스토리에 발행하시겠습니까?")) return;
-                              try {
-                                const res = await fetch("/api/geo/tistory/publish", {
-                                  method: "POST", headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ title: chMeta.title, content: convertedContent, tags: chMeta.keywords ?? [], visibility: 3 }),
-                                });
-                                const data = await res.json();
-                                if (res.ok && data.postUrl) {
-                                  alert(`발행 완료!\n${data.postUrl}`);
-                                  window.open(data.postUrl, "_blank");
-                                } else {
-                                  alert(data.error === "TISTORY_TOKEN_EXPIRED" ? "티스토리 인증이 만료됐습니다. 재인증이 필요합니다." : `발행 실패: ${data.error || "알 수 없는 오류"}`);
-                                }
-                              } catch { alert("발행 실패"); }
-                            }} className="text-[10px] px-2 py-0.5 rounded bg-orange-500 text-white hover:bg-orange-600">티스토리 발행</button>
-                          </>;
-                          })()}
-                          {activePreview === "naver" && hasConverted && (() => {
-                            const chMeta = blogAllResults["naver"] ?? blogResult;
-                            return <>
-                            <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("네이버 텍스트 복사됨"); }}
-                              className="text-[10px] px-2 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200"><Copy className="h-3 w-3 inline mr-0.5" />복사</button>
-                            <button onClick={async () => {
-                              if (!selectedBrand) return;
-                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "naver", title: chMeta.title ?? "", content: convertedContent, meta_description: chMeta.meta_description, keywords: chMeta.keywords, faq: chMeta.faq }) });
-                              alert(res.ok ? "네이버 초안 저장됨" : "저장 실패");
-                            }} className="text-[10px] px-2 py-0.5 rounded bg-green-50 text-green-600 hover:bg-green-100"><Download className="h-3 w-3 inline mr-0.5" />저장</button>
-                            <a href="https://blog.naver.com/MyBlog.naver" target="_blank" rel="noreferrer"
-                              className="text-[10px] px-2 py-0.5 rounded bg-green-200 text-green-800 hover:bg-green-300">네이버 열기</a>
-                          </>;
-                          })()}
-                          {activePreview === "medium" && hasConverted && <>
-                            <button onClick={() => { navigator.clipboard.writeText(convertedContent!); alert("Markdown 복사됨"); }}
-                              className="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"><Copy className="h-3 w-3 inline mr-0.5" />Markdown 복사</button>
-                            <button onClick={async () => {
-                              if (!selectedBrand) return;
-                              const res = await fetch("/api/geo/blog-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_id: selectedBrand.id, channel: "medium", title: blogResult.title ?? "", content: convertedContent, meta_description: blogResult.meta_description, keywords: blogResult.keywords, faq: blogResult.faq }) });
-                              alert(res.ok ? "Medium 초안 저장됨" : "저장 실패");
-                            }} className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"><Download className="h-3 w-3 inline mr-0.5" />저장</button>
-                          </>}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* FAQ */}
-                {blogResult.faq && blogResult.faq.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">FAQ ({blogResult.faq.length}개)</p>
-                    <div className="space-y-2">
-                      {blogResult.faq.map((f, i) => (
-                        <div key={i} className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-xs font-semibold text-slate-700">Q. {f.q}</p>
-                          <p className="text-xs text-slate-500 mt-1">A. {f.a}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 스키마 마크업 */}
-                {blogResult.schema_markup && (
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Schema Markup (JSON-LD)</p>
-                    <pre className="bg-slate-900 text-green-400 text-[10px] rounded-lg p-3 overflow-x-auto max-h-[200px]">{blogResult.schema_markup}</pre>
-                  </div>
-                )}
-
-                {/* SEO 팁 */}
-                {blogResult.seo_score_tips && blogResult.seo_score_tips.length > 0 && (
-                  <div className="bg-amber-50 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-amber-700 mb-1">SEO 개선 팁</p>
-                    <ul className="text-xs text-amber-600 space-y-0.5">
-                      {blogResult.seo_score_tips.map((tip, i) => <li key={i}>• {tip}</li>)}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 인용 출처 */}
-                {blogResult.sources_cited && blogResult.sources_cited.length > 0 && (
-                  <div className="bg-slate-50 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-slate-500 mb-1">인용 출처</p>
-                    <div className="flex flex-wrap gap-1">
-                      {blogResult.sources_cited.map((s, i) => (
-                        <span key={i} className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded">{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-
-                {blogResult.error && (
-                  <div className="bg-red-50 rounded-lg p-3 text-xs text-red-600">{blogResult.error}</div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-16">
-                <div className="h-16 w-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
-                  <FileText className="h-8 w-8 text-violet-400" />
-                </div>
-                <p className="text-lg font-semibold text-slate-700 mb-2">블로그 글 작성기</p>
-                <p className="text-sm text-slate-400">우측에서 주제를 입력하고 생성하세요</p>
-                <p className="text-xs text-slate-300 mt-1">팩트 데이터 기반 SEO·AEO·GEO 최적화 콘텐츠</p>
-              </div>
-            )}
+      {mainTab === "history" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-700">{selectedBrand?.name ?? "브랜드"} 발행 이력</h3>
+            <Link href={selectedBrand ? `/content/brand?brand_id=${selectedBrand.id}` : "/content/brand"}
+              className="text-xs px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 inline-flex items-center gap-1">
+              <FileText className="h-3 w-3" />새 블로그 작성
+            </Link>
           </div>
-
-          {/* 우측: 블로그 설정 */}
-          <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-3">
-                <Sparkles className="h-4 w-4 inline mr-1" />글 생성 설정
-              </h2>
-              <div className="space-y-3">
-                {/* 생성 방식 안내 */}
-                <div className="bg-blue-50 rounded-lg px-3 py-2 space-y-1">
-                  <p className="text-[10px] font-semibold text-blue-800">AI 중복 콘텐츠 방지 — 진입 질문 자동 로테이션</p>
-                  <p className="text-[10px] text-blue-700">주제에 따라 채널별 앵글이 자동 배분됩니다:</p>
-                  <p className="text-[10px] text-blue-600">💰 얼마 드냐(비용) / 📈 얼마 남냐(수익) / ⚖️ 왜 이걸 해야 하냐(비교)</p>
-                  <p className="text-[10px] text-blue-500">예) 비용 주제 → frandoor:비용 / 티스토리:수익 / 네이버:비교</p>
-                </div>
-
-                {/* AI 프로바이더 */}
-                <div>
-                  <Label className="text-xs">AI 엔진</Label>
-                  <div className="flex gap-1.5 mt-1">
-                    {([
-                      { key: "claude" as const, label: "Claude Sonnet", ready: true },
-                      { key: "openai" as const, label: "GPT 5.4", ready: true },
-                      { key: "gemini" as const, label: "Gemini", ready: false },
-                    ]).map(p => (
-                      <button key={p.key} onClick={() => p.ready && setBlogProvider(p.key)}
-                        className={cn("flex-1 text-[10px] py-1.5 rounded-md border transition-colors",
-                          blogProvider === p.key ? "bg-violet-50 border-violet-300 text-violet-700 font-semibold" : "border-slate-200 text-slate-400",
-                          !p.ready && "opacity-40 cursor-not-allowed"
-                        )}>
-                        {p.label}{!p.ready && " (준비중)"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 주제 */}
-                {/* 독자 단계 */}
-                <div>
-                  <Label className="text-xs">독자 단계</Label>
-                  <div className="flex gap-1 mt-1">
-                    {([
-                      { key: "awareness" as const, label: "인지", desc: "창업 막연히 고민" },
-                      { key: "consideration" as const, label: "비교", desc: "브랜드 비교 중" },
-                      { key: "decision" as const, label: "결정", desc: "비용·절차 확인" },
-                    ]).map(s => (
-                      <button key={s.key} onClick={() => setBlogReaderStage(s.key)}
-                        className={cn("flex-1 text-center text-[10px] py-1.5 rounded-md border transition-colors",
-                          blogReaderStage === s.key ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-400 hover:bg-slate-50"
-                        )}>
-                        <span className="block font-medium">{s.label}</span>
-                        <span className="opacity-60">{s.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 검색 의도 */}
-                <div>
-                  <Label className="text-xs">검색 의도</Label>
-                  <div className="flex gap-1 mt-1">
-                    {([
-                      { key: "informational" as const, label: "정보형", desc: "~란, ~뭐야" },
-                      { key: "navigational" as const, label: "탐색형", desc: "~추천, ~비교" },
-                      { key: "transactional" as const, label: "거래형", desc: "창업비용, 신청" },
-                    ]).map(s => (
-                      <button key={s.key} onClick={() => setBlogSearchIntent(s.key)}
-                        className={cn("flex-1 text-center text-[10px] py-1.5 rounded-md border transition-colors",
-                          blogSearchIntent === s.key ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-400 hover:bg-slate-50"
-                        )}>
-                        <span className="block font-medium">{s.label}</span>
-                        <span className="opacity-60">{s.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs">글 주제 *</Label>
-                  <textarea value={blogTopic} onChange={e => setBlogTopic(e.target.value)}
-                    className="mt-1 w-full text-sm border rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500 resize-none h-20"
-                    placeholder={`예: ${selectedBrand?.name} 창업비용 총정리\n${selectedBrand?.name} vs 경쟁 브랜드 비교`} />
-                </div>
-
-                {/* 참고 블로그 링크 */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <Label className="text-xs">참고 블로그 (말투·구조 학습용)</Label>
-                    <button onClick={async () => {
-                      if (!selectedBrand) return;
-                      const links = blogRefLinks.filter(l => l.trim());
-                      // fact_data에서 기존 ref_links 제거 후 새로 추가
-                      const currentFactData = (selectedBrand.fact_data && Array.isArray(selectedBrand.fact_data)) ? selectedBrand.fact_data.filter((d: { label: string }) => d.label !== "__blog_ref_links__") : [];
-                      const newFactData = [...currentFactData, { keyword: JSON.stringify(links), label: "__blog_ref_links__" }];
-                      await fetch("/api/geo/brands", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedBrand.id, fact_data: newFactData }) });
-                      setSelectedBrand({ ...selectedBrand, fact_data: newFactData as Brand["fact_data"] });
-                      alert(`${links.length}개 링크 저장됨`);
-                    }} className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">저장</button>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mb-1">잘 쓴 블로그 URL — 톤·구조를 분석해서 반영</p>
-                  <div className="space-y-1">
-                    {blogRefLinks.map((link, i) => (
-                      <Input key={i} value={link} onChange={e => { const next = [...blogRefLinks]; next[i] = e.target.value; setBlogRefLinks(next); }}
-                        className="text-xs h-7" placeholder={`참고 링크 ${i + 1}`} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* 생성 버튼 */}
-                <Button className="w-full" onClick={async () => {
-                  if (!blogTopic.trim() || !selectedBrand || blogGenerating) return;
-                  setBlogGenerating(true);
-                  setBlogResult(null);
-                  const refLinks = blogRefLinks.filter(l => l.trim());
-                  try {
-                    const res = await fetch("/api/geo/blog-generate", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ brand_id: selectedBrand.id, platform: "frandoor", topic: blogTopic, provider: blogProvider, ref_links: refLinks, reader_stage: blogReaderStage, search_intent: blogSearchIntent }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) {
-                      setBlogResult({ error: data.error || `생성 실패 (${res.status})` });
-                    } else {
-                      setBlogResult(data);
-                    }
-                  } catch {
-                    setBlogResult({ error: "생성 실패. 다시 시도해주세요." });
-                  }
-                  setBlogGenerating(false);
-                }} disabled={blogGenerating || !blogTopic.trim()}>
-                  {blogGenerating ? (
-                    <><span className="animate-spin mr-1">⏳</span>생성 중...</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4 mr-1" />원본 글 생성</>
-                  )}
-                </Button>
-              </div>
+          {!selectedBrand ? (
+            <p className="text-xs text-slate-400">브랜드를 선택하세요.</p>
+          ) : brandPosts.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+              <FileText className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">발행된 글이 없습니다</p>
+              <p className="text-xs text-slate-400 mt-1">콘텐츠 발행 메뉴에서 새 글을 작성하세요</p>
             </div>
-
-            {/* 최적화 가이드 */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-2">자동 최적화 항목</h2>
-              <div className="space-y-1.5 text-xs text-slate-500">
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />SEO 메타태그 + 키워드 배치</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />AEO FAQ 섹션 (AI 답변 최적화)</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />GEO 브랜드 노출 키워드 삽입</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />Schema Markup (FAQPage, Article)</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />팩트 데이터 기반 수치 인용</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />공정위 정보공개서 자동 검색</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-3 w-3 text-emerald-500" />참고 블로그 톤·구조 학습</div>
-              </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">날짜</th>
+                    <th className="px-3 py-2 text-left font-medium">타입</th>
+                    <th className="px-3 py-2 text-left font-medium">플랫폼</th>
+                    <th className="px-3 py-2 text-left font-medium">제목</th>
+                    <th className="px-3 py-2 text-left font-medium">상태</th>
+                    <th className="px-3 py-2 text-left font-medium">URL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brandPosts.map(p => (
+                    <tr key={p.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 text-slate-600">{p.created_at?.slice(0, 10)}</td>
+                      <td className="px-3 py-2">
+                        <span className="inline-block text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                          {p.content_type ?? "brand"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">{p.channel}</td>
+                      <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[320px]">{p.title || "(제목 없음)"}</td>
+                      <td className="px-3 py-2">
+                        <span className={cn("text-[10px] px-2 py-0.5 rounded", p.status === "published" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500")}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {p.published_url ? (
+                          <a href={p.published_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">열기 ↗</a>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+          )}
         </div>
       )}
 
