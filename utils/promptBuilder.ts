@@ -36,6 +36,8 @@ export type BrandData = {
     avg_monthly_min?: number;
     avg_monthly_max?: number;
     net_margin?: number;
+    net_margin_max?: number;
+    cogs_ratio?: number;
     payback_months?: number;
   };
   operation: {
@@ -79,7 +81,12 @@ function buildDataBlock(data: BrandData, official?: OfficialData): string {
       : formatWon(data.revenue.avg_monthly_min);
     lines.push(`평균 월매출: ${rev}`);
   }
-  if (data.revenue.net_margin) lines.push(`순마진율: ${data.revenue.net_margin * 100}%`);
+  if (data.revenue.cogs_ratio !== undefined) lines.push(`원가율: 약 ${Math.round(data.revenue.cogs_ratio * 100)}%`);
+  if (data.revenue.net_margin !== undefined) {
+    const min = Math.round(data.revenue.net_margin * 100);
+    const max = data.revenue.net_margin_max !== undefined ? Math.round(data.revenue.net_margin_max * 100) : null;
+    lines.push(`순마진율: ${max ? `${min}~${max}%` : `${min}%`}`);
+  }
   if (data.revenue.payback_months) lines.push(`투자회수: 평균 ${data.revenue.payback_months}개월`);
   if (data.operation.min_staff) lines.push(`운영 인원: ${data.operation.min_staff}명${data.operation.recommended_staff ? `~${data.operation.recommended_staff}명` : "~"}`);
   if (data.operation.min_pyeong) lines.push(`운영 평수: ${data.operation.min_pyeong}${data.operation.max_pyeong ? `~${data.operation.max_pyeong}` : ""}평`);
@@ -809,8 +816,38 @@ export function buildBrandDataFromFacts(
         }
         return getNum("최고 월매출", "최대 월매출", "월 최고매출");
       })(),
-      net_margin: (() => { const v = get("순마진", "순마진율", "마진율", "마진"); if (!v) return undefined; const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) ? undefined : n > 1 ? n / 100 : n; })(),
-      payback_months: getNum("투자회수", "투자 회수", "회수 기간"),
+      net_margin: (() => {
+        const v = get("순마진", "순마진율", "마진율", "마진");
+        if (!v) return undefined;
+        // "17~23%" 같은 범위 → 앞값
+        const range = v.match(/(\d+(?:\.\d+)?)\s*[~-]\s*(\d+(?:\.\d+)?)/);
+        if (range) { const n = parseFloat(range[1]); return n > 1 ? n / 100 : n; }
+        const n = parseFloat(v.replace(/[^0-9.]/g, ""));
+        return isNaN(n) ? undefined : n > 1 ? n / 100 : n;
+      })(),
+      net_margin_max: (() => {
+        const v = get("순마진", "순마진율", "마진율", "마진");
+        if (!v) return undefined;
+        const range = v.match(/(\d+(?:\.\d+)?)\s*[~-]\s*(\d+(?:\.\d+)?)/);
+        if (!range) return undefined;
+        const n = parseFloat(range[2]);
+        return n > 1 ? n / 100 : n;
+      })(),
+      cogs_ratio: (() => {
+        const v = get("원가율", "원가", "재료비율");
+        if (!v) return undefined;
+        const n = parseFloat(v.replace(/[^0-9.]/g, ""));
+        return isNaN(n) ? undefined : n > 1 ? n / 100 : n;
+      })(),
+      payback_months: (() => {
+        const v = get("투자회수", "투자 회수", "회수 기간", "투자회수기간");
+        if (!v) return undefined;
+        // "평균 약 1년" → 12개월
+        const yr = v.match(/(\d+(?:\.\d+)?)\s*년/);
+        if (yr) return Math.round(parseFloat(yr[1]) * 12);
+        const mo = v.match(/(\d+(?:\.\d+)?)\s*개월/) ?? v.match(/(\d+(?:\.\d+)?)/);
+        return mo ? parseFloat(mo[1]) : undefined;
+      })(),
     },
     operation: {
       min_staff: getNum("최소 인원", "운영 인원", "인원"),
