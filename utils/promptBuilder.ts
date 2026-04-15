@@ -20,6 +20,11 @@ export type OfficialData = {
     growth_rate_yoy?: number;       // %
     source_period: string;          // "YYYY-MM" 조회 기준
   };
+  food_safety?: {
+    hygiene_grades?: { biz_name?: string; address?: string; grade?: string; designated_at?: string }[];
+    recalls?: { product_name?: string; company?: string; type?: string; reason?: string; recalled_at?: string }[];
+    source_period: string;          // "YYYY-MM"
+  };
 };
 
 export type BrandData = {
@@ -136,6 +141,23 @@ function buildDataBlock(data: BrandData, official?: OfficialData): string {
       lines.push(`[통계청 KOSIS 산업 평균 (${k.industry_name} / ${k.source_period})]`);
       if (k.avg_revenue_monthly) lines.push(`KOSIS 월평균매출: ${k.avg_revenue_monthly}만원`);
       if (k.growth_rate_yoy !== undefined) lines.push(`KOSIS 전년동월 성장률: ${k.growth_rate_yoy}%`);
+    }
+    if (official.food_safety) {
+      const fs = official.food_safety;
+      lines.push("");
+      lines.push(`[식약처 식품안전나라 (${fs.source_period})]`);
+      if (fs.hygiene_grades?.length) {
+        lines.push(`위생등급 이력 ${fs.hygiene_grades.length}건:`);
+        for (const h of fs.hygiene_grades.slice(0, 5)) {
+          lines.push(`  - ${h.biz_name ?? "?"} / ${h.grade ?? "?"} / ${h.designated_at ?? "?"} / ${h.address ?? ""}`);
+        }
+      }
+      if (fs.recalls?.length) {
+        lines.push(`회수·판매중지 이력 ${fs.recalls.length}건:`);
+        for (const r of fs.recalls.slice(0, 3)) {
+          lines.push(`  - ${r.product_name ?? "?"} / ${r.type ?? ""} / ${r.reason ?? ""} / ${r.recalled_at ?? ""}`);
+        }
+      }
     }
     if (official.sources?.length) lines.push(`출처: ${official.sources.join(", ")}`);
     if (official.competitors?.length) {
@@ -926,6 +948,24 @@ export function buildPrompt(
       if (k.avg_revenue_monthly) oLines.push(`KOSIS 월평균매출: ${k.avg_revenue_monthly}만원`);
       if (k.growth_rate_yoy !== undefined) oLines.push(`KOSIS 전년동월 성장률: ${k.growth_rate_yoy}%`);
       oLines.push(`*본문 하단 출처 표기 필수: "자료: 통계청 KOSIS, 조회기준 ${k.source_period}"*`);
+    }
+    if (official.food_safety) {
+      const fs = official.food_safety;
+      oLines.push("");
+      oLines.push(`[식약처 식품안전나라 (${fs.source_period})]`);
+      if (fs.hygiene_grades?.length) {
+        oLines.push(`위생등급 이력 ${fs.hygiene_grades.length}건:`);
+        for (const h of fs.hygiene_grades.slice(0, 5)) {
+          oLines.push(`  - ${h.biz_name ?? "?"} / ${h.grade ?? "?"} / ${h.designated_at ?? "?"} / ${h.address ?? ""}`);
+        }
+      }
+      if (fs.recalls?.length) {
+        oLines.push(`회수·판매중지 이력 ${fs.recalls.length}건:`);
+        for (const r of fs.recalls.slice(0, 3)) {
+          oLines.push(`  - ${r.product_name ?? "?"} / ${r.type ?? ""} / ${r.reason ?? ""} / ${r.recalled_at ?? ""}`);
+        }
+      }
+      oLines.push(`*본문 하단 출처 표기 필수: "자료: 식품의약품안전처 식품안전나라, 조회기준 ${fs.source_period}"*`);
     }
     if (official.sources?.length) oLines.push(`출처: ${official.sources.join(", ")}`);
     if (official.competitors?.length) {

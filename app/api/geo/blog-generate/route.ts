@@ -7,6 +7,9 @@ import { buildPrompt, buildBrandDataFromFacts, type Channel, type ReaderStage, t
 import { loadDualSourceBlocks, DUAL_SOURCE_RULES } from "@/utils/dualSourceBlocks";
 import { fetchKosisIndustryAvg } from "@/utils/kosis";
 import { getCachedOrFetch } from "@/utils/kosisCache";
+import { searchHygieneByBizName, searchRecallByProduct, FOODSAFETY_SERVICE } from "@/utils/foodSafety";
+import { getCachedOrFetch as getFoodCachedOrFetch, buildCacheKey as buildFoodCacheKey } from "@/utils/foodSafetyCache";
+import type { HygieneRow, RecallRow } from "@/types/foodSafety";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -166,6 +169,46 @@ ${refInput}
   }
   if (!officialData) {
     officialData = await fetchOfficialData(brand.name);
+  }
+
+  // 식약처 식품안전나라 (외식·식품 브랜드만) — 캐시 우선
+  const industryEntryForFood = allFacts.find(d => d.label === "업종" || d.label === "업종분류" || d.label === "업태");
+  const industryHint = industryEntryForFood?.keyword ?? "";
+  const isFoodIndustry = /음식|외식|식품|프랜차이즈|김밥|분식|카페|치킨|주점|배달/.test(industryHint + " " + brand.name);
+  if (isFoodIndustry) {
+    try {
+      const period = new Date().toISOString().slice(0, 7);
+      const hygiene = await getFoodCachedOrFetch(
+        buildFoodCacheKey(FOODSAFETY_SERVICE.HYGIENE_GRADE, { BSSH_NM: brand.name }),
+        () => searchHygieneByBizName(brand.name, 5).catch(() => ({ total: 0, rows: [] as HygieneRow[] })),
+      );
+      const recall = await getFoodCachedOrFetch(
+        buildFoodCacheKey(FOODSAFETY_SERVICE.HYGIENE_GRADE, { PRDTNM: brand.name }),
+        () => searchRecallByProduct(brand.name, 3).catch(() => ({ total: 0, rows: [] as RecallRow[] })),
+      );
+      // I0490 응답 스키마 기준: PRDTNM=제품명, ADDR=업소주소, RTRVLPRVNS=사유, CRET_DTM=작성일시
+      const food_safety = {
+        hygiene_grades: hygiene.rows.slice(0, 5).map(h => ({
+          biz_name: h.PRDTNM,
+          address: h.ADDR,
+          grade: h.PRDLST_TYPE,
+          designated_at: h.CRET_DTM,
+        })),
+        recalls: recall.rows.slice(0, 3).map(r => ({
+          product_name: r.PRDTNM,
+          company: r.ADDR,
+          type: r.PRDLST_TYPE,
+          reason: r.RTRVLPRVNS,
+          recalled_at: r.CRET_DTM,
+        })),
+        source_period: period,
+      };
+      if (food_safety.hygiene_grades.length > 0 || food_safety.recalls.length > 0) {
+        officialData = { ...(officialData ?? {}), food_safety };
+      }
+    } catch (e) {
+      console.error("[blog-generate] 식약처 조회 실패:", e instanceof Error ? e.message : e);
+    }
   }
 
   // KOSIS 산업 평균 (업종 필드 추출 → 캐시 우선 조회)
