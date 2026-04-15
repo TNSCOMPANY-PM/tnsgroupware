@@ -30,6 +30,7 @@ export type BrandData = {
     education_fee?: number;
     deposit?: number;
     loan?: { bank_1st?: number; interest_free?: number };
+    loan_structure_note?: string;
     actual_investment?: number;
   };
   revenue: {
@@ -72,8 +73,16 @@ function buildDataBlock(data: BrandData, official?: OfficialData): string {
   if (data.cost.franchise_fee) lines.push(`  - 가맹금: ${formatWon(data.cost.franchise_fee)}`);
   if (data.cost.education_fee) lines.push(`  - 교육비: ${formatWon(data.cost.education_fee)}`);
   if (data.cost.deposit) lines.push(`  - 보증금: ${formatWon(data.cost.deposit)}`);
-  if (data.cost.loan?.bank_1st) lines.push(`  - 1금융권 대출: ${formatWon(data.cost.loan.bank_1st)}`);
-  if (data.cost.loan?.interest_free) lines.push(`  - 무이자 대출: ${formatWon(data.cost.loan.interest_free)}`);
+  // 대출 구조 출력: loan_structure_note 가 있으면 그 문장만 인용 (subset 관계 유지).
+  // 없을 때만 개별 수치 출력. 단순 합산을 막기 위해 별도 주의 문구 함께 출력.
+  if (data.cost.loan_structure_note) {
+    lines.push(`  - 대출·지원 구조: ${data.cost.loan_structure_note}`);
+    lines.push(`    ※ 위 문장을 본문에 그대로 인용할 것. 수치를 분리해서 합산하지 말 것.`);
+  } else if (data.cost.loan?.bank_1st || data.cost.loan?.interest_free) {
+    if (data.cost.loan?.bank_1st) lines.push(`  - 1금융권 대출 한도: ${formatWon(data.cost.loan.bank_1st)}`);
+    if (data.cost.loan?.interest_free) lines.push(`  - 무이자 지원: ${formatWon(data.cost.loan.interest_free)}`);
+    lines.push(`    ※ 위 두 수치의 관계(합산 가능 vs 포함)가 원문에 명시되지 않음. 원본 팩트데이터 전문에서 "중", "포함", "별도", "추가" 표현을 먼저 확인하라. 확인 불가 시 포함 관계로 가정하고 큰 값(대출 한도) 기준으로만 서술하라. 두 값을 단순 덧셈 금지.`);
+  }
   if (data.cost.actual_investment) lines.push(`  - 실투자금: ${formatWon(data.cost.actual_investment)}`);
   if (data.revenue.avg_monthly_min) {
     const rev = data.revenue.avg_monthly_max
@@ -218,7 +227,7 @@ function buildAngleDirective(
 <div class="answer-box">
   <div class="q">결론부터</div>
   <div class="a">${data.brand.name} 창업 총비용 <span>[총비용]</span>. 실투자금은 <span>[실투자금]</span>.</div>
-  <div class="detail">[비용 항목 요약 1줄]<br>[대출/지원 구조 1줄]<br>[업종 평균 대비 1줄]</div>
+  <div class="detail">[비용 항목 요약 1줄]<br>[대출/지원 구조 1줄 — "X만원 + Y만원" 형식 금지. DATA "대출·지원 구조" 문장을 그대로 인용하거나 "대출 한도 N만원 (그 중 M만원 무이자 지원)" 형식만 허용]<br>[업종 평균 대비 1줄]</div>
 </div>`,
 
     profit: `
@@ -725,7 +734,13 @@ export function buildPrompt(
 2. "투자회수기간" = 실투자금 ÷ (월순이익 - 대출상환금 - 로열티). 대출 상환 정보 없으면 "대출상환 제외 기준" 명시.
 3. 비율/배수는 반드시 info-box에 계산 과정 표시.
 4. 상식 체크: 배수 10배↑, 순마진 40%↑, 회수 1개월↓ → 재검토.
-5. "25년 28개 오픈" = 연간 오픈 실적. 총 가맹점 수 아님. DATA에 총수 없으면 [공정위 공시 데이터] 블록 참조.`;
+5. "25년 28개 오픈" = 연간 오픈 실적. 총 가맹점 수 아님. DATA에 총수 없으면 [공정위 공시 데이터] 블록 참조.
+6. 대출·지원 수치 처리 (매우 중요):
+   - DATA 블록에 "대출·지원 구조" 문장이 있으면 그 문장을 본문에 그대로 인용. 수치 쪼개서 합산 금지.
+   - "1금융권 X" + "무이자 Y" 가 개별 수치로만 제공되면, 원문(원본 팩트데이터)에 "별도", "추가", "합산", "+" 같은 병렬 표현이 명시된 경우에만 합산 허용.
+   - 원문 근거 없으면 기본 포함 관계 가정 — "대출 한도 X만원 (그 중 Y만원 무이자 지원)" 형식으로만 서술.
+   - answer-box, stat-row, conclusion-box 어디서도 "X + Y = X+Y만원" 형식 금지. 대출가능액은 최대 대출 한도(큰 값)만 표기.
+   - "최대 N만원 대출" 식 표기의 N은 두 수치의 합이 아니라 대출 한도 단일 값.`;
 
   // 주 앵글: 주제에서 감지 → 3채널 모두 공유 (주제 유지)
   // 하위 프레임: 채널별로 다르게 할당 → 세부 초점만 분산 (중복 방지)
@@ -847,6 +862,7 @@ export function buildBrandDataFromFacts(
         bank_1st: getNum("대출가능금액", "1금융권", "대출"),
         interest_free: getNum("무이자 대출", "무이자"),
       },
+      loan_structure_note: get("대출지원구조_설명", "대출지원구조", "대출구조"),
       actual_investment: getNum("실투자금", "실투자"),
     },
     revenue: {
