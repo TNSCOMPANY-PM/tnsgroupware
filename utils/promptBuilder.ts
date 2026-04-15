@@ -172,21 +172,21 @@ const CHANNEL_SUBFRAME: Record<string, SubFrame> = {
 };
 
 // 주 앵글별 하위 프레임 3종 정의
-const SUBFRAME_BY_ANGLE: Record<Angle, Record<SubFrame, { label: string; focus: string; subtitleHint: string }>> = {
+const SUBFRAME_BY_ANGLE: Record<Angle, Record<SubFrame, { label: string; focus: string; subtitleHint: string; titleHint: string }>> = {
   cost: {
-    A: { label: "총비용 분해", focus: "총비용과 항목별(가맹금·교육비·보증금·인테리어) 세부 금액 중심", subtitleHint: "항목별로 뜯어보면?, 숨은 비용까지 합치면?" },
-    B: { label: "자금 조달·실투자금", focus: "대출 구조·무이자 지원·실투자금 계산·회수 구조 중심", subtitleHint: "대출은 어디서 얼마나?, 실투자금 계산" },
-    C: { label: "장기 유지비·운영비", focus: "월 고정비·재계약·리모델링·장기 유지비 중심", subtitleHint: "매달 나가는 고정비는?, 재계약·리모델링 비용" },
+    A: { label: "총비용 분해", focus: "총비용과 항목별(가맹금·교육비·보증금·인테리어) 세부 금액 중심", subtitleHint: "항목별로 뜯어보면?, 숨은 비용까지 합치면?", titleHint: "{topic} — 항목별로 뜯어본 총비용 / {topic}, 숨은 비용까지 합치면" },
+    B: { label: "자금 조달·실투자금", focus: "대출 구조·무이자 지원·실투자금 계산·회수 구조 중심", subtitleHint: "대출은 어디서 얼마나?, 실투자금 계산", titleHint: "{topic} — 대출·무이자 지원까지 반영한 실투자금 / {topic}, 실제 내 돈은 얼마인가" },
+    C: { label: "장기 유지비·운영비", focus: "월 고정비·재계약·리모델링·장기 유지비 중심", subtitleHint: "매달 나가는 고정비는?, 재계약·리모델링 비용", titleHint: "{topic} — 매달 나가는 고정비와 재계약 비용 / {topic}, 장기 유지비 관점에서 본 비용" },
   },
   profit: {
-    A: { label: "매출·마진 구조", focus: "월매출 구성·원가율·순마진율 중심", subtitleHint: "월매출 평균은?, 원가 빼면 실제로 남는 돈은?" },
-    B: { label: "투자회수·손익분기", focus: "회수기간·손익분기 시점·대출 상환 반영 현금흐름 중심", subtitleHint: "투자금 회수까지 몇 개월?, 대출 상환까지 넣으면?" },
-    C: { label: "수익 모델·매출 확대 구조", focus: "매출 올리는 구조(자동화·배달·시간대 비중) 중심", subtitleHint: "매출 올리는 구조는?, 시간대별·채널별 비중" },
+    A: { label: "매출·마진 구조", focus: "월매출 구성·원가율·순마진율 중심", subtitleHint: "월매출 평균은?, 원가 빼면 실제로 남는 돈은?", titleHint: "{topic} — 매출과 마진 구조 / {topic}, 원가 빼고 실제로 남는 돈은" },
+    B: { label: "투자회수·손익분기", focus: "회수기간·손익분기 시점·대출 상환 반영 현금흐름 중심", subtitleHint: "투자금 회수까지 몇 개월?, 대출 상환까지 넣으면?", titleHint: "{topic} — 투자금 회수·손익분기 관점 / {topic}, 대출 상환까지 반영한 현금흐름" },
+    C: { label: "수익 모델·매출 확대 구조", focus: "매출 올리는 구조(자동화·배달·시간대 비중) 중심", subtitleHint: "매출 올리는 구조는?, 시간대별·채널별 비중", titleHint: "{topic} — 매출을 올리는 구조 / {topic}, 시간대·채널별 비중으로 본 수익" },
   },
   compare: {
-    A: { label: "비용 대조", focus: "초기 창업비용·항목별 금액 대조 중심", subtitleHint: "초기 자금은 어디가 유리한가?, 항목별 비용 하나하나 따져보면?" },
-    B: { label: "수익·회수 대조", focus: "월매출·마진·투자회수·리스크 대조 중심", subtitleHint: "월매출·회수기간으로 보면?, 수익 구조 어디가 안정적인가?" },
-    C: { label: "진입·운영 대조", focus: "시작 난이도·운영 부담·지원 체계·리스크 대조 중심", subtitleHint: "혼자 시작할 수 있나?, 운영 부담은 어디가 더 큰가?" },
+    A: { label: "비용 대조", focus: "초기 창업비용·항목별 금액 대조 중심", subtitleHint: "초기 자금은 어디가 유리한가?, 항목별 비용 하나하나 따져보면?", titleHint: "{topic} — 비용 관점 비교 / {topic}, 초기 자금으로 따져보면" },
+    B: { label: "수익·회수 대조", focus: "월매출·마진·투자회수·리스크 대조 중심", subtitleHint: "월매출·회수기간으로 보면?, 수익 구조 어디가 안정적인가?", titleHint: "{topic} — 수익·회수 관점 비교 / {topic}, 월매출과 회수기간으로 보면" },
+    C: { label: "진입·운영 대조", focus: "시작 난이도·운영 부담·지원 체계·리스크 대조 중심", subtitleHint: "혼자 시작할 수 있나?, 운영 부담은 어디가 더 큰가?", titleHint: "{topic} — 진입·운영 관점 비교 / {topic}, 혼자 시작할 수 있나" },
   },
 };
 
@@ -201,6 +201,7 @@ function buildAngleDirective(
   subFrame: SubFrame,
   data: BrandData,
   otherChannelFrames: { channel: string; frame: SubFrame }[],
+  topic?: string,
 ): string {
   const mine = SUBFRAME_BY_ANGLE[angle][subFrame];
   const otherDesc = otherChannelFrames
@@ -270,6 +271,8 @@ function buildAngleDirective(
 </div>`,
   };
 
+  const topicToken = topic?.trim() || "주제";
+  const titleHintFilled = mine.titleHint.replaceAll("{topic}", topicToken);
   const subFrameBlock = `
 [SUB-FRAME LOCK — 이 채널 전용 하위 프레임]
 주 앵글(${ANGLE_LABEL[angle]})은 3채널 모두 동일. 글 주제·핵심 질문·결론 축 유지.
@@ -281,19 +284,25 @@ function buildAngleDirective(
 ${otherDesc}
 
 글 전체 주제는 주 앵글에 맞춰 유지하되, 본론 소제목·데이터 선택·결론 포인트·FAQ 질문을 위 "${mine.label}" 하위 프레임 관점으로 구성하라.
-주제가 명시한 비교 대상(예: "개인창업 vs 프랜차이즈")이 있으면 모든 채널이 그 비교 대상을 그대로 유지한다. 하위 프레임은 비교 기준을 바꿀 뿐, 비교 대상 자체를 바꾸지 않는다.`;
+주제가 명시한 비교 대상(예: "개인창업 vs 프랜차이즈")이 있으면 모든 채널이 그 비교 대상을 그대로 유지한다. 하위 프레임은 비교 기준을 바꿀 뿐, 비교 대상 자체를 바꾸지 않는다.
+
+[TITLE DIRECTIVE — 제목은 주제와 하위 프레임을 모두 반영]
+- 주제 키워드("${topicToken}")와 하위 프레임("${mine.label}") 두 가지가 제목 안에서 모두 드러나야 한다.
+- 다른 채널의 제목(동일 주 앵글, 다른 하위 프레임)과 제목 첫 구절·핵심 단어가 겹치지 않아야 한다.
+- 제목 예시 (그대로 베끼지 말고, 브랜드명·주제 단어를 포함해 이 구조로 생성): ${titleHintFilled}
+- answer-box 상단 <div class="q"> 라벨도 하위 프레임에 맞게 조정 가능: "${mine.label} 관점에서 결론부터" 등.`;
 
   return ANGLE_BLOCKS[angle] + "\n" + subFrameBlock;
 }
 
-const CHANNEL: Record<string, (data: BrandData, angle?: Angle, subFrame?: SubFrame, otherChannelFrames?: { channel: string; frame: SubFrame }[]) => string> = {
-  frandoor: (data, angle = "cost", subFrame = "A", otherChannelFrames = []) => `
+const CHANNEL: Record<string, (data: BrandData, angle?: Angle, subFrame?: SubFrame, otherChannelFrames?: { channel: string; frame: SubFrame }[], topic?: string) => string> = {
+  frandoor: (data, angle = "cost", subFrame = "A", otherChannelFrames = [], topic) => `
 [SYSTEM]
 당신은 프랜차이즈 창업 정보를 다루는 전문 에디터입니다.
 결과물은 HTML로 출력합니다. .og-wrap 안에 들어갈 HTML을 생성합니다.
 CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 
-${buildAngleDirective(angle, subFrame, data, otherChannelFrames)}
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames, topic)}
 
 [STRUCTURE — 이 순서를 반드시 지킬 것]
 
@@ -350,13 +359,13 @@ ${buildDataBlock(data)}
 [OUTPUT] HTML만 출력. <div class="og-wrap">으로 감싸지 말 것 (프론트에서 감쌈). <style> 태그 금지. 분량 3,000~5,000자.
 `,
 
-  tistory: (data, angle = "cost", subFrame = "B", otherChannelFrames = []) => `
+  tistory: (data, angle = "cost", subFrame = "B", otherChannelFrames = [], topic) => `
 [SYSTEM]
 당신은 프랜차이즈 창업 시장을 분석하는 블로거입니다.
 결과물은 HTML로 출력합니다. <div class="og-wrap">으로 전체를 감쌉니다.
 CSS는 외부에서 주입하므로 <style> 태그를 생성하지 마세요.
 
-${buildAngleDirective(angle, subFrame, data, otherChannelFrames)}
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames, topic)}
 
 [STRUCTURE]
 ① answer-box (위 앵글 템플릿 사용)
@@ -409,63 +418,119 @@ ${buildDataBlock(data)}
 [OUTPUT] 완성된 HTML. JSON-LD(FAQPage + Organization) + <div class="og-wrap">...</div> 전부 포함. <style>은 포함하지 말 것. 분량 3,000~5,000자.
 `,
 
-  naver: (data, angle = "cost", subFrame = "C", otherChannelFrames = []) => `
+  naver: (data, angle = "cost", subFrame = "C", otherChannelFrames = [], topic) => `
 [SYSTEM]
-당신은 직접 창업 정보를 찾아다니며 블로그에 기록하는 30대 블로거입니다.
-친구한테 카톡으로 설명하듯 편하게 쓰되, 수치는 정확하게.
+당신은 프랜차이즈 창업 정보를 블로그에 정리하는 30대 에디터입니다.
+친근한 말투 + 티스토리 수준의 정리된 비주얼 둘 다 필요합니다.
 
-★★★ 가장 중요한 규칙: content 필드에 HTML 태그를 절대 넣지 마라. ★★★
-<table>, <div>, <p>, <h2>, <strong>, <br> 등 어떤 HTML 태그도 금지.
-네이버 블로그 에디터에 복붙할 순수 텍스트만 출력.
-줄바꿈은 \\n, 강조는 텍스트 그대로(굵게 처리는 에디터에서 수동).
-표가 필요하면 | 구분자로 텍스트 표 형식 사용.
+★★★ 가장 중요한 규칙: content 필드에 인라인 스타일 HTML을 출력하라. ★★★
+네이버 스마트에디터는 <style> 태그와 class 속성은 제거하지만, 인라인 style 속성은 살려둔다.
+따라서 <div class="answer-box"> 같은 class 기반 HTML이 아니라, style="..."으로 동일한 디자인을 직접 지정한다.
+<table>, <div>, <p>, <h2>, <h3>, <strong>, <br> 사용 가능. class 속성 금지, inline style만 사용.
 
-${buildAngleDirective(angle, subFrame, data, otherChannelFrames)}
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames, topic)}
 
 [WRITING STYLE]
-- 말투: "~예요", "~죠", "~거든요". 진짜 대화하듯
-- 경험형 오프닝 (앵글에 따라 자연스럽게):
+- 말투: "~예요", "~죠", "~거든요". 진짜 대화하듯. 본문 문장 톤만 그렇게.
+- 경험형 오프닝 (answer-box 위에 1줄 짧게. 중복 서두 금지):
   - cost 앵글: "직접 견적 받아봤는데요"
   - profit 앵글: "실제 수익 계산해봤는데요"
   - compare 앵글: "이것저것 비교해봤는데요"
-- 핵심 수치는 바로 제시
-- 1문장짜리 문단 3개 이상. 모바일에서 읽기 편하게
-- "본사 확인 필요" 대신, 데이터 없는 항목은 아예 안 쓰면 됨
-- 이모지 최대 2~3개, 자연스러운 위치에만
+- 핵심 수치는 answer-box에서 바로 제시
+- "본사 확인 필요" 문구 금지. 데이터 없는 항목은 아예 생략
+- 이모지 금지. 텍스트 마커(★·■·▶·|) 금지. 시각 구분은 전부 HTML 태그로 처리.
 
-[구조]
-■ 요약 (앵글에 맞는 핵심 수치)
-★ 소제목 1 (앵글 관점 — 체험형 말투로)
-  내용 (텍스트)
-  표 필요 시:
-  항목 | 금액 | 비고
-  가맹금 | 500만원 | 공정위 기준
-★ 소제목 2
-  ...
-★ 자주 묻는 질문 (앵글에 맞는 질문, 다른 채널 FAQ와 다른 질문)
-  Q. 질문?
-  A. 답변
-■ 마무리 (나의 솔직한 생각)
-#해시태그1 #해시태그2
+[OUTPUT STRUCTURE — 반드시 아래 HTML 구조로 출력. 모든 디자인은 인라인 style로]
+
+① 경험형 오프닝 1줄
+<p style="margin:0 0 16px 0;color:#6b7280;font-size:14px">직접 견적 받아봤는데요</p>
+
+② answer-box (핵심 결론을 가장 먼저. 앵글 템플릿의 class 버전 대신 아래 inline 버전 사용)
+<div style="background:#f3f6ff;border-left:4px solid #2563eb;border-radius:8px;padding:18px 20px;margin:0 0 24px 0">
+  <div style="font-size:13px;font-weight:700;color:#2563eb;margin-bottom:8px">결론부터</div>
+  <div style="font-size:17px;font-weight:700;color:#111827;line-height:1.55">[핵심 한 문장. 수치는 <strong style="color:#2563eb">수치</strong> 형태로 강조]</div>
+  <div style="font-size:14px;color:#4b5563;margin-top:10px;line-height:1.7">[세부 1~3줄. 줄바꿈은 <br>]</div>
+</div>
+
+③ 이미지 자리 (실제 <img> 태그로 삽입됨)
+<p>[이미지: 브랜드 매장 외관/내부 설명]</p>
+
+④ H2 본론 섹션 3~5개 (앵글의 하위 프레임 관점)
+<h2 style="font-size:22px;font-weight:800;color:#111827;margin:40px 0 16px 0;padding-bottom:8px;border-bottom:2px solid #111827">[질문형 소제목]</h2>
+<p style="font-size:15px;line-height:1.85;color:#374151;margin:0 0 14px 0">본문 문단...</p>
+
+ⓔ 표 필요 시 (완전 인라인 스타일 표)
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+  <thead>
+    <tr style="background:#f9fafb">
+      <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;font-weight:700;color:#374151">항목</th>
+      <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;font-weight:700;color:#374151">금액</th>
+      <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;font-weight:700;color:#374151">출처</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:10px 12px;border:1px solid #e5e7eb">가맹금</td><td style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right">500만원</td><td style="padding:10px 12px;border:1px solid #e5e7eb;color:#6b7280">공정위 기준</td></tr>
+  </tbody>
+</table>
+
+ⓕ stat-row (핵심 수치 3개. flex는 네이버 에디터에서 줄바꿈 될 수 있으므로 인라인 블록으로 처리)
+<div style="margin:20px 0;text-align:center">
+  <div style="display:inline-block;min-width:30%;padding:14px 10px;margin:4px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;vertical-align:top">
+    <div style="font-size:22px;font-weight:800;color:#2563eb">[수치]</div>
+    <div style="font-size:12px;color:#6b7280;margin-top:4px">[라벨]</div>
+  </div>
+  <!-- 2개 더 -->
+</div>
+
+ⓖ info-box (참고), warn (주의)
+<div style="background:#f0f9ff;border-left:3px solid #0ea5e9;padding:12px 14px;margin:14px 0;color:#075985;font-size:14px;line-height:1.7;border-radius:4px">[참고 내용]</div>
+<div style="background:#fef2f2;border-left:3px solid #ef4444;padding:12px 14px;margin:14px 0;color:#991b1b;font-size:14px;line-height:1.7;border-radius:4px">[주의 내용]</div>
+
+ⓗ 출처 한 줄
+<p style="font-size:12px;color:#9ca3af;margin:8px 0 0 0">※ 출처: 공정거래위원회 정보공개서 2024</p>
+
+⑤ FAQ 섹션 (다른 채널과 다른 질문)
+<h2 style="font-size:22px;font-weight:800;color:#111827;margin:40px 0 16px 0;padding-bottom:8px;border-bottom:2px solid #111827">자주 묻는 질문</h2>
+<div style="border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:10px 0;background:#fff">
+  <div style="font-weight:700;color:#111827;margin-bottom:8px"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:#2563eb;color:#fff;border-radius:4px;font-size:12px;margin-right:8px">Q</span>[질문]</div>
+  <div style="color:#374151;line-height:1.75;font-size:14px">[답변]</div>
+  <div style="font-size:12px;color:#9ca3af;margin-top:6px">출처: [출처명]</div>
+</div>
+(5~7개)
+
+⑥ 결론 박스
+<div style="background:#111827;color:#fff;border-radius:10px;padding:20px 22px;margin:28px 0">
+  <div style="font-size:16px;font-weight:800;margin-bottom:10px;color:#fbbf24">[앵글별 결론 제목]</div>
+  <div style="font-size:15px;line-height:1.8;color:#f3f4f6">[핵심 요약 3~5줄. <strong style="color:#fbbf24">강조</strong>]</div>
+  <div style="margin-top:14px;font-size:14px">더 알아보기 → <a href="${data.brand.slug ?? ""}" style="color:#fbbf24;text-decoration:underline">${data.brand.contact ?? "가맹문의"}</a></div>
+</div>
+
+⑦ 면책
+<p style="font-size:12px;color:#9ca3af;line-height:1.7;margin:20px 0 0 0">※ 본 글 수치는 공정거래위원회 정보공개서, 본사 공식 자료 등을 근거로 작성. 실제 수치는 계약·지역·시점에 따라 달라질 수 있음. 자세한 건 frandoor.co.kr 참고.</p>
+
+⑧ 해시태그 (style 없는 일반 p)
+<p style="font-size:13px;color:#6b7280;margin-top:14px">#${data.brand.name}창업 #소자본프랜차이즈 #프랜차이즈창업 ...(5~8개)</p>
 
 [RULES]
-1. 제목: 앵글에 맞는 검색 질문 형태. 예: "${data.brand.name} 창업비용 얼마야?" / "${data.brand.name} 수익 실제로 얼마야?" / "${data.brand.name} 장단점 솔직 비교"
-2. 마무리: "도움 됐다면 공감 부탁드려요~" + 면책 문구 + "자세한 건 frandoor.co.kr 참고"
-3. 해시태그: #${data.brand.name}창업 #소자본프랜차이즈 등 5~8개
-4. 타 브랜드 실명 금지
-5. 금지: "알아보겠습니다" / "드리겠습니다" / "상세히" / "은(는)" / "~라는 뜻이죠" / "감이 옵니다" / "~고민하신다면"
-6. HTML 태그 절대 금지. 순수 텍스트만.
+1. 제목: 위 TITLE DIRECTIVE 지시대로. 주제("${topic ?? ""}")와 하위 프레임을 모두 반영. 다른 채널과 첫 구절 겹치지 말 것.
+2. class 속성 절대 금지. 모든 스타일은 style 속성으로.
+3. 타 브랜드 실명 금지.
+4. 금지 표현: "알아보겠습니다", "드리겠습니다", "상세히", "~라는 뜻이죠", "감이 옵니다", "~고민하신다면".
+5. 이모지 및 ★·■·▶ 등 텍스트 마커 금지.
+6. answer-box는 글에 딱 1번만. 중복 서두(경험형 오프닝 + answer-box + "결론부터 말하면") 만들지 말 것.
 
 ${buildDataBlock(data)}
 
-[OUTPUT] 분량 1,200~2,000자 | content 필드에 순수 텍스트(HTML 금지) | 해시태그 마지막 나열
+[OUTPUT] 분량 1,500~2,500자 | content 필드에 인라인 스타일 HTML | 해시태그 마지막 <p> 태그 안에
 `,
 
-  medium: (data, _angle, _subFrame, _otherChannelFrames) => `
+  medium: (data, angle = "cost", subFrame = "A", otherChannelFrames = [], topic) => `
 [SYSTEM]
 You are a franchise industry analyst writing for Medium's English-speaking audience.
 ★★★ CRITICAL: Write EVERYTHING in English. The entire content field must be in English. Not Korean. ★★★
 The DATA below is in Korean — translate all data points to English as you write.
+
+${buildAngleDirective(angle, subFrame, data, otherChannelFrames, topic)}
 
 [WRITING STYLE]
 - Lead with the most interesting number. No throat-clearing introductions.
@@ -486,18 +551,88 @@ The DATA below is in Korean — translate all data points to English as you writ
 - 정보공개서 → Franchise Disclosure Document (FDD)
 - Brand name: use "${data.brand.name_en ?? data.brand.name}" (keep original Korean name in parentheses on first mention)
 
+[OUTPUT STRUCTURE — Medium-compatible rich HTML with inline styles]
+Medium accepts <h2>, <h3>, <blockquote>, <p>, <strong>, <table>, <a>. Use inline styles for visual design.
+Mirror the same visual structure as the Korean version (answer-box, stat-row, faq, conclusion, disclaimer).
+
+① Opening one-liner (short, analytical)
+<p style="margin:0 0 16px 0;color:#6b7280;font-size:14px">[1-line analytical hook]</p>
+
+② answer-box equivalent (highlighted conclusion card)
+<div style="background:#f3f6ff;border-left:4px solid #2563eb;border-radius:8px;padding:18px 20px;margin:0 0 24px 0">
+  <div style="font-size:13px;font-weight:700;color:#2563eb;margin-bottom:8px">KEY TAKEAWAY</div>
+  <div style="font-size:17px;font-weight:700;color:#111827;line-height:1.55">[Headline finding with a <strong style="color:#2563eb">number</strong>]</div>
+  <div style="font-size:14px;color:#4b5563;margin-top:10px;line-height:1.7">[Supporting 1-3 lines. Line breaks via <br>]</div>
+</div>
+
+③ Image placeholder
+<p>[Image: brand storefront/interior]</p>
+
+④ H2 body sections (3~5 sections; sub-frame perspective)
+<h2 style="font-size:22px;font-weight:800;color:#111827;margin:40px 0 16px 0;padding-bottom:8px;border-bottom:2px solid #111827">[Question-style section title]</h2>
+<p style="font-size:15px;line-height:1.85;color:#374151;margin:0 0 14px 0">body paragraph...</p>
+
+Cost/comparison tables:
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+  <thead><tr style="background:#f9fafb">
+    <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;font-weight:700">Item</th>
+    <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;font-weight:700">Amount (KRW / USD)</th>
+    <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;font-weight:700">Source</th>
+  </tr></thead>
+  <tbody><tr>
+    <td style="padding:10px 12px;border:1px solid #e5e7eb">Franchise Fee</td>
+    <td style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right">₩5M / ~$3,700</td>
+    <td style="padding:10px 12px;border:1px solid #e5e7eb;color:#6b7280">KFTC FDD</td>
+  </tr></tbody>
+</table>
+
+stat-row (3 key numbers):
+<div style="margin:20px 0;text-align:center">
+  <div style="display:inline-block;min-width:30%;padding:14px 10px;margin:4px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;vertical-align:top">
+    <div style="font-size:22px;font-weight:800;color:#2563eb">[number]</div>
+    <div style="font-size:12px;color:#6b7280;margin-top:4px">[label]</div>
+  </div>
+  <!-- 2 more -->
+</div>
+
+info-box / warn:
+<div style="background:#f0f9ff;border-left:3px solid #0ea5e9;padding:12px 14px;margin:14px 0;color:#075985;font-size:14px;line-height:1.7;border-radius:4px">[context note]</div>
+<div style="background:#fef2f2;border-left:3px solid #ef4444;padding:12px 14px;margin:14px 0;color:#991b1b;font-size:14px;line-height:1.7;border-radius:4px">[caution]</div>
+
+Source line:
+<p style="font-size:12px;color:#9ca3af;margin:8px 0 0 0">Source: Korea Fair Trade Commission (KFTC) FDD 2024</p>
+
+⑤ FAQ section (5+ Q&As)
+<h2 style="font-size:22px;font-weight:800;color:#111827;margin:40px 0 16px 0;padding-bottom:8px;border-bottom:2px solid #111827">Frequently Asked Questions</h2>
+<div style="border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:10px 0;background:#fff">
+  <div style="font-weight:700;color:#111827;margin-bottom:8px"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:#2563eb;color:#fff;border-radius:4px;font-size:12px;margin-right:8px">Q</span>[question]</div>
+  <div style="color:#374151;line-height:1.75;font-size:14px">[answer]</div>
+  <div style="font-size:12px;color:#9ca3af;margin-top:6px">Source: [source]</div>
+</div>
+
+⑥ Conclusion box
+<div style="background:#111827;color:#fff;border-radius:10px;padding:20px 22px;margin:28px 0">
+  <div style="font-size:16px;font-weight:800;margin-bottom:10px;color:#fbbf24">[Conclusion title tied to sub-frame]</div>
+  <div style="font-size:15px;line-height:1.8;color:#f3f4f6">[3-5 line summary with <strong style="color:#fbbf24">emphasis</strong>]</div>
+  <div style="margin-top:14px;font-size:14px">Learn more → <a href="${data.brand.slug ?? ""}" style="color:#fbbf24;text-decoration:underline">${data.brand.contact ?? "Contact"}</a></div>
+</div>
+
+⑦ Disclaimer
+<p style="font-size:12px;color:#9ca3af;line-height:1.7;margin:20px 0 0 0">Figures are based on KFTC Franchise Disclosure Documents and official brand materials. Actual numbers may vary by contract, region, and timing. Full source data at frandoor.co.kr.</p>
+
 [RULES]
-1. Title: "${data.brand.name_en ?? data.brand.name}: Key Numbers for ${new Date().getFullYear()}"
+1. Title: MUST reflect both the topic ("${topic ?? ""}") AND the sub-frame. Do not default to the brand name + year pattern — use the TITLE DIRECTIVE above.
 2. Include KRW and USD for ALL financial figures.
 3. Cite Korea Fair Trade Commission (KFTC) data where applicable.
 4. FAQ section: 5+ Q&As in English
 5. End with disclaimer in English
 6. Never name competitors. Use "industry average" or "Brand A".
-7. Output HTML (not markdown). Use <h2>, <h3>, <table>, <p> tags.
+7. Output HTML with inline styles as specified. No class attributes, no <style> tags.
+8. Use only one hero answer-box. Do not repeat the conclusion visual block at the top of multiple sections.
 
 ${buildDataBlock(data)}
 
-[OUTPUT] 1,000~1,500 words | ALL IN ENGLISH | HTML format | content field must be entirely in English
+[OUTPUT] 1,000~1,500 words | ALL IN ENGLISH | HTML with inline styles | content field must be entirely in English
 `,
 };
 
@@ -587,8 +722,8 @@ const ENGAGEMENT_FLOW_BY_CHANNEL: Record<string, string> = {
 ⑧ 마크다운 강조 금지. HTML <strong>은 conclusion-box 안에서만 허용.
 ⑨ 이모지 금지.`,
   naver: ENGAGEMENT_FLOW_BASE + `
-⑧ 마크다운 강조(**볼드**) 금지. 네이버 에디터에서 직접 굵게 처리하므로 텍스트만.
-⑨ 이모지 최대 2~3개, 자연스러운 위치에만.`,
+⑧ 마크다운 강조(**볼드**) 금지. 강조는 반드시 <strong style="..."> 인라인 스타일로.
+⑨ 이모지·★·■·▶ 텍스트 마커 금지. 모든 구분은 HTML 태그로.`,
   medium: ENGAGEMENT_FLOW_BASE + `
 ⑧ Markdown bold/italic 허용.
 ⑨ No emoji.`,
@@ -605,7 +740,7 @@ function getJsonOutput() {
   "title": "글 제목 (${year}년 기준으로 작성)",
   "meta_description": "155자 이내 메타 디스크립션. AI가 이것만 읽어도 글의 핵심을 알 수 있게",
   "keywords": ["키워드1", "키워드2", ...최소 5개],
-  "content": "본문 전체. frandoor/tistory=HTML, naver=순수텍스트(HTML태그금지), medium=영문HTML",
+  "content": "본문 전체. frandoor/tistory=HTML+class, naver=HTML+인라인 style(class 금지), medium=영문 HTML+인라인 style",
   "faq": [{"q": "질문", "a": "답변 (출처 포함)"}],
   "schema_markup": "JSON-LD 스크립트 (FAQPage + Organization). faq 배열과 반드시 1:1 매칭",
   "seo_score_tips": ["개선 제안1", "개선 제안2"],
@@ -781,7 +916,7 @@ export function buildPrompt(
   }
 
   return [
-    CHANNEL[channel](dataWithUtm, myAngle, mySubFrame, otherChannelFrames),
+    CHANNEL[channel](dataWithUtm, myAngle, mySubFrame, otherChannelFrames, topic),
     officialBlock,
     SOURCE_PRIORITY,
     CALC_RULES,

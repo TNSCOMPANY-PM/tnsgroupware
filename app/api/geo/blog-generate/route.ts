@@ -16,19 +16,20 @@ async function callClaude(prompt: string, platform: string): Promise<string> {
 
 CRITICAL RULES:
 1. Respond ONLY with a single JSON object. No text before or after the JSON.
-2. The "content" field must contain PLAIN TEXT ONLY. NO HTML tags whatsoever.
-   No <table>, <div>, <p>, <h2>, <strong>, <br> or any other HTML tag.
-   Use text markers (★, ■, ▶, |) for structure. Line breaks via \\n.
-3. Follow the [OUTPUT FORMAT] and [STRUCTURE] exactly as specified in the user prompt.
-4. NEVER use markdown syntax (##, **, -, etc.) either.`,
+2. The "content" field MUST be HTML with INLINE style attributes only.
+   Allowed: <div>, <p>, <h2>, <h3>, <span>, <strong>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <br>, <a>, <img>.
+   Forbidden: class="...", id="...", <style>, <script>, <link>. 모든 디자인은 style="..." 인라인 속성으로만.
+3. Follow the [OUTPUT STRUCTURE] inline-style HTML templates exactly as specified in the user prompt.
+4. NEVER use markdown syntax (##, **, -, etc.). Use HTML tags instead.
+5. NEVER use text markers (★, ■, ▶, |) for structure. Use HTML layout instead.`,
     medium: `You are a franchise industry analyst writing in English for Medium.
 
 CRITICAL RULES:
 1. Respond ONLY with a single JSON object. No text before or after the JSON.
 2. The "content" field MUST be written ENTIRELY IN ENGLISH. Not Korean.
-3. Use HTML tags (<h2>, <p>, <table>) for formatting.
+3. Use HTML with INLINE style attributes only (no class, no <style>). Same visual system as the Korean version.
 4. Translate all Korean data to English. Include ₩ KRW and ~$USD for all amounts.
-5. Follow the [OUTPUT FORMAT] and [STRUCTURE] exactly as specified in the user prompt.`,
+5. Follow the [OUTPUT STRUCTURE] inline-style HTML templates exactly as specified in the user prompt.`,
   };
 
   const defaultSystem = `You are a professional blog content writer. 한국어로 작성.
