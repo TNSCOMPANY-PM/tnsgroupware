@@ -14,6 +14,7 @@
     "publish:run": "tsx scripts/publish/run.ts",
     "publish:medium": "tsx scripts/publish/run.ts",
     "publish:tistory": "tsx scripts/publish/run.ts",
+    "test-kosis": "tsx scripts/test-kosis.ts",
     "aeo:scan": "tsx scripts/aeo-scan.ts",
     "aeo:scan:google": "tsx scripts/aeo-scan.ts --platform=google",
     "aeo:scan:naver": "tsx scripts/aeo-scan.ts --platform=naver",

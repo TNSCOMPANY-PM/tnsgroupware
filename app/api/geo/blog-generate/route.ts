@@ -5,6 +5,8 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildPrompt, buildBrandDataFromFacts, type Channel, type ReaderStage, type SearchIntent, type OfficialData } from "@/utils/promptBuilder";
 import { loadDualSourceBlocks, DUAL_SOURCE_RULES } from "@/utils/dualSourceBlocks";
+import { fetchKosisIndustryAvg } from "@/utils/kosis";
+import { getCachedOrFetch } from "@/utils/kosisCache";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -164,6 +166,26 @@ ${refInput}
   }
   if (!officialData) {
     officialData = await fetchOfficialData(brand.name);
+  }
+
+  // KOSIS 산업 평균 (업종 필드 추출 → 캐시 우선 조회)
+  try {
+    const industryEntry = allFacts.find(d => d.label === "업종" || d.label === "업종분류" || d.label === "업태");
+    const industryText = industryEntry?.keyword ?? brand.name;
+    if (industryText) {
+      const today = new Date();
+      const prdKey = `${today.getUTCFullYear()}${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+      const kosis = await getCachedOrFetch(
+        `KOSIS_INDUSTRY:${industryText}`,
+        prdKey,
+        () => fetchKosisIndustryAvg(industryText),
+      );
+      if (kosis) {
+        officialData = { ...(officialData ?? {}), kosis_industry_avg: kosis };
+      }
+    }
+  } catch (e) {
+    console.error("[blog-generate] KOSIS 산업 평균 조회 실패:", e instanceof Error ? e.message : e);
   }
 
   // ── 이중 소스 블록 (brand_source_doc 이 있으면 새 시스템) ──

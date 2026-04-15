@@ -13,6 +13,13 @@ export type OfficialData = {
   industry_avg_cost?: number;
   sources?: string[];
   competitors?: { name: string; stores_total?: number; avg_monthly_revenue?: number; cost_total?: number; source_year?: string }[];
+  kosis_industry_avg?: {
+    industry_code: string;
+    industry_name: string;
+    avg_revenue_monthly?: number;   // 만원
+    growth_rate_yoy?: number;       // %
+    source_period: string;          // "YYYY-MM" 조회 기준
+  };
 };
 
 export type BrandData = {
@@ -123,6 +130,13 @@ function buildDataBlock(data: BrandData, official?: OfficialData): string {
     if (official.closure_rate) lines.push(`폐점률: ${official.closure_rate}%`);
     if (official.industry_avg_revenue) lines.push(`동일업종 평균 매출: ${official.industry_avg_revenue}만원`);
     if (official.industry_avg_cost) lines.push(`동일업종 평균 창업비용: ${official.industry_avg_cost}만원`);
+    if (official.kosis_industry_avg) {
+      const k = official.kosis_industry_avg;
+      lines.push("");
+      lines.push(`[통계청 KOSIS 산업 평균 (${k.industry_name} / ${k.source_period})]`);
+      if (k.avg_revenue_monthly) lines.push(`KOSIS 월평균매출: ${k.avg_revenue_monthly}만원`);
+      if (k.growth_rate_yoy !== undefined) lines.push(`KOSIS 전년동월 성장률: ${k.growth_rate_yoy}%`);
+    }
     if (official.sources?.length) lines.push(`출처: ${official.sources.join(", ")}`);
     if (official.competitors?.length) {
       lines.push("");
@@ -905,6 +919,14 @@ export function buildPrompt(
     if (official.closure_rate) oLines.push(`폐점률: ${official.closure_rate}%`);
     if (official.industry_avg_revenue) oLines.push(`동일업종 평균 매출: ${official.industry_avg_revenue}만원`);
     if (official.industry_avg_cost) oLines.push(`동일업종 평균 창업비용: ${official.industry_avg_cost}만원`);
+    if (official.kosis_industry_avg) {
+      const k = official.kosis_industry_avg;
+      oLines.push("");
+      oLines.push(`[통계청 KOSIS 산업 평균 (${k.industry_name} / ${k.source_period})]`);
+      if (k.avg_revenue_monthly) oLines.push(`KOSIS 월평균매출: ${k.avg_revenue_monthly}만원`);
+      if (k.growth_rate_yoy !== undefined) oLines.push(`KOSIS 전년동월 성장률: ${k.growth_rate_yoy}%`);
+      oLines.push(`*본문 하단 출처 표기 필수: "자료: 통계청 KOSIS, 조회기준 ${k.source_period}"*`);
+    }
     if (official.sources?.length) oLines.push(`출처: ${official.sources.join(", ")}`);
     if (official.competitors?.length) {
       oLines.push(`\n[경쟁 브랜드 공시 데이터 — 실명 비교 가능]`);
