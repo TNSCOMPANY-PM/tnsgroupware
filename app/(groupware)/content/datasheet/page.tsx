@@ -1,33 +1,95 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 
+/* ── DS 타입 정의 ── */
 const DS_OPTIONS = [
   { group: "업종 단위", items: [
-    { value: "DS-01", label: "DS-01: 업종별 평균 창업비용표" },
-    { value: "DS-02", label: "DS-02: 업종별 폐점률 순위표" },
-    { value: "DS-03", label: "DS-03: 업종별 월평균매출 순위" },
-    { value: "DS-04", label: "DS-04: 지역별 업종 평균매출표" },
-    { value: "DS-05", label: "DS-05: 지역별 가맹점 포화도표" },
-    { value: "DS-06", label: "DS-06: 업종별 로열티 비교표" },
-    { value: "DS-07", label: "DS-07: 직영점 비율 순위표" },
-    { value: "DS-08", label: "DS-08: 월간 신규 브랜드 리스트" },
+    { value: "DS-01", label: "업종별 평균 창업비용표" },
+    { value: "DS-02", label: "업종별 폐점률 순위표" },
+    { value: "DS-03", label: "업종별 월평균매출 순위" },
+    { value: "DS-04", label: "지역별 업종 평균매출표" },
+    { value: "DS-05", label: "지역별 가맹점 포화도표" },
+    { value: "DS-06", label: "업종별 로열티 비교표" },
+    { value: "DS-07", label: "직영점 비율 순위표" },
+    { value: "DS-08", label: "월간 신규 브랜드 리스트" },
   ]},
   { group: "브랜드 단위", items: [
-    { value: "DS-09", label: "DS-09: 브랜드 팩트시트" },
-    { value: "DS-10", label: "DS-10: 브랜드 본사 재무 요약" },
-    { value: "DS-11", label: "DS-11: 브랜드 계약조건 요약" },
+    { value: "DS-09", label: "브랜드 팩트시트" },
+    { value: "DS-10", label: "브랜드 본사 재무 요약" },
+    { value: "DS-11", label: "브랜드 계약조건 요약" },
   ]},
   { group: "법령", items: [
-    { value: "DS-12", label: "DS-12: 가맹사업거래법 핵심 조항" },
-    { value: "DS-13", label: "DS-13: 차액가맹금 해설" },
-    { value: "DS-14", label: "DS-14: 계약해지 조건 체크리스트" },
+    { value: "DS-12", label: "가맹사업거래법 핵심 조항" },
+    { value: "DS-13", label: "차액가맹금 해설" },
+    { value: "DS-14", label: "계약해지 조건 체크리스트" },
   ]},
   { group: "월간 자동", items: [
-    { value: "DS-15", label: "DS-15: 월간 업종 개폐점 현황" },
-    { value: "DS-16", label: "DS-16: 월간 창업비용 변동" },
+    { value: "DS-15", label: "월간 업종 개폐점 현황" },
+    { value: "DS-16", label: "월간 창업비용 변동" },
   ]},
 ];
+
+/* ── 추천 조합 맵 ── */
+const RECOMMENDATIONS: Record<string, { label: string; types: string[] }[]> = {
+  "DS-01": [
+    { label: "업종 종합분석", types: ["DS-01", "DS-02", "DS-03", "DS-06"] },
+    { label: "창업비용 + 매출 비교", types: ["DS-01", "DS-03", "DS-15"] },
+  ],
+  "DS-02": [
+    { label: "리스크 분석", types: ["DS-02", "DS-05", "DS-07"] },
+    { label: "업종 종합분석", types: ["DS-01", "DS-02", "DS-03", "DS-06"] },
+  ],
+  "DS-03": [
+    { label: "매출 vs 비용", types: ["DS-03", "DS-01", "DS-06"] },
+    { label: "지역별 매출 심화", types: ["DS-03", "DS-04", "DS-05"] },
+  ],
+  "DS-04": [
+    { label: "지역 종합분석", types: ["DS-04", "DS-05", "DS-15"] },
+  ],
+  "DS-05": [
+    { label: "지역 포화도 + 리스크", types: ["DS-05", "DS-02", "DS-04"] },
+  ],
+  "DS-06": [
+    { label: "비용 종합", types: ["DS-06", "DS-01", "DS-11"] },
+  ],
+  "DS-07": [
+    { label: "본사 신뢰도 분석", types: ["DS-07", "DS-02", "DS-10"] },
+  ],
+  "DS-08": [
+    { label: "신규 브랜드 + 시장동향", types: ["DS-08", "DS-15", "DS-16"] },
+  ],
+  "DS-09": [
+    { label: "브랜드 종합분석", types: ["DS-09", "DS-10", "DS-11"] },
+    { label: "브랜드 + 업종 비교", types: ["DS-09", "DS-01", "DS-02", "DS-03"] },
+  ],
+  "DS-10": [
+    { label: "브랜드 종합분석", types: ["DS-09", "DS-10", "DS-11"] },
+  ],
+  "DS-11": [
+    { label: "계약 + 법령", types: ["DS-11", "DS-12", "DS-14"] },
+    { label: "브랜드 종합분석", types: ["DS-09", "DS-10", "DS-11"] },
+  ],
+  "DS-12": [
+    { label: "법령 종합", types: ["DS-12", "DS-13", "DS-14"] },
+    { label: "법령 + 계약조건", types: ["DS-12", "DS-14", "DS-11"] },
+  ],
+  "DS-13": [
+    { label: "법령 종합", types: ["DS-12", "DS-13", "DS-14"] },
+  ],
+  "DS-14": [
+    { label: "법령 종합", types: ["DS-12", "DS-13", "DS-14"] },
+    { label: "해지 + 계약조건", types: ["DS-14", "DS-11", "DS-12"] },
+  ],
+  "DS-15": [
+    { label: "월간 시장동향", types: ["DS-15", "DS-16", "DS-08"] },
+    { label: "개폐점 + 폐점률", types: ["DS-15", "DS-02", "DS-05"] },
+  ],
+  "DS-16": [
+    { label: "월간 시장동향", types: ["DS-15", "DS-16", "DS-08"] },
+    { label: "비용 변동 + 업종분석", types: ["DS-16", "DS-01", "DS-03"] },
+  ],
+};
 
 const INDUSTRIES = ["전체", "치킨", "카페", "편의점", "피자", "한식", "분식", "주점", "기타"];
 const REGIONS = [
@@ -38,6 +100,7 @@ const REGIONS = [
 
 type DsResult =
   | { ok: true; post: { id: string; title: string; html: string } }
+  | { ok: true; posts: { id: string; title: string; html: string }[] }
   | { error: string }
   | null;
 
@@ -54,115 +117,210 @@ function needsYm(ds: string) {
   return ds === "DS-15" || ds === "DS-16";
 }
 
+function dsLabel(v: string): string {
+  for (const g of DS_OPTIONS) {
+    const found = g.items.find(i => i.value === v);
+    if (found) return found.label;
+  }
+  return v;
+}
+
 export default function DatasheetPage() {
-  const [dsType, setDsType] = useState("DS-01");
+  const [selected, setSelected] = useState<string[]>(["DS-01"]);
   const [industry, setIndustry] = useState("치킨");
   const [region, setRegion] = useState("서울특별시");
   const [brand, setBrand] = useState("");
   const now = new Date();
   const [ym, setYm] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<DsResult>(null);
+  const [results, setResults] = useState<DsResult>(null);
 
-  const showIndustry = useMemo(() => needsIndustry(dsType), [dsType]);
-  const showRegion = useMemo(() => needsRegion(dsType), [dsType]);
-  const showBrand = useMemo(() => needsBrand(dsType), [dsType]);
-  const showYm = useMemo(() => needsYm(dsType), [dsType]);
+  /* 선택된 DS들의 필요 필드 합산 */
+  const showIndustry = useMemo(() => selected.some(needsIndustry), [selected]);
+  const showRegion = useMemo(() => selected.some(needsRegion), [selected]);
+  const showBrand = useMemo(() => selected.some(needsBrand), [selected]);
+  const showYm = useMemo(() => selected.some(needsYm), [selected]);
+
+  /* 추천 조합: 첫 번째 선택된 타입 기준 */
+  const recommendations = useMemo(() => {
+    if (selected.length === 0) return [];
+    const firstKey = selected[0];
+    return (RECOMMENDATIONS[firstKey] ?? []).filter(
+      r => !r.types.every(t => selected.includes(t)) // 이미 전부 선택된 조합은 숨김
+    );
+  }, [selected]);
+
+  const toggle = useCallback((val: string) => {
+    setSelected(prev =>
+      prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]
+    );
+  }, []);
+
+  const applyRecommendation = useCallback((types: string[]) => {
+    setSelected(prev => {
+      const merged = new Set([...prev, ...types]);
+      return Array.from(merged);
+    });
+  }, []);
 
   const run = async () => {
     setBusy(true);
-    setResult(null);
+    setResults(null);
     try {
-      const payload: Record<string, string> = { ds_type: dsType };
-      if (showIndustry) payload.industry = industry;
-      if (showRegion) payload.region = region;
-      if (showBrand) payload.brand = brand;
-      if (showYm) payload.ym = ym;
       const res = await fetch("/api/geo/datasheet", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ds_types: selected,
+          industry: showIndustry ? industry : undefined,
+          region: showRegion ? region : undefined,
+          brand: showBrand ? brand : undefined,
+          ym: showYm ? ym : undefined,
+        }),
       });
-      setResult(await res.json());
+      setResults(await res.json());
     } catch (e) {
-      setResult({ error: e instanceof Error ? e.message : "요청 실패" });
+      setResults({ error: e instanceof Error ? e.message : "요청 실패" });
     }
     setBusy(false);
   };
 
-  const canSubmit = !busy && (!showBrand || brand.trim().length > 0);
+  const canSubmit = !busy && selected.length > 0 && (!showBrand || brand.trim().length > 0);
+
+  /* 결과에서 posts 배열 추출 */
+  const posts = useMemo(() => {
+    if (!results) return [];
+    if ("posts" in results && results.ok) return results.posts;
+    if ("post" in results && results.ok) return [results.post];
+    return [];
+  }, [results]);
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-slate-700">데이터시트 생성</h2>
-        <p className="text-xs text-slate-400">AI 인용 최적화 — 표+수치+출처 형태</p>
-
+      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
         <div>
-          <label className="text-xs text-slate-500">DS 타입</label>
-          <select value={dsType} onChange={e => setDsType(e.target.value)}
-            className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5">
-            {DS_OPTIONS.map(g => (
-              <optgroup key={g.group} label={g.group}>
-                {g.items.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </optgroup>
-            ))}
-          </select>
+          <h2 className="text-sm font-semibold text-slate-700">데이터시트 생성</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            AI 인용 최적화 — 복수 선택으로 조합 콘텐츠 생성
+          </p>
         </div>
 
-        {showIndustry && (
-          <div>
-            <label className="text-xs text-slate-500">업종</label>
-            <select value={industry} onChange={e => setIndustry(e.target.value)}
-              className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5">
-              {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
-            </select>
+        {/* ── DS 타입 멀티 셀렉트 (칩) ── */}
+        {DS_OPTIONS.map(g => (
+          <div key={g.group}>
+            <div className="text-[11px] font-medium text-slate-400 mb-1.5">{g.group}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {g.items.map(o => {
+                const active = selected.includes(o.value);
+                return (
+                  <button key={o.value} onClick={() => toggle(o.value)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      active
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600"
+                    }`}>
+                    <span className="font-mono mr-1">{o.value}</span>
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* ── 추천 조합 ── */}
+        {recommendations.length > 0 && (
+          <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2.5 space-y-1.5">
+            <div className="text-[11px] font-medium text-indigo-600">추천 조합</div>
+            {recommendations.map((r, i) => (
+              <button key={i} onClick={() => applyRecommendation(r.types)}
+                className="flex items-center gap-2 w-full text-left text-xs text-indigo-700 hover:bg-indigo-100 rounded px-2 py-1 transition-colors">
+                <span className="shrink-0">＋</span>
+                <span className="font-medium">{r.label}</span>
+                <span className="text-indigo-400 ml-auto">{r.types.join(" + ")}</span>
+              </button>
+            ))}
           </div>
         )}
 
-        {showRegion && (
-          <div>
-            <label className="text-xs text-slate-500">지역</label>
-            <select value={region} onChange={e => setRegion(e.target.value)}
-              className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5">
-              {REGIONS.map(r => <option key={r}>{r}</option>)}
-            </select>
+        {/* ── 선택된 DS 요약 ── */}
+        {selected.length > 0 && (
+          <div className="text-xs text-slate-500">
+            선택: {selected.map((s, i) => (
+              <span key={s}>
+                {i > 0 && " + "}
+                <span className="font-mono font-medium text-slate-700">{s}</span>
+              </span>
+            ))}
+            <button onClick={() => setSelected([])} className="ml-2 text-red-400 hover:text-red-600">
+              초기화
+            </button>
           </div>
         )}
 
-        {showBrand && (
-          <div>
-            <label className="text-xs text-slate-500">브랜드명</label>
-            <input type="text" value={brand} onChange={e => setBrand(e.target.value)}
-              className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5"
-              placeholder="예: BBQ" />
-          </div>
-        )}
+        {/* ── 파라미터 입력 ── */}
+        <div className="grid grid-cols-2 gap-3">
+          {showIndustry && (
+            <div>
+              <label className="text-xs text-slate-500">업종</label>
+              <select value={industry} onChange={e => setIndustry(e.target.value)}
+                className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5">
+                {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
+              </select>
+            </div>
+          )}
 
-        {showYm && (
-          <div>
-            <label className="text-xs text-slate-500">연월</label>
-            <input type="month" value={ym} onChange={e => setYm(e.target.value)}
-              className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5" />
-          </div>
-        )}
+          {showRegion && (
+            <div>
+              <label className="text-xs text-slate-500">지역</label>
+              <select value={region} onChange={e => setRegion(e.target.value)}
+                className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5">
+                {REGIONS.map(r => <option key={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+
+          {showBrand && (
+            <div>
+              <label className="text-xs text-slate-500">브랜드명</label>
+              <input type="text" value={brand} onChange={e => setBrand(e.target.value)}
+                className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5"
+                placeholder="예: BBQ" />
+            </div>
+          )}
+
+          {showYm && (
+            <div>
+              <label className="text-xs text-slate-500">연월</label>
+              <input type="month" value={ym} onChange={e => setYm(e.target.value)}
+                className="mt-1 w-full text-sm border border-slate-200 rounded-md px-2 py-1.5" />
+            </div>
+          )}
+        </div>
 
         <button onClick={run} disabled={!canSubmit}
-          className="text-xs px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
-          {busy ? "생성 중…" : "데이터시트 생성"}
+          className="text-xs px-4 py-2 rounded-md bg-indigo-600 text-white disabled:opacity-50 hover:bg-indigo-700 transition-colors">
+          {busy ? "생성 중…" : `데이터시트 생성 (${selected.length}개)`}
         </button>
       </div>
 
-      {result && "error" in result && (
+      {/* ── 에러 ── */}
+      {results && "error" in results && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
-          {result.error}
+          {results.error}
         </div>
       )}
 
-      {result && "ok" in result && result.ok && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-          <div className="text-xs text-slate-500">{result.post.title}</div>
-          <div className="border-t border-slate-100 pt-3 prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: result.post.html }} />
+      {/* ── 결과 ── */}
+      {posts.length > 0 && (
+        <div className="space-y-4">
+          {posts.map((p, idx) => (
+            <div key={p.id ?? idx} className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+              <div className="text-xs text-slate-500">{p.title}</div>
+              <div className="border-t border-slate-100 pt-3 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: p.html }} />
+            </div>
+          ))}
         </div>
       )}
     </div>
