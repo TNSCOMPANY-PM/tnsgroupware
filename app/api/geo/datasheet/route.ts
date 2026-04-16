@@ -90,13 +90,13 @@ export async function POST(req: Request) {
         input = await generateDS11(body.brand);
         break;
       case "DS-12":
-        input = generateDS12();
+        input = await generateDS12();
         break;
       case "DS-13":
-        input = generateDS13();
+        input = await generateDS13();
         break;
       case "DS-14":
-        input = generateDS14();
+        input = await generateDS14();
         break;
       case "DS-15":
         if (!body.industry) return NextResponse.json({ error: "industry 필수" }, { status: 400 });

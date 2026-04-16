@@ -681,28 +681,126 @@ export async function generateDS11(brand: string): Promise<DatasheetInput> {
   };
 }
 
-// ─── DS-12~14: 법령 (LAW_API_KEY 대기) ─────────
-function lawStub(dsType: string, title: string): DatasheetInput {
+// ─── DS-12: 가맹사업거래법 핵심 조항 ─────────
+import {
+  fetchLawArticles,
+  getKeyArticleNos,
+  FRANCHISE_LAW_SERIAL,
+} from "./lawApi";
+
+export async function generateDS12(): Promise<DatasheetInput> {
+  const articles = await fetchLawArticles(FRANCHISE_LAW_SERIAL);
+  const keyNos = getKeyArticleNos();
+
+  const rows: string[][] = [];
+  for (const k of keyNos) {
+    const art = articles.find(a => a.articleNo === k.no);
+    if (art) {
+      const summary = art.content.slice(0, 120) + (art.content.length > 120 ? "…" : "");
+      rows.push([`제${k.no}조`, art.title || k.why, summary]);
+    } else {
+      rows.push([`제${k.no}조`, k.why, "(조문 조회 실패)"]);
+    }
+  }
+
   return {
-    dsType,
-    title,
-    lede: "국가법령정보 API 키 발급 대기 중. 발급 후 자동 연결 예정.",
-    tables: [{ caption: "법령 데이터", headers: ["조항", "내용"], rows: [["대기", "LAW_API_KEY 미설정"]] }],
-    sources: ["국가법령정보센터 (law.go.kr)"],
+    dsType: "DS-12",
+    title: "가맹사업거래법 핵심 10개 조항 — 예비 창업자 필독",
+    lede: "가맹사업거래법은 가맹점주를 보호하기 위한 법률로, 정보공개서 제공(제7조), 허위과장 금지(제9조), 부당한 계약조건 금지(제12조의2) 등을 규정한다.",
+    tables: [{
+      caption: "가맹사업거래법 핵심 조항 요약",
+      headers: ["조항", "제목", "내용 요약"],
+      rows,
+    }],
+    notes: [
+      "가맹사업거래의 공정화에 관한 법률 (약칭: 가맹사업법)",
+      "전체 조문은 국가법령정보센터(law.go.kr)에서 확인 가능",
+    ],
+    sources: ["국가법령정보센터 (law.go.kr)", "가맹사업거래의 공정화에 관한 법률"],
     baseDate: today(),
   };
 }
 
-export function generateDS12(): DatasheetInput {
-  return lawStub("DS-12", "가맹사업거래법 핵심 10개 조항 — 예비 창업자 필독");
+// ─── DS-13: 차액가맹금 해설 ─────────────
+export async function generateDS13(): Promise<DatasheetInput> {
+  const articles = await fetchLawArticles(FRANCHISE_LAW_SERIAL);
+
+  // 제2조 6호 (가맹금 정의), 제12조의2 (부당한 계약조건)
+  const art2 = articles.find(a => a.articleNo === "2");
+  const art12_2 = articles.find(a => a.articleNo === "12의2" || a.articleNo === "12");
+
+  const rows: string[][] = [];
+  rows.push(["정의", "가맹금 중 '차액'에 해당하는 대가", art2 ? art2.subItems.find(s => s.includes("가맹금") && s.includes("대가"))?.slice(0, 150) ?? "제2조 제6호 참조" : "제2조 제6호 참조"]);
+  rows.push(["법적 근거", "가맹사업법 제2조 제6호 라목", "가맹점사업자가 영업표지 사용·지원·교육 등에 대해 정기/비정기 지급하는 대가"]);
+  rows.push(["공개 의무", "정보공개서 기재 의무", "가맹본부는 차액가맹금의 산정 기준·금액을 정보공개서에 기재해야 함"]);
+  rows.push(["위반 시", "가맹사업법 제12조의2", art12_2 ? art12_2.content.slice(0, 120) + "…" : "부당한 계약조건 부과 금지"]);
+  rows.push(["주의사항", "과다 차액가맹금 확인", "물품 공급가가 시중가보다 현저히 높을 경우 차액가맹금에 해당할 수 있음"]);
+
+  return {
+    dsType: "DS-13",
+    title: "차액가맹금이란? — 뜻, 구조, 주의사항 (2026년 기준)",
+    lede: "차액가맹금은 가맹본부가 물품을 공급하면서 시장가격보다 높게 책정하여 차액을 수취하는 것으로, 가맹사업거래법 제2조 제6호에 정의되어 있다.",
+    tables: [{
+      caption: "차액가맹금 핵심 정리",
+      headers: ["항목", "설명", "상세"],
+      rows,
+    }],
+    notes: [
+      "차액가맹금은 '숨은 로열티'로 불리며, 정보공개서에 의무 공개 대상",
+      "실제 분쟁 사례는 공정위 심결례 참조",
+    ],
+    sources: ["국가법령정보센터 (law.go.kr)", "가맹사업거래의 공정화에 관한 법률 제2조"],
+    baseDate: today(),
+  };
 }
 
-export function generateDS13(): DatasheetInput {
-  return lawStub("DS-13", "차액가맹금이란? — 뜻, 구조, 주의사항");
-}
+// ─── DS-14: 계약해지 조건 체크리스트 ─────────
+export async function generateDS14(): Promise<DatasheetInput> {
+  const articles = await fetchLawArticles(FRANCHISE_LAW_SERIAL);
 
-export function generateDS14(): DatasheetInput {
-  return lawStub("DS-14", "프랜차이즈 계약해지 조건과 절차 — 가맹사업거래법 기준");
+  const art14 = articles.find(a => a.articleNo === "14");
+  const art14_2 = articles.find(a => a.articleNo === "14의2");
+
+  const rows: string[][] = [];
+
+  // 제14조 해지 제한 조항 파싱
+  if (art14) {
+    rows.push(["해지 제한 (제14조)", art14.title, art14.content.slice(0, 150) + (art14.content.length > 150 ? "…" : "")]);
+    // 세부 항/호
+    for (const sub of art14.subItems.slice(0, 5)) {
+      const snippet = sub.slice(0, 120) + (sub.length > 120 ? "…" : "");
+      rows.push(["", "세부 조건", snippet]);
+    }
+  } else {
+    rows.push(["해지 제한 (제14조)", "가맹본부의 계약해지 제한", "2개월 이상 유예기간, 서면 통지 필요"]);
+  }
+
+  if (art14_2) {
+    rows.push(["계약갱신 (제14조의2)", art14_2.title, art14_2.content.slice(0, 150) + (art14_2.content.length > 150 ? "…" : "")]);
+  }
+
+  // 체크리스트
+  rows.push(["체크 1", "서면 통지 여부", "가맹본부가 서면으로 해지 사유를 통지했는가?"]);
+  rows.push(["체크 2", "유예기간 부여", "2개월 이상의 유예기간을 부여했는가?"]);
+  rows.push(["체크 3", "위반사실 시정 기회", "가맹점사업자에게 위반사실 시정 기회를 주었는가?"]);
+  rows.push(["체크 4", "정당한 해지 사유", "법 제14조에 열거된 해지 사유에 해당하는가?"]);
+
+  return {
+    dsType: "DS-14",
+    title: "프랜차이즈 계약해지 조건과 절차 — 가맹사업거래법 기준",
+    lede: "가맹사업거래법 제14조에 따라 가맹본부가 계약을 해지하려면 2개월 이상의 유예기간과 서면 통지가 필요하다.",
+    tables: [{
+      caption: "가맹계약 해지 조건 및 체크리스트",
+      headers: ["구분", "항목", "내용"],
+      rows,
+    }],
+    notes: [
+      "가맹점사업자도 계약 위반 시 해지 가능 (민법 일반 원칙)",
+      "분쟁 발생 시 공정거래위원회 분쟁조정 신청 가능",
+    ],
+    sources: ["국가법령정보센터 (law.go.kr)", "가맹사업거래의 공정화에 관한 법률 제14조"],
+    baseDate: today(),
+  };
 }
 
 // ─── DS-15: 월간 업종 개폐점 현황 ─────────────
