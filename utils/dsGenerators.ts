@@ -108,6 +108,24 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
     rows.push([name, fmtAmtRaw(total), fmtAmtRaw(frcs), fmtAmtRaw(fntn), fmtAmtRaw(etc)]);
   }
 
+  // 1~2행이면 같은 대분류 전체로 확장 (비교 맥락 제공)
+  if (rows.length < 3 && !isAll(industry)) {
+    const m = getMapping(industry);
+    const allInLclas = await fetchIndutyStrtupCost(year, m.lclas);
+    const extraGroups = new Map<string, typeof allInLclas>();
+    for (const r of allInLclas) {
+      const key = r.indutyMlsfcNm || "기타";
+      if (rows.some(row => row[0] === key)) continue;
+      if (!extraGroups.has(key)) extraGroups.set(key, []);
+      extraGroups.get(key)!.push(r);
+    }
+    for (const [name, items] of extraGroups) {
+      const cnt = items.length || 1;
+      const avg = (field: string) => Math.round(items.reduce((s, i) => s + toNum(i[field]), 0) / cnt);
+      rows.push([name, fmtAmtRaw(avg("smtnAmt")), fmtAmtRaw(avg("avrgFrcsAmt")), fmtAmtRaw(avg("avrgFntnAmt")), fmtAmtRaw(avg("avrgJngEtcAmt"))]);
+    }
+  }
+
   // 총액 기준 내림차순
   rows.sort((a, b) => {
     const parse = (s: string) => Number(s.replace(/[^0-9]/g, "")) || 0;
@@ -115,9 +133,13 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
   });
 
   const topRow = rows[0];
-  const lede = topRow
-    ? `${industry} 프랜차이즈 평균 창업비용은 ${topRow[1]}이다. (${year}년 공정위 정보공개서 기준)`
-    : `${industry} 프랜차이즈 창업비용 데이터. (${year}년 공정위 기준)`;
+  const botRow = rows[rows.length - 1];
+  let lede = topRow
+    ? `${industry} 프랜차이즈 평균 창업비용은 ${topRow[1]}이다 (${year}년 공정위 정보공개서 기준).`
+    : `${industry} 프랜차이즈 창업비용 데이터 (${year}년 공정위 기준).`;
+  if (topRow && botRow && rows.length >= 2 && topRow !== botRow) {
+    lede += ` 가장 높은 업종은 ${topRow[0]}(${topRow[1]}), 가장 낮은 업종은 ${botRow[0]}(${botRow[1]})이다.`;
+  }
 
   return {
     dsType: "DS-01",
@@ -131,7 +153,8 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
     notes: [
       "창업비용은 정보공개서 신고 기준이며, 실제 비용은 상권·면적에 따라 달라질 수 있음",
       "천원 단위, 소수점 이하 반올림",
-    ],
+      rows.length >= 2 ? `최고(${topRow[0]})와 최저(${botRow[0]}) 간 차이 존재 — 점포 면적·입지에 따라 추가 비용 발생 가능` : "",
+    ].filter(Boolean),
     sources: ["공정위 가맹사업정보공개서", "공공데이터포털 업종별 창업비용 현황 API"],
     baseDate: `${year}-12-31`,
   };
@@ -185,9 +208,16 @@ export async function generateDS02(industry: string): Promise<DatasheetInput> {
   ]);
 
   const top = ranked[0];
-  const lede = top
+  const bot = ranked.length > 1 ? ranked[ranked.length - 1] : null;
+  const totalStores = ranked.reduce((s, r) => s + r.frcsCnt, 0);
+  const totalClosed = ranked.reduce((s, r) => s + r.ctrtEnd + r.ctrtCncltn, 0);
+  const avgRate = totalStores > 0 ? Math.round((totalClosed / totalStores) * 1000) / 10 : 0;
+  let lede = top
     ? `${year}년 폐점률이 가장 높은 업종은 ${top.name}(${top.closeRate}%)이다.`
     : `${year}년 ${industry} 폐점률 데이터.`;
+  if (bot && top.name !== bot.name) {
+    lede += ` 가장 낮은 업종은 ${bot.name}(${bot.closeRate}%). 전체 평균 폐점률은 ${avgRate}%이다.`;
+  }
 
   return {
     dsType: "DS-02",
@@ -235,16 +265,20 @@ export async function generateDS03(industry: string): Promise<DatasheetInput> {
   ]);
 
   const topB = top20[0];
-  const lede = topB
-    ? `${industry} 프랜차이즈 중 월평균매출 1위는 ${topB.brandNm}(${fmtAmt(topB.avrgSlsAmt)})이다.`
+  const botB = top20[top20.length - 1];
+  let lede = topB
+    ? `${industry} 프랜차이즈 중 연평균매출 1위는 ${topB.brandNm}(${fmtAmt(topB.avrgSlsAmt)})이다.`
     : `${industry} 프랜차이즈 매출 순위 데이터.`;
+  if (topB && botB && top20.length >= 3) {
+    lede += ` ${top20.length}위 ${botB.brandNm}은 ${fmtAmt(botB.avrgSlsAmt)}으로 1위 대비 ${Math.round((1 - botB.avrgSlsAmt / topB.avrgSlsAmt) * 100)}% 낮다.`;
+  }
 
   return {
     dsType: "DS-03",
-    title: `${industry} 프랜차이즈 월평균매출 순위 — ${year}년 공정위 기준`,
+    title: `${industry} 프랜차이즈 연평균매출 순위 — ${year}년 공정위 기준`,
     lede,
     tables: [{
-      caption: `${industry} 월평균매출 TOP 20 (${year}년)`,
+      caption: `${industry} 연평균매출 TOP 20 (${year}년)`,
       headers: ["순위", "브랜드", "연평균매출", "면적당매출", "가맹점수"],
       rows,
     }],
