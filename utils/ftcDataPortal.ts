@@ -205,3 +205,352 @@ export async function fetchAreaIndutyFrcsCount(
     { jngBizCrtraYr },
   );
 }
+
+// ───────────────────────────────────────────────
+// 공통: graceful fetch 래퍼 (실패 시 빈 배열)
+// ───────────────────────────────────────────────
+async function fetchPortal(
+  servicePath: string,
+  params: Record<string, string>,
+): Promise<Record<string, string>[]> {
+  try {
+    return await fetchAllPages(`${BASE}/${servicePath}`, params);
+  } catch (e) {
+    console.warn(`[ftcDataPortal] ${servicePath} 실패:`, e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+// ───────────────────────────────────────────────
+// 5. 업종별 개폐업률
+//    FftcIndutyFrcsOpclStatsService
+// ───────────────────────────────────────────────
+export type IndutyOpenCloseRate = {
+  industry: string;
+  totalStores: number;
+  openRate: number;
+  closeRate: number;
+};
+
+const OPCL_OP_MAP: Record<IndutyLclas, string> = {
+  "외식": "getIndutyFrcsOpclOutStats",
+  "도소매": "getIndutyFrcsOpclWhrtStats",
+  "서비스": "getIndutyFrcsOpclSrvcStats",
+};
+
+export async function fetchIndutyOpenCloseRate(
+  yr: string,
+  lclas: IndutyLclas,
+): Promise<IndutyOpenCloseRate[]> {
+  const raw = await fetchPortal(
+    `FftcIndutyFrcsOpclStatsService/${OPCL_OP_MAP[lclas]}`,
+    { yr },
+  );
+  return raw.map(r => ({
+    industry: r.indutyLclasNm ?? r.indutyMlsfcNm ?? "",
+    totalStores: toNum(r.frcsCnt),
+    openRate: toNum(r.opnRate),
+    closeRate: toNum(r.clsRate),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 6. 업종별 가맹점 증감 현황
+//    FftcindutyfrcsflctnstatService
+// ───────────────────────────────────────────────
+export type IndutyFrcsFluctuation = {
+  industry: string;
+  stores: number;
+  avgNew: number;
+  avgEnd: number;
+};
+
+export async function fetchIndutyFrcsFluctuation(
+  yr: string,
+): Promise<IndutyFrcsFluctuation[]> {
+  const raw = await fetchPortal(
+    "FftcindutyfrcsflctnstatService/getindutyfrcsflctnstats",
+    { yr },
+  );
+  return raw.map(r => ({
+    industry: r.indutyLclasNm ?? "",
+    stores: toNum(r.frcsCnt),
+    avgNew: toNum(r.avrgNewOpbizCnt),
+    avgEnd: toNum(r.avrgCtrtEndCnt),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 7. 브랜드별 직영/가맹 비율
+//    FftcBrandIndutyDropFrcsStatsService
+// ───────────────────────────────────────────────
+export type BrandDirectFrcsRatio = {
+  brand: string;
+  industry: string;
+  franchiseCount: number;
+  directCount: number;
+  directRatio: number;
+};
+
+export async function fetchBrandDirectFrcsRatio(
+  yr: string,
+): Promise<BrandDirectFrcsRatio[]> {
+  const raw = await fetchPortal(
+    "FftcBrandIndutyDropFrcsStatsService/getBrandIndutyFrcsStats",
+    { yr },
+  );
+  return raw.map(r => ({
+    brand: r.brandNm ?? "",
+    industry: r.indutyLclasNm ?? "",
+    franchiseCount: toNum(r.frcsSeBrandCnt),
+    directCount: toNum(r.droperSeBrandCnt),
+    directRatio: toNum(r.brandRt),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 8. 업종별 현황 개요
+//    FftcIndutyStusStatsService
+// ───────────────────────────────────────────────
+export type IndutyOverview = {
+  industry: string;
+  stores: number;
+  brands: number;
+  terminated: number;
+  cancelled: number;
+};
+
+export async function fetchIndutyOverview(
+  yr: string,
+): Promise<IndutyOverview[]> {
+  const raw = await fetchPortal(
+    "FftcIndutyStusStatsService/getIndutyStus",
+    { yr },
+  );
+  return raw.map(r => ({
+    industry: r.indutyLclasNm ?? "",
+    stores: toNum(r.frcsCnt),
+    brands: toNum(r.brandCnt),
+    terminated: toNum(r.ctrtEndCnt),
+    cancelled: toNum(r.ctrtCncltnCnt),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 9. 업종별 창업비용 랭킹
+//    FftcIndutyAvrRankStatsService
+// ───────────────────────────────────────────────
+export type IndutyStartupCostRank = {
+  brand: string;
+  franchiseFee: number;
+  eduFee: number;
+  etcFee: number;
+  totalCost: number;
+};
+
+const RANK_OP_MAP: Record<IndutyLclas, string> = {
+  "외식": "getIndutyAvrOutRankStats",
+  "도소매": "getIndutyAvrWhrtRankStats",
+  "서비스": "getIndutyAvrSrvcRankStats",
+};
+
+export async function fetchIndutyStartupCostRank(
+  yr: string,
+  lclas: IndutyLclas,
+): Promise<IndutyStartupCostRank[]> {
+  const raw = await fetchPortal(
+    `FftcIndutyAvrRankStatsService/${RANK_OP_MAP[lclas]}`,
+    { yr },
+  );
+  return raw.map(r => ({
+    brand: r.brandNm ?? "",
+    franchiseFee: toNum(r.jngAmt),
+    eduFee: toNum(r.eduAmt),
+    etcFee: toNum(r.etcAmt),
+    totalCost: toNum(r.smtnAmt),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 10. 브랜드별 경영 개요 (가맹본부 경영컨설팅 정보)
+//     FftcbrandmngmtcnsutinfoService
+// ───────────────────────────────────────────────
+export type BrandOverviewStat = {
+  yr: string;
+  brandNm: string;
+  corpNm: string;
+  indutyLclasNm: string;
+  frcsCnt: number;
+  avrgSlsAmt: number;
+};
+
+export async function fetchBrandOverviewStats(
+  yr: string,
+): Promise<BrandOverviewStat[]> {
+  const raw = await fetchPortal(
+    "FftcbrandmngmtcnsutinfoService/getbrandMngmtCnsutinfo",
+    { yr },
+  );
+  return raw.map(r => ({
+    yr: r.yr ?? yr,
+    brandNm: r.brandNm ?? "",
+    corpNm: r.corpNm ?? "",
+    indutyLclasNm: r.indutyLclasNm ?? "",
+    frcsCnt: toNum(r.frcsCnt),
+    avrgSlsAmt: toNum(r.avrgSlsAmt),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 11. 신규등록 브랜드 목록
+//     FftcnewbrandinfoService (data.go.kr 15109808 계열)
+// ───────────────────────────────────────────────
+export type NewBrandEntry = {
+  brand: string;
+  corp: string;
+  startDate: string;
+};
+
+export async function fetchNewBrandList(
+  yr: string,
+): Promise<NewBrandEntry[]> {
+  const raw = await fetchPortal(
+    "FftcnewbrandinfoService/getnewbrandinfo",
+    { yr },
+  );
+  return raw.map(r => ({
+    brand: r.brandNm ?? "",
+    corp: r.corpNm ?? "",
+    startDate: r.jngBizStrtDate ?? r.jngBizStrtDe ?? "",
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 12. 가맹본부 법인·개인 비율
+//     FftcjnghdqrtrsCorpStatsService (data.go.kr 가맹본부 법인형태 통계)
+// ───────────────────────────────────────────────
+export type CorpTypeRatio = {
+  corpCount: number;
+  personalCount: number;
+  corpRatio: number;
+};
+
+export async function fetchCorpTypeRatio(
+  yr: string,
+): Promise<CorpTypeRatio> {
+  const raw = await fetchPortal(
+    "FftcjnghdqrtrsCorpStatsService/getjnghdqrtrsCorpStats",
+    { yr },
+  );
+  let corpCount = 0;
+  let personalCount = 0;
+  for (const r of raw) {
+    const type = (r.corpSeNm ?? r.corpSe ?? "").trim();
+    const cnt = toNum(r.cnt ?? r.jnghdqrtrsCnt);
+    if (/법인/.test(type)) corpCount += cnt;
+    else if (/개인/.test(type)) personalCount += cnt;
+  }
+  const total = corpCount + personalCount;
+  return {
+    corpCount,
+    personalCount,
+    corpRatio: total > 0 ? Math.round((corpCount / total) * 1000) / 10 : 0,
+  };
+}
+
+// ───────────────────────────────────────────────
+// 13. 외국인 가맹본부 현황
+//     FftcjnghdqrtrsfrntngnlinfoService
+// ───────────────────────────────────────────────
+export type ForeignFranchisor = {
+  name: string;
+  address: string;
+  brandCount: number;
+};
+
+export async function fetchForeignFranchisor(
+  yr: string,
+): Promise<ForeignFranchisor[]> {
+  const raw = await fetchPortal(
+    "FftcjnghdqrtrsfrntngnlinfoService/getjnghdqrtrsFrntnGnlinfo",
+    { yr },
+  );
+  return raw.map(r => ({
+    name: r.jngInstNm ?? r.jnghdqrtrsNm ?? "",
+    address: r.lctnAddr ?? r.addr ?? "",
+    brandCount: toNum(r.brandCnt),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 14. 대규모기업집단 소속 가맹본부
+//     typeOfBusinessCompSttusListApi (data.go.kr 대규모기업집단)
+// ───────────────────────────────────────────────
+export type ConglomerateEntry = {
+  groupName: string;
+  companyName: string;
+  industry: string;
+};
+
+export async function fetchConglomerateList(
+  yr: string,
+): Promise<ConglomerateEntry[]> {
+  const raw = await fetchPortal(
+    "typeOfBusinessCompSttusListApi/typeOfBusinessCompSttusList",
+    { yr },
+  );
+  return raw.map(r => ({
+    groupName: r.unityGrupNm ?? "",
+    companyName: r.entrprsNm ?? "",
+    industry: r.indutyNm ?? "",
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 15. 대규모기업집단 소속회사 재무현황
+//     TODO: data.go.kr 정확한 서비스 ID/엔드포인트 확인 필요.
+//     현재 FftcCompFinncStatsService/getCompFinncStats 로 시도.
+// ───────────────────────────────────────────────
+export type ConglomerateFinancial = {
+  company: string;
+  assets: number;
+  revenue: number;
+  netIncome: number;
+};
+
+export async function fetchConglomerateFinancials(
+  yr: string,
+): Promise<ConglomerateFinancial[]> {
+  const raw = await fetchPortal(
+    "FftcCompFinncStatsService/getCompFinncStats",
+    { yr },
+  );
+  return raw.map(r => ({
+    company: r.entrprsNm ?? r.corpNm ?? "",
+    assets: toNum(r.assetAmt ?? r.totalAsset),
+    revenue: toNum(r.slsAmt ?? r.totalRevenue),
+    netIncome: toNum(r.thstrfpAmt ?? r.netIncome),
+  }));
+}
+
+// ───────────────────────────────────────────────
+// 16. 통신판매사업자 등록현황
+//     MllBs_2Service
+// ───────────────────────────────────────────────
+export type TelecomSeller = {
+  name: string;
+  bizNo: string;
+  status: string;
+};
+
+export async function fetchTelecomSellerList(): Promise<TelecomSeller[]> {
+  const raw = await fetchPortal(
+    "MllBs_2Service/getMllBs",
+    {},
+  );
+  return raw.map(r => ({
+    name: r.bzmnNm ?? "",
+    bizNo: r.brno ?? "",
+    status: r.operSttusCdNm ?? "",
+  }));
+}

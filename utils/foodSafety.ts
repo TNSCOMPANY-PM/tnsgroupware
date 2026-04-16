@@ -132,3 +132,37 @@ export function searchHealthFuncByName(name: string, end = 10) {
     conditions: { PRDUCT_NM: name },
   });
 }
+
+/**
+ * 월간 식약처 트렌드 조회. 실패 시 graceful fallback.
+ * I2790(영양성분) 기반으로 업종 키워드에 맞는 상위 20개를 summary 로 제공.
+ */
+export async function fetchFoodSafetyTrend(input: {
+  ym: string;
+  keyword?: string;
+}): Promise<{ raw: unknown; summary: string }> {
+  try {
+    const conditions: Record<string, string> = {};
+    if (input.keyword) conditions.DESC_KOR = input.keyword;
+    const res = await fetchFoodSafety<NutritionRow>(FOODSAFETY_SERVICE.NUTRITION, {
+      start: 1,
+      end: 20,
+      conditions,
+    });
+    if (!res.rows.length) return { raw: null, summary: "식약처 데이터 없음" };
+
+    const lines = res.rows.slice(0, 5).map(r => {
+      const row = r as NutritionRow & { DESC_KOR?: string; MAKER_NAME?: string; SERVING_SIZE?: string };
+      const label = row.DESC_KOR ?? "?";
+      const maker = row.MAKER_NAME ? ` / ${row.MAKER_NAME}` : "";
+      return `- ${label}${maker}`;
+    });
+    return {
+      raw: res.rows,
+      summary: `총 ${res.total}건 중 상위 5건:\n${lines.join("\n")}`,
+    };
+  } catch (e) {
+    console.warn("[foodSafety] fetchFoodSafetyTrend 실패:", e instanceof Error ? e.message : e);
+    return { raw: null, summary: "식약처 데이터 없음" };
+  }
+}

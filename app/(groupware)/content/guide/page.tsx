@@ -2,28 +2,34 @@
 
 import { useState } from "react";
 
+type GuideResult =
+  | { ok: true; post: { id: string; title: string; html: string } }
+  | { error: string }
+  | null;
+
 export default function GuidePage() {
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState("창업 절차");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<unknown>(null);
+  const [result, setResult] = useState<GuideResult>(null);
 
   const run = async () => {
     setBusy(true);
-    const res = await fetch("/api/geo/blog-generate/guide", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic, category }),
-    });
-    setResult(await res.json());
+    setResult(null);
+    try {
+      const res = await fetch("/api/geo/blog-generate/guide", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, category }),
+      });
+      setResult(await res.json());
+    } catch (e) {
+      setResult({ error: e instanceof Error ? e.message : "요청 실패" });
+    }
     setBusy(false);
   };
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-        준비중 — API 가 stub 응답(501)만 반환합니다.
-      </div>
-
+    <div className="max-w-3xl space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
         <h2 className="text-sm font-semibold text-slate-700">창업 가이드 (타입 C)</h2>
 
@@ -52,10 +58,18 @@ export default function GuidePage() {
         </button>
       </div>
 
-      {result !== null && (
-        <pre className="text-[10px] bg-slate-900 text-green-400 p-3 rounded-lg overflow-x-auto">
-          {JSON.stringify(result, null, 2)}
-        </pre>
+      {result && "error" in result && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          {result.error}
+        </div>
+      )}
+
+      {result && "ok" in result && result.ok && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+          <div className="text-xs text-slate-500">{result.post.title}</div>
+          <div className="border-t border-slate-100 pt-3 prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: result.post.html }} />
+        </div>
       )}
     </div>
   );

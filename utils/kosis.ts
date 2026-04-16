@@ -207,6 +207,37 @@ export function mapIndustryCode(industryText: string | null | undefined): { code
   return null;
 }
 
+/**
+ * 월별 지표 조회. 트렌드 리포트용. 실패 시 graceful fallback.
+ */
+export async function fetchKosisMonthly(input: {
+  orgId: string;
+  tblId: string;
+  ym: string;
+}): Promise<{ raw: unknown; summary: string }> {
+  const ymCompact = input.ym.replace("-", "");
+  try {
+    const rows = await fetchStatisticsData({
+      orgId: input.orgId,
+      tblId: input.tblId,
+      prdSe: "M",
+      startPrdDe: ymCompact,
+      endPrdDe: ymCompact,
+    });
+    if (!rows.length) return { raw: null, summary: "KOSIS 데이터 없음" };
+
+    const lines = rows.slice(0, 5).map(r => {
+      const label = [r.C1_NM, r.C2_NM, r.ITM_NM].filter(Boolean).join(" / ");
+      const unit = r.UNIT_NM ? ` ${r.UNIT_NM}` : "";
+      return `- ${label}: ${r.DT}${unit} (${r.PRD_DE})`;
+    });
+    return { raw: rows, summary: lines.join("\n") };
+  } catch (e) {
+    console.warn("[kosis] fetchKosisMonthly 실패:", e instanceof Error ? e.message : e);
+    return { raw: null, summary: "KOSIS 데이터 없음" };
+  }
+}
+
 export async function fetchKosisIndustryAvg(
   industryText: string,
 ): Promise<KosisIndustryAvg | null> {

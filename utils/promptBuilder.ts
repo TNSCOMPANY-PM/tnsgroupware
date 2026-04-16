@@ -1,3 +1,142 @@
+export const RULES_5_PRINCIPLES = `
+[AI 인용 5원칙 — 반드시 준수]
+1. 첫 문장에 핵심 답을 먼저 제시한다.
+2. 브랜드명·업종명을 직접 명시한다 (대명사 금지).
+3. 출처를 본문 또는 마지막에 명시한다 (공정위/KOSIS/식약처 등).
+4. "본 자료는 YYYY-MM-DD 기준입니다" 를 본문 어딘가에 포함한다.
+5. 추정 표현 금지. 구체 수치만 사용. 데이터 없으면 "공식자료 미공개" 라고 명시.
+`.trim();
+
+export function buildTrendPrompt(input: {
+  ym: string;
+  industry: string;
+  factBlocks: string;
+}): string {
+  return `${RULES_5_PRINCIPLES}
+
+[과제]
+${input.ym} ${input.industry} 업종의 월간 트렌드 리포트 HTML 작성.
+
+[공식 데이터]
+${input.factBlocks}
+
+[출력 규격]
+- <div class="og-wrap"> 루트.
+- <h1> 제목: "${input.ym} ${input.industry} 트렌드 리포트"
+- <p class="og-lede"> 첫 문단: 핵심 요약 3문장 이내, 구체 수치 포함.
+- <section class="og-section"> 3~5개:
+    · 지표 변화 / 이슈 / 소비자 관심도 / 정책·규제 동향 등
+- <footer class="og-sources">
+    출처: KOSIS(통계청), 식품안전나라(식약처)
+    본 자료는 YYYY-MM-DD 기준입니다.
+- factBlocks 에 없는 수치는 절대 생성 금지. 없으면 "공식자료 미공개" 명시.
+`.trim();
+}
+
+export function buildExternalPrompt(input: {
+  sourceContent: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  platform: "tistory" | "naver" | "medium";
+}): string {
+  const platformGuide = {
+    tistory: "티스토리 블로그 톤. 단락 명확, 중간 제목 3~5개, 이미지 placeholder [이미지] 2회.",
+    naver:   "네이버 블로그 톤. 친근한 구어체, 이모지 최소, 리스트 활용, 중간 제목 짧게.",
+    medium:  "Medium 영어권 에디토리얼 톤. 한국어로 쓰되 문장 구조 간결, 소제목 ##.",
+  }[input.platform];
+
+  return `${RULES_5_PRINCIPLES}
+
+[과제]
+frandoor.co.kr 의 한 페이지를 근거로 ${input.platform} 플랫폼용 블로그 포스트 작성.
+
+[플랫폼 규칙]
+${platformGuide}
+
+[원본 페이지]
+제목: ${input.sourceTitle}
+URL: ${input.sourceUrl}
+본문:
+${input.sourceContent}
+
+[출력 규격]
+- <article class="og-wrap"> 루트.
+- 첫 문단에 핵심 결론을 수치와 함께 제시.
+- 본문 중간에 최소 1회, 마지막에 반드시 1회:
+    <a href="${input.sourceUrl}" target="_blank" rel="noopener">프랜도어에서 원본 데이터 보기</a>
+  형태로 자연스럽게 삽입 (광고스럽지 않게).
+- <footer class="og-sources">
+    원본: <a href="${input.sourceUrl}">${input.sourceTitle} — frandoor.co.kr</a>
+    본 자료는 YYYY-MM-DD 기준입니다.
+- 원본에 없는 수치·사실 추가 금지. 없으면 "공식자료 미공개" 명시.
+`.trim();
+}
+
+export function buildComparePrompt(input: {
+  industry: string;
+  brands: Array<{ name: string; factBlock: string }>;
+  criteria: string;
+}): string {
+  const brandBlocks = input.brands
+    .map((b, i) => `[브랜드 ${i + 1}: ${b.name}]\n${b.factBlock}`)
+    .join("\n\n");
+
+  return `${RULES_5_PRINCIPLES}
+
+[과제]
+${input.industry} 업종 내 ${input.brands.length}개 브랜드를 "${input.criteria}" 기준으로 비교하는 HTML 작성.
+
+[브랜드별 공정위 공식 수치]
+${brandBlocks}
+
+[출력 규격]
+- <div class="og-wrap"> 루트.
+- <h1> 제목: "${input.industry} ${input.criteria} 비교 — ${input.brands.map(b => b.name).join(" vs ")}"
+- <p class="og-lede"> 첫 문단: 비교 결론 1~2문장 (구체 수치 포함).
+- <table class="og-compare"> 브랜드 × 주요 지표 요약 표 (thead + tbody).
+    · 반드시 ${input.criteria} 컬럼을 포함.
+    · 나머지 보조 지표(창업비용/가맹점수/매출/폐점률 중 factBlock 에 있는 것)를 2~3개 컬럼으로.
+- <section class="og-section"> 브랜드별 해설 (브랜드 수만큼, 각 2~3문장).
+- <section class="og-section"> 종합 해석 (1문단). 단, 추천·순위·우열 단정 금지. "공식 수치 기준" 으로 중립 서술.
+- <footer class="og-sources">
+    출처: 공정거래위원회 가맹사업거래 정보공개서
+    본 자료는 YYYY-MM-DD 기준입니다.
+- factBlock 에 없는 수치 생성 금지. 미공개 항목은 "공식자료 미공개" 로 표기.
+- 브랜드명은 대명사로 대체하지 말고 항상 풀네임 사용.
+`.trim();
+}
+
+export function buildGuidePrompt(input: {
+  topic: string;
+  category: string;
+  publicDataBlock: string;
+}): string {
+  return `${RULES_5_PRINCIPLES}
+
+[과제]
+프랜차이즈 창업 예비 창업자를 위한 일반 가이드 HTML 작성.
+주제: "${input.topic}"
+카테고리: ${input.category}
+
+[공식 참고 기관·법령]
+${input.publicDataBlock}
+
+[출력 규격]
+- <article class="og-wrap"> 루트.
+- <h1> 제목: 주제를 그대로 반영 (질문형이면 평서문으로 다듬어도 됨).
+- <p class="og-lede"> 첫 문단: 핵심 답 또는 핵심 결론 3문장 이내.
+- <section class="og-section"> 3~6개:
+    · 개념 설명 / 절차 / 체크리스트 / 주의사항 / 관련 법령·규정 요약.
+    · 가능하면 리스트(<ul>/<ol>) 와 소제목(<h2>) 활용.
+- 본문 중 관련 공식 기관 링크를 최소 1회 이상 <a href> 로 삽입.
+- 특정 브랜드명 추천·비교 금지. 특정 업체를 지목하지 않는다.
+- <footer class="og-sources">
+    출처: 위에 명시된 공식 기관·법령
+    본 자료는 YYYY-MM-DD 기준이며, 실제 창업 시 공식 기관 또는 전문가 확인을 권장합니다.
+- 추정 수치 금지. 수치가 필요한 경우 "${input.category} 관련 최신 통계는 KOSIS·공정위 자료 참조" 로 우회.
+`.trim();
+}
+
 type FactKeyword = { keyword: string; label: string };
 
 export type OfficialData = {

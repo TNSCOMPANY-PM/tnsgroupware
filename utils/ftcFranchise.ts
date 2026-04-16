@@ -13,6 +13,8 @@
  *     → 전체 브랜드 데이터는 ftcDataPortal.fetchBrandFrcsStats 사용
  */
 
+import { findBrandFrcsStat } from "@/utils/ftcDataPortal";
+
 const FTC_BASE = "https://franchise.ftc.go.kr/api/search.do";
 
 function getKey(): string {
@@ -201,6 +203,47 @@ function normalize(s: string): string {
     .replace(/[()（）㈜]/g, "")
     .replace(/^주식회사|^\(주\)/g, "")
     .toLowerCase();
+}
+
+/**
+ * 브랜드명으로 공정위 정보공개서 요약 블록을 텍스트로 반환.
+ * 근거: ftcDataPortal.findBrandFrcsStat (브랜드별 가맹점 현황).
+ * 실패/미공개 시 ok:false + "공식자료 미공개" 블록.
+ */
+export async function fetchFtcFactByBrandName(brandName: string): Promise<{
+  ok: boolean;
+  factBlock: string;
+  raw: unknown;
+}> {
+  try {
+    const stat = await findBrandFrcsStat({ brandName });
+    if (!stat) {
+      return { ok: false, factBlock: `${brandName}: 공식자료 미공개`, raw: null };
+    }
+    const lines: string[] = [
+      `브랜드: ${stat.brandNm || brandName}`,
+      `법인: ${stat.corpNm || "공식자료 미공개"}`,
+      `업종: ${stat.indutyLclasNm || "공식자료 미공개"}${stat.indutyMlsfcNm ? ` / ${stat.indutyMlsfcNm}` : ""}`,
+      `기준연도: ${stat.yr}`,
+      `가맹점수: ${stat.frcsCnt > 0 ? `${stat.frcsCnt.toLocaleString()}개` : "공식자료 미공개"}`,
+      `신규등록: ${stat.newFrcsRgsCnt > 0 ? `${stat.newFrcsRgsCnt}개` : "공식자료 미공개"}`,
+      `계약종료: ${stat.ctrtEndCnt > 0 ? `${stat.ctrtEndCnt}개` : "공식자료 미공개"}`,
+      `계약해지: ${stat.ctrtCncltnCnt > 0 ? `${stat.ctrtCncltnCnt}개` : "공식자료 미공개"}`,
+      `평균매출: ${stat.avrgSlsAmt > 0 ? `${Math.round(stat.avrgSlsAmt / 1000).toLocaleString()}만원(연)` : "공식자료 미공개"}`,
+    ];
+    // 폐점률 = (ctrtEndCnt + ctrtCncltnCnt) / frcsCnt * 100
+    if (stat.frcsCnt > 0) {
+      const closed = stat.ctrtEndCnt + stat.ctrtCncltnCnt;
+      const rate = Math.round((closed / stat.frcsCnt) * 1000) / 10;
+      lines.push(`폐점률(계약종료+해지/가맹점수): ${rate}%`);
+    } else {
+      lines.push(`폐점률: 공식자료 미공개`);
+    }
+    return { ok: true, factBlock: lines.join("\n"), raw: stat };
+  } catch (e) {
+    console.warn(`[ftcFranchise] fetchFtcFactByBrandName 실패 (${brandName}):`, e instanceof Error ? e.message : e);
+    return { ok: false, factBlock: `${brandName}: 공식자료 미공개`, raw: null };
+  }
 }
 
 export async function findJngIfrmpSn(opts: {

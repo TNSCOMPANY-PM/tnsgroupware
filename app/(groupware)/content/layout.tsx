@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { FileText, GitCompareArrows, BookOpen, TrendingUp, Globe, History } from "lucide-react";
+import { FileText, GitCompareArrows, BookOpen, TrendingUp, Globe, BarChart3, History } from "lucide-react";
 
 const TABS = [
   { href: "/content/brand",    label: "브랜드 (A)", icon: FileText,         color: "violet" },
   { href: "/content/compare",  label: "비교 (B)",   icon: GitCompareArrows, color: "sky" },
   { href: "/content/guide",    label: "가이드 (C)", icon: BookOpen,         color: "emerald" },
   { href: "/content/trend",    label: "트렌드 (D)", icon: TrendingUp,       color: "amber" },
-  { href: "/content/external", label: "외부채널",   icon: Globe,            color: "rose" },
+  { href: "/content/external",  label: "외부채널",    icon: Globe,            color: "rose" },
+  { href: "/content/datasheet", label: "데이터시트", icon: BarChart3,        color: "indigo" },
   { href: "/content/posts",    label: "발행 이력",  icon: History,          color: "slate" },
 ] as const;
 

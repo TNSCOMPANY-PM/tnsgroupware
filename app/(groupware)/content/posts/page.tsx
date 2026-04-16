@@ -24,6 +24,7 @@ const TYPE_LABEL: Record<string, string> = {
   guide: "가이드 C",
   trend: "트렌드 D",
   external: "외부채널",
+  datasheet: "데이터시트",
 };
 
 export default function PostsPage() {
@@ -78,6 +79,7 @@ export default function PostsPage() {
           <option value="guide">가이드 (C)</option>
           <option value="trend">트렌드 (D)</option>
           <option value="external">외부채널</option>
+          <option value="datasheet">데이터시트</option>
         </select>
         <select value={brandId} onChange={e => { setBrandId(e.target.value); setPage(1); }}
           className="text-xs border border-slate-200 rounded-md px-2 py-1.5">
