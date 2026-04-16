@@ -42,7 +42,7 @@ type DsResult =
   | null;
 
 function needsIndustry(ds: string) {
-  return /^DS-0[1-8]$/.test(ds);
+  return /^DS-0[1-8]$/.test(ds) || ds === "DS-15" || ds === "DS-16";
 }
 function needsRegion(ds: string) {
   return ds === "DS-04" || ds === "DS-05";
