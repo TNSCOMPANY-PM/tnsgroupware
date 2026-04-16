@@ -33,6 +33,12 @@ const INDUSTRY_MAP: Record<string, IndustryMapping> = {
   기타: { lclas: "외식", filter: "" },
 };
 
+const ALL_LCLAS: IndutyLclas[] = ["외식", "도소매", "서비스"];
+
+function isAll(industry: string): boolean {
+  return industry === "전체";
+}
+
 function getMapping(industry: string): IndustryMapping {
   return INDUSTRY_MAP[industry] ?? { lclas: "외식", filter: industry };
 }
@@ -63,14 +69,7 @@ function pct(n: number, d: number): string {
 
 // ─── DS-01: 업종별 평균 창업비용표 ─────────────
 export async function generateDS01(industry: string): Promise<DatasheetInput> {
-  const m = getMapping(industry);
   const year = yr();
-  const raw = await fetchIndutyStrtupCost(year, m.lclas);
-
-  // 필터: 중분류에 filter 키워드 포함
-  const filtered = m.filter
-    ? raw.filter(r => (r.indutyMlsfcNm ?? "").includes(m.filter))
-    : raw;
 
   const toNum = (s: string | undefined) => {
     if (!s) return 0;
@@ -78,9 +77,20 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
     return isNaN(n) ? 0 : n;
   };
 
+  // "전체"이면 3개 대분류 병렬 조회, 아니면 단일 대분류+필터
+  let source: Record<string, string>[];
+  if (isAll(industry)) {
+    const results = await Promise.all(ALL_LCLAS.map(l => fetchIndutyStrtupCost(year, l)));
+    source = results.flat();
+  } else {
+    const m = getMapping(industry);
+    const raw = await fetchIndutyStrtupCost(year, m.lclas);
+    source = m.filter ? raw.filter(r => (r.indutyMlsfcNm ?? "").includes(m.filter)) : raw;
+    if (source.length === 0) source = raw;
+  }
+
   // 실제 API 필드: avrgFrcsAmt(가맹금), avrgFntnAmt(교육비), avrgJngEtcAmt(기타), smtnAmt(합계)
   const rows: string[][] = [];
-  const source = filtered.length > 0 ? filtered : await fetchIndutyStrtupCost(year, m.lclas);
 
   const groups = new Map<string, typeof source>();
   for (const r of source) {
@@ -129,14 +139,19 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
 
 // ─── DS-02: 업종별 폐점률 순위표 ─────────────
 export async function generateDS02(industry: string): Promise<DatasheetInput> {
-  const m = getMapping(industry);
   const year = yr();
   const all = await fetchBrandFrcsStats(year);
 
-  // 업종 필터
-  const filtered = m.filter
-    ? all.filter(b => b.indutyLclasNm.includes(m.lclas) && b.indutyMlsfcNm.includes(m.filter))
-    : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  // 업종 필터 ("전체"면 전부)
+  let filtered: BrandFrcsStat[];
+  if (isAll(industry)) {
+    filtered = all;
+  } else {
+    const m = getMapping(industry);
+    filtered = m.filter
+      ? all.filter(b => b.indutyLclasNm.includes(m.lclas) && b.indutyMlsfcNm.includes(m.filter))
+      : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  }
 
   // 중분류별 집계
   const groups = new Map<string, { frcsCnt: number; ctrtEnd: number; ctrtCncltn: number; newFrcs: number }>();
@@ -194,13 +209,18 @@ export async function generateDS02(industry: string): Promise<DatasheetInput> {
 
 // ─── DS-03: 업종별 월평균매출 순위 ─────────────
 export async function generateDS03(industry: string): Promise<DatasheetInput> {
-  const m = getMapping(industry);
   const year = yr();
   const all = await fetchBrandFrcsStats(year);
 
-  const filtered = m.filter
-    ? all.filter(b => b.indutyMlsfcNm.includes(m.filter) && b.avrgSlsAmt > 0)
-    : all.filter(b => b.indutyLclasNm.includes(m.lclas) && b.avrgSlsAmt > 0);
+  let filtered: BrandFrcsStat[];
+  if (isAll(industry)) {
+    filtered = all.filter(b => b.avrgSlsAmt > 0);
+  } else {
+    const m = getMapping(industry);
+    filtered = m.filter
+      ? all.filter(b => b.indutyMlsfcNm.includes(m.filter) && b.avrgSlsAmt > 0)
+      : all.filter(b => b.indutyLclasNm.includes(m.lclas) && b.avrgSlsAmt > 0);
+  }
 
   // 매출 내림차순
   filtered.sort((a, b) => b.avrgSlsAmt - a.avrgSlsAmt);
@@ -239,9 +259,15 @@ export async function generateDS03(industry: string): Promise<DatasheetInput> {
 
 // ─── DS-04: 지역별 업종 평균매출표 ─────────────
 export async function generateDS04(industry: string, region: string): Promise<DatasheetInput> {
-  const m = getMapping(industry);
   const year = yr();
-  const raw = await fetchAreaIndutyAvr(year, m.lclas);
+  let raw: Record<string, string>[];
+  if (isAll(industry)) {
+    const results = await Promise.all(ALL_LCLAS.map(l => fetchAreaIndutyAvr(year, l)));
+    raw = results.flat();
+  } else {
+    const m = getMapping(industry);
+    raw = await fetchAreaIndutyAvr(year, m.lclas);
+  }
 
   const toNum = (s: string | undefined) => {
     if (!s) return 0;
@@ -307,15 +333,17 @@ export async function generateDS05(industry: string, region: string): Promise<Da
     return isNaN(n) ? 0 : n;
   };
 
-  const m = getMapping(industry);
-
   // 지역별 집계
   type RegData = { name: string; frcsCnt: number };
   const regionMap = new Map<string, RegData>();
+  const allMode = isAll(industry);
+  const m = allMode ? null : getMapping(industry);
   for (const r of raw) {
     const rName = r.areaNm ?? r.signguNm ?? "기타";
-    if (m.filter && !(r.indutyMlsfcNm ?? "").includes(m.filter)) continue;
-    if (!m.filter && !(r.indutyLclasNm ?? "").includes(m.lclas)) continue;
+    if (!allMode && m) {
+      if (m.filter && !(r.indutyMlsfcNm ?? "").includes(m.filter)) continue;
+      if (!m.filter && !(r.indutyLclasNm ?? "").includes(m.lclas)) continue;
+    }
     const prev = regionMap.get(rName) ?? { name: rName, frcsCnt: 0 };
     prev.frcsCnt += toNum(r.frcsCnt ?? r.frcsStoreSum ?? "0");
     regionMap.set(rName, prev);
@@ -358,17 +386,20 @@ export async function generateDS05(industry: string, region: string): Promise<Da
 // ─── DS-06: 업종별 로열티 비교표 ─────────────
 // 로열티 정보는 정보공개서 본문에서만 추출 가능 → 상위 브랜드 N개 샘플링
 export async function generateDS06(industry: string): Promise<DatasheetInput> {
-  const m = getMapping(industry);
   const year = yr();
   const all = await fetchBrandFrcsStats(year);
 
   // 해당 업종 상위 10개 (가맹점수 기준)
-  const filtered = (m.filter
-    ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
-    : all.filter(b => b.indutyLclasNm.includes(m.lclas))
-  ).filter(b => b.frcsCnt >= 10)
-   .sort((a, b) => b.frcsCnt - a.frcsCnt)
-   .slice(0, 10);
+  const base = isAll(industry) ? all : (() => {
+    const m = getMapping(industry);
+    return m.filter
+      ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
+      : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  })();
+  const filtered = base
+    .filter(b => b.frcsCnt >= 10)
+    .sort((a, b) => b.frcsCnt - a.frcsCnt)
+    .slice(0, 10);
 
   const rows: string[][] = [];
   // 정보공개서에서 로열티 추출 시도 (병렬, 최대 5개)
@@ -425,16 +456,19 @@ export async function generateDS06(industry: string): Promise<DatasheetInput> {
 // 직영점 데이터는 정보공개서 AF_0204에서 추출 가능하나 개별 호출 비용 큼
 // → BrandFrcsStats 의 frcsCnt 대비 정보공개서의 직영점수 비교
 export async function generateDS07(industry: string): Promise<DatasheetInput> {
-  const m = getMapping(industry);
   const year = yr();
   const all = await fetchBrandFrcsStats(year);
 
-  const filtered = (m.filter
-    ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
-    : all.filter(b => b.indutyLclasNm.includes(m.lclas))
-  ).filter(b => b.frcsCnt >= 5)
-   .sort((a, b) => b.frcsCnt - a.frcsCnt)
-   .slice(0, 15);
+  const base = isAll(industry) ? all : (() => {
+    const m = getMapping(industry);
+    return m.filter
+      ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
+      : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  })();
+  const filtered = base
+    .filter(b => b.frcsCnt >= 5)
+    .sort((a, b) => b.frcsCnt - a.frcsCnt)
+    .slice(0, 15);
 
   // 상위 5개 브랜드 정보공개서에서 직영점수 추출
   const results = await Promise.allSettled(
@@ -489,17 +523,19 @@ export async function generateDS07(industry: string): Promise<DatasheetInput> {
 // ─── DS-08: 월간 신규 브랜드 리스트 ─────────────
 export async function generateDS08(industry: string): Promise<DatasheetInput> {
   const year = yr();
-  // ftcList 에서 최근 연도 목록 가져와 업종 매핑
   const all = await fetchBrandFrcsStats(year);
-  const m = getMapping(industry);
 
-  // 신규등록 브랜드: newFrcsRgsCnt > 0 이면서 frcsCnt 가 작은 (신규)
-  const newBrands = (m.filter
-    ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
-    : all.filter(b => b.indutyLclasNm.includes(m.lclas))
-  ).filter(b => b.frcsCnt > 0 && b.frcsCnt <= 20) // 소규모 = 신규 추정
-   .sort((a, b) => b.newFrcsRgsCnt - a.newFrcsRgsCnt)
-   .slice(0, 30);
+  // 신규등록 브랜드: frcsCnt 가 작은 (신규 추정)
+  const base = isAll(industry) ? all : (() => {
+    const m = getMapping(industry);
+    return m.filter
+      ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
+      : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  })();
+  const newBrands = base
+    .filter(b => b.frcsCnt > 0 && b.frcsCnt <= 20)
+    .sort((a, b) => b.newFrcsRgsCnt - a.newFrcsRgsCnt)
+    .slice(0, 30);
 
   const rows = newBrands.map(b => [
     b.brandNm,
@@ -808,12 +844,17 @@ export async function generateDS15(industry: string, ym: string): Promise<Datash
   // 월간이지만 FTC 데이터는 연단위 → 최신 연도 데이터 활용
   const year = ym ? ym.slice(0, 4) : yr();
   const month = ym ? ym.slice(5, 7) : "12";
-  const m = getMapping(industry);
   const all = await fetchBrandFrcsStats(year);
 
-  const filtered = m.filter
-    ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
-    : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  let filtered: BrandFrcsStat[];
+  if (isAll(industry)) {
+    filtered = all;
+  } else {
+    const m = getMapping(industry);
+    filtered = m.filter
+      ? all.filter(b => b.indutyMlsfcNm.includes(m.filter))
+      : all.filter(b => b.indutyLclasNm.includes(m.lclas));
+  }
 
   // 업종별 집계
   const groups = new Map<string, { frcsCnt: number; newFrcs: number; ctrtEnd: number; ctrtCncltn: number }>();
@@ -856,14 +897,25 @@ export async function generateDS15(industry: string, ym: string): Promise<Datash
 export async function generateDS16(industry: string, ym: string): Promise<DatasheetInput> {
   const year = ym ? ym.slice(0, 4) : yr();
   const month = ym ? ym.slice(5, 7) : "12";
-  const m = getMapping(industry);
 
   // 현재 연도 + 전년도 비교
   const prevYear = String(Number(year) - 1);
-  const [curr, prev] = await Promise.all([
-    fetchIndutyStrtupCost(year, m.lclas),
-    fetchIndutyStrtupCost(prevYear, m.lclas).catch(() => [] as Record<string, string>[]),
-  ]);
+  let curr: Record<string, string>[];
+  let prev: Record<string, string>[];
+  if (isAll(industry)) {
+    const [c, p] = await Promise.all([
+      Promise.all(ALL_LCLAS.map(l => fetchIndutyStrtupCost(year, l))),
+      Promise.all(ALL_LCLAS.map(l => fetchIndutyStrtupCost(prevYear, l).catch(() => [] as Record<string, string>[]))),
+    ]);
+    curr = c.flat();
+    prev = p.flat();
+  } else {
+    const m = getMapping(industry);
+    [curr, prev] = await Promise.all([
+      fetchIndutyStrtupCost(year, m.lclas),
+      fetchIndutyStrtupCost(prevYear, m.lclas).catch(() => [] as Record<string, string>[]),
+    ]);
+  }
 
   const toNum = (s: string | undefined) => {
     if (!s) return 0;
