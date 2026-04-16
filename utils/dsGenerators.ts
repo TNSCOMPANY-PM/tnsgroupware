@@ -39,7 +39,7 @@ function getMapping(industry: string): IndustryMapping {
 
 function yr(): string {
   const y = new Date().getFullYear();
-  return String(y - 1); // 공정위 데이터는 전년도 기준
+  return String(y - 2); // 공정위 데이터는 보통 2년 전까지 존재
 }
 
 function today(): string {
@@ -78,42 +78,24 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
     return isNaN(n) ? 0 : n;
   };
 
-  // 업종별 합산 → 항목별 평균
+  // 실제 API 필드: avrgFrcsAmt(가맹금), avrgFntnAmt(교육비), avrgJngEtcAmt(기타), smtnAmt(합계)
   const rows: string[][] = [];
-  if (filtered.length > 0) {
-    // 중분류별 그룹
-    const groups = new Map<string, typeof filtered>();
-    for (const r of filtered) {
-      const key = r.indutyMlsfcNm || "기타";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(r);
-    }
-    for (const [name, items] of groups) {
-      const cnt = items.length || 1;
-      const avg = (field: string) => Math.round(items.reduce((s, i) => s + toNum(i[field]), 0) / cnt);
-      const jnggm = avg("jnggmAmt");
-      const edc = avg("edcCostAmt");
-      const grnty = avg("grntyAmt");
-      const intr = avg("intrCostAmt");
-      const etc = avg("etcCostAmt");
-      const total = jnggm + edc + grnty + intr + etc;
-      rows.push([name, fmtAmtRaw(total), fmtAmtRaw(jnggm), fmtAmtRaw(edc), fmtAmtRaw(grnty), fmtAmtRaw(intr), fmtAmtRaw(etc)]);
-    }
-  } else {
-    // 필터 없이 대분류 전체
-    const all = await fetchIndutyStrtupCost(year, m.lclas);
-    const groups = new Map<string, typeof all>();
-    for (const r of all) {
-      const key = r.indutyMlsfcNm || "기타";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(r);
-    }
-    for (const [name, items] of groups) {
-      const cnt = items.length || 1;
-      const avg = (field: string) => Math.round(items.reduce((s, i) => s + toNum(i[field]), 0) / cnt);
-      const total = avg("jnggmAmt") + avg("edcCostAmt") + avg("grntyAmt") + avg("intrCostAmt") + avg("etcCostAmt");
-      rows.push([name, fmtAmtRaw(total), fmtAmtRaw(avg("jnggmAmt")), fmtAmtRaw(avg("edcCostAmt")), fmtAmtRaw(avg("grntyAmt")), fmtAmtRaw(avg("intrCostAmt")), fmtAmtRaw(avg("etcCostAmt"))]);
-    }
+  const source = filtered.length > 0 ? filtered : await fetchIndutyStrtupCost(year, m.lclas);
+
+  const groups = new Map<string, typeof source>();
+  for (const r of source) {
+    const key = r.indutyMlsfcNm || "기타";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  for (const [name, items] of groups) {
+    const cnt = items.length || 1;
+    const avg = (field: string) => Math.round(items.reduce((s, i) => s + toNum(i[field]), 0) / cnt);
+    const total = avg("smtnAmt");
+    const frcs = avg("avrgFrcsAmt");
+    const fntn = avg("avrgFntnAmt");
+    const etc = avg("avrgJngEtcAmt");
+    rows.push([name, fmtAmtRaw(total), fmtAmtRaw(frcs), fmtAmtRaw(fntn), fmtAmtRaw(etc)]);
   }
 
   // 총액 기준 내림차순
@@ -133,7 +115,7 @@ export async function generateDS01(industry: string): Promise<DatasheetInput> {
     lede,
     tables: [{
       caption: `${industry} 업종별 평균 창업비용 (${year}년)`,
-      headers: ["업종(중분류)", "총 창업비용", "가맹금", "교육비", "보증금", "인테리어", "기타비용"],
+      headers: ["업종(중분류)", "총 창업비용", "가맹금", "교육비", "기타비용"],
       rows,
     }],
     notes: [
@@ -797,7 +779,7 @@ export async function generateDS16(industry: string, ym: string): Promise<Datash
     for (const r of data) {
       const key = r.indutyMlsfcNm || "기타";
       const g = map.get(key) ?? { total: 0, cnt: 0 };
-      g.total += toNum(r.jnggmAmt) + toNum(r.edcCostAmt) + toNum(r.grntyAmt) + toNum(r.intrCostAmt) + toNum(r.etcCostAmt);
+      g.total += toNum(r.smtnAmt) || (toNum(r.avrgFrcsAmt) + toNum(r.avrgFntnAmt) + toNum(r.avrgJngEtcAmt));
       g.cnt += 1;
       map.set(key, g);
     }
