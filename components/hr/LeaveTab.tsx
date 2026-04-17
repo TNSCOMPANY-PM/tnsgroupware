@@ -1274,6 +1274,8 @@ function LeaveApplicationModal({
   const [flexSubType, setFlexSubType] = useState<FlexLeaveSubType>("annual");
   const [hourlyStart, setHourlyStart] = useState("09:00");
   const [hourlyEnd, setHourlyEnd] = useState("11:00");
+  const [militaryKind, setMilitaryKind] = useState<"reserve" | "civil">("reserve");
+  const [militaryStart, setMilitaryStart] = useState("09:00");
 
   // leaveType이 바뀌면 캘린더·폼 상태 초기화
   useEffect(() => {
@@ -1283,7 +1285,11 @@ function LeaveApplicationModal({
     setFlexSubType("annual");
     setHourlyStart("09:00");
     setHourlyEnd("11:00");
+    setMilitaryKind("reserve");
+    setMilitaryStart("09:00");
   }, [leaveType]);
+
+  const isMilitary = leaveType === "military";
 
   const isAnnualFlow = leaveType === "annual";
   const isRangeMode = isAnnualFlow && flexSubType === "annual";
@@ -1320,12 +1326,18 @@ function LeaveApplicationModal({
     // hourly·반차는 endDate가 없으므로 startDate 사용, 나머지는 endDate 우선
     const isSingleDay = isAnnualFlow && (flexSubType === "hourly" || flexSubType === "half_am" || flexSubType === "half_pm");
     const end = isSingleDay ? startDate : (endDate ?? startDate);
+    let finalReason = reason;
+    if (flexSubType === "hourly") finalReason = `${reason} (${hourlyStart}~${hourlyEnd})`;
+    else if (isMilitary) {
+      const prefix = militaryKind === "civil" ? `[민방위 ${militaryStart}~]` : "[예비군]";
+      finalReason = reason ? `${prefix} ${reason}` : prefix;
+    }
     onSubmit({
       leaveType: effectiveLeaveType,
       startDate: format(startDate, "yyyy-MM-dd"),
       endDate: format(end, "yyyy-MM-dd"),
       days,
-      reason: flexSubType === "hourly" ? `${reason} (${hourlyStart}~${hourlyEnd})` : reason,
+      reason: finalReason,
     });
     setStartDate(undefined);
     setEndDate(undefined);
@@ -1333,6 +1345,8 @@ function LeaveApplicationModal({
     setFlexSubType("annual");
     setHourlyStart("09:00");
     setHourlyEnd("11:00");
+    setMilitaryKind("reserve");
+    setMilitaryStart("09:00");
   };
 
   const card = leaveType ? LEAVE_TYPE_CARDS.find((c) => c.key === leaveType) : null;
@@ -1380,11 +1394,50 @@ function LeaveApplicationModal({
                 />
               </div>
             </div>
+            {isMilitary && (
+              <div className="space-y-3">
+                <div>
+                  <Label className="mb-2 block">구분</Label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: "reserve", label: "예비군" },
+                      { value: "civil", label: "민방위" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setMilitaryKind(opt.value)}
+                        className={cn(
+                          "flex-1 rounded-lg border px-4 py-2 text-sm transition-all",
+                          militaryKind === opt.value
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {militaryKind === "civil" && (
+                  <div>
+                    <Label htmlFor="military-start" className="mb-2 block">시작 시간</Label>
+                    <Input
+                      id="military-start"
+                      type="time"
+                      value={militaryStart}
+                      onChange={(e) => setMilitaryStart(e.target.value)}
+                      className="w-36"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <Label htmlFor="reason-simple">사유</Label>
               <Input
                 id="reason-simple"
-                placeholder="(선택) 휴가 사유를 입력해주세요"
+                placeholder={isMilitary ? "(선택) 훈련 장소 등 추가 메모" : "(선택) 휴가 사유를 입력해주세요"}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 className="mt-2"
@@ -1399,7 +1452,12 @@ function LeaveApplicationModal({
           <DialogFooter>
             <p className="mr-auto text-xs text-slate-400">{getApprovalLine(currentRole)}</p>
             <Button variant="outline" onClick={onClose}>취소</Button>
-            <Button onClick={handleSubmit} disabled={!startDate || !reason}>신청하기</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!startDate || (!isMilitary && !reason)}
+            >
+              신청하기
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
