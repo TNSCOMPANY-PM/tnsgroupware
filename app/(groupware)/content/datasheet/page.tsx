@@ -13,16 +13,36 @@ const DS_OPTIONS = [
     { value: "DS-06", label: "업종별 로열티 비교표" },
     { value: "DS-07", label: "직영점 비율 순위표" },
     { value: "DS-08", label: "월간 신규 브랜드 리스트" },
+    { value: "DS-27", label: "업종 개황 종합 리포트" },
+    { value: "DS-28", label: "월간 신규 등록 브랜드" },
+  ]},
+  { group: "지역·컨텍스트", items: [
+    { value: "DS-17", label: "지역 관광 상권 현황" },
+    { value: "DS-18", label: "지역 업종 사업자 생존율" },
+    { value: "DS-19", label: "상권 업종 밀도 분포" },
+    { value: "DS-20", label: "지역 축제·창업 타이밍" },
   ]},
   { group: "브랜드 단위", items: [
     { value: "DS-09", label: "브랜드 팩트시트" },
     { value: "DS-10", label: "브랜드 본사 재무 요약" },
     { value: "DS-11", label: "브랜드 계약조건 요약" },
+    { value: "DS-21", label: "브랜드 신뢰도 스코어카드" },
+    { value: "DS-24", label: "브랜드 가맹점 증감 추이" },
   ]},
-  { group: "법령", items: [
+  { group: "시장·계보", items: [
+    { value: "DS-25", label: "외국계 프랜차이즈 특집" },
+    { value: "DS-26", label: "대기업 프랜차이즈 계보도" },
+  ]},
+  { group: "법령·실무", items: [
     { value: "DS-12", label: "가맹사업거래법 핵심 조항" },
     { value: "DS-13", label: "차액가맹금 해설" },
     { value: "DS-14", label: "계약해지 조건 체크리스트" },
+    { value: "DS-22", label: "분쟁조정 실전 가이드" },
+    { value: "DS-23", label: "계약 전 20개 체크리스트" },
+  ]},
+  { group: "식품·시장", items: [
+    { value: "DS-29", label: "업종 식품안전 이슈" },
+    { value: "DS-30", label: "업종 거시 시장규모" },
   ]},
   { group: "월간 자동", items: [
     { value: "DS-15", label: "월간 업종 개폐점 현황" },
@@ -89,6 +109,48 @@ const RECOMMENDATIONS: Record<string, { label: string; types: string[] }[]> = {
     { label: "월간 시장동향", types: ["DS-15", "DS-16", "DS-08"] },
     { label: "비용 변동 + 업종분석", types: ["DS-16", "DS-01", "DS-03"] },
   ],
+  "DS-17": [
+    { label: "지역 창업 종합", types: ["DS-17", "DS-19", "DS-04"] },
+  ],
+  "DS-18": [
+    { label: "리스크 종합", types: ["DS-18", "DS-02", "DS-07"] },
+  ],
+  "DS-19": [
+    { label: "상권 밀도 분석", types: ["DS-19", "DS-05", "DS-04"] },
+  ],
+  "DS-20": [
+    { label: "시즌 창업", types: ["DS-20", "DS-17", "DS-04"] },
+  ],
+  "DS-21": [
+    { label: "브랜드 검증 풀", types: ["DS-21", "DS-24", "DS-09", "DS-10", "DS-11"] },
+  ],
+  "DS-22": [
+    { label: "분쟁 대비", types: ["DS-22", "DS-14", "DS-11"] },
+  ],
+  "DS-23": [
+    { label: "계약 전 최종", types: ["DS-23", "DS-11", "DS-21"] },
+  ],
+  "DS-24": [
+    { label: "브랜드 추세", types: ["DS-24", "DS-21", "DS-09"] },
+  ],
+  "DS-25": [
+    { label: "외국계 심층", types: ["DS-25", "DS-01", "DS-27"] },
+  ],
+  "DS-26": [
+    { label: "대기업 분석", types: ["DS-26", "DS-25", "DS-27"] },
+  ],
+  "DS-27": [
+    { label: "업종 완전정복", types: ["DS-27", "DS-01", "DS-02", "DS-03", "DS-28"] },
+  ],
+  "DS-28": [
+    { label: "월간 트렌드", types: ["DS-28", "DS-15", "DS-16"] },
+  ],
+  "DS-29": [
+    { label: "업종 리스크 풀", types: ["DS-29", "DS-02", "DS-18"] },
+  ],
+  "DS-30": [
+    { label: "시장 진입 분석", types: ["DS-30", "DS-27", "DS-01"] },
+  ],
 };
 
 const INDUSTRIES = ["전체", "치킨", "카페", "편의점", "피자", "한식", "분식", "주점", "기타"];
@@ -98,23 +160,26 @@ const REGIONS = [
   "충청북도", "충청남도", "전북특별자치도", "전라남도", "경상북도", "경상남도", "제주특별자치도",
 ];
 
+type PostItem = { id: string; title: string; html: string };
 type DsResult =
-  | { ok: true; post: { id: string; title: string; html: string } }
-  | { ok: true; posts: { id: string; title: string; html: string }[] }
+  | { ok: true; post: PostItem }
+  | { ok: true; posts: PostItem[]; composite: PostItem }
   | { error: string }
   | null;
 
 function needsIndustry(ds: string) {
-  return /^DS-0[1-8]$/.test(ds) || ds === "DS-15" || ds === "DS-16";
+  return /^DS-0[1-8]$/.test(ds) || ds === "DS-15" || ds === "DS-16"
+    || ds === "DS-18" || ds === "DS-19" || ds === "DS-27" || ds === "DS-29" || ds === "DS-30";
 }
 function needsRegion(ds: string) {
-  return ds === "DS-04" || ds === "DS-05";
+  return ds === "DS-04" || ds === "DS-05"
+    || ds === "DS-17" || ds === "DS-18" || ds === "DS-19" || ds === "DS-20";
 }
 function needsBrand(ds: string) {
-  return /^DS-(09|10|11)$/.test(ds);
+  return /^DS-(09|10|11)$/.test(ds) || ds === "DS-21" || ds === "DS-24";
 }
 function needsYm(ds: string) {
-  return ds === "DS-15" || ds === "DS-16";
+  return ds === "DS-15" || ds === "DS-16" || ds === "DS-28";
 }
 
 function dsLabel(v: string): string {
@@ -187,13 +252,21 @@ export default function DatasheetPage() {
 
   const canSubmit = !busy && selected.length > 0 && (!showBrand || brand.trim().length > 0);
 
-  /* 결과에서 posts 배열 추출 */
+  /* 결과에서 posts / composite 추출 */
   const posts = useMemo(() => {
     if (!results) return [];
     if ("posts" in results && results.ok) return results.posts;
     if ("post" in results && results.ok) return [results.post];
     return [];
   }, [results]);
+
+  const composite = useMemo(() => {
+    if (!results) return null;
+    if ("composite" in results && results.ok) return results.composite;
+    return null;
+  }, [results]);
+
+  const [viewMode, setViewMode] = useState<"composite" | "individual">("composite");
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -312,9 +385,33 @@ export default function DatasheetPage() {
       )}
 
       {/* ── 결과 ── */}
-      {posts.length > 0 && (
+      {(posts.length > 0 || composite) && (
         <div className="space-y-4">
-          {posts.map((p, idx) => (
+          {/* 합성/개별 토글 (2개 이상일 때만) */}
+          {composite && posts.length > 1 && (
+            <div className="flex gap-1 text-xs">
+              <button onClick={() => setViewMode("composite")}
+                className={`px-3 py-1 rounded-md ${viewMode === "composite" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                종합 보기
+              </button>
+              <button onClick={() => setViewMode("individual")}
+                className={`px-3 py-1 rounded-md ${viewMode === "individual" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                개별 보기
+              </button>
+            </div>
+          )}
+
+          {/* 합성 뷰 */}
+          {viewMode === "composite" && composite && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+              <div className="text-xs text-slate-500">{composite.title}</div>
+              <div className="border-t border-slate-100 pt-3 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: composite.html }} />
+            </div>
+          )}
+
+          {/* 개별 뷰 (또는 단일 결과) */}
+          {(viewMode === "individual" || !composite) && posts.map((p, idx) => (
             <div key={p.id ?? idx} className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
               <div className="text-xs text-slate-500">{p.title}</div>
               <div className="border-t border-slate-100 pt-3 prose prose-sm max-w-none"

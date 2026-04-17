@@ -20,6 +20,20 @@ import {
   generateDS14,
   generateDS15,
   generateDS16,
+  generateDS17,
+  generateDS18,
+  generateDS19,
+  generateDS20,
+  generateDS21,
+  generateDS22,
+  generateDS23,
+  generateDS24,
+  generateDS25,
+  generateDS26,
+  generateDS27,
+  generateDS28,
+  generateDS29,
+  generateDS30,
 } from "@/utils/dsGenerators";
 
 export const maxDuration = 60;
@@ -77,6 +91,43 @@ async function generateOne(
     case "DS-16":
       if (!industry) throw new Error("industry 필수 (DS-16)");
       return generateDS16(industry, ym ?? "");
+    case "DS-17":
+      if (!region) throw new Error("region 필수 (DS-17)");
+      return generateDS17(region);
+    case "DS-18":
+      if (!industry || !region) throw new Error("industry, region 필수 (DS-18)");
+      return generateDS18(industry, region);
+    case "DS-19":
+      if (!industry || !region) throw new Error("industry, region 필수 (DS-19)");
+      return generateDS19(industry, region);
+    case "DS-20":
+      if (!region) throw new Error("region 필수 (DS-20)");
+      return generateDS20(region);
+    case "DS-21":
+      if (!brand) throw new Error("brand 필수 (DS-21)");
+      return generateDS21(brand);
+    case "DS-22":
+      return generateDS22();
+    case "DS-23":
+      return generateDS23();
+    case "DS-24":
+      if (!brand) throw new Error("brand 필수 (DS-24)");
+      return generateDS24(brand);
+    case "DS-25":
+      return generateDS25();
+    case "DS-26":
+      return generateDS26(brand);
+    case "DS-27":
+      if (!industry) throw new Error("industry 필수 (DS-27)");
+      return generateDS27(industry);
+    case "DS-28":
+      return generateDS28(ym ?? "");
+    case "DS-29":
+      if (!industry) throw new Error("industry 필수 (DS-29)");
+      return generateDS29(industry);
+    case "DS-30":
+      if (!industry) throw new Error("industry 필수 (DS-30)");
+      return generateDS30(industry);
     default:
       throw new Error(`${dsType} 은 지원하지 않는 타입입니다.`);
   }
@@ -86,7 +137,7 @@ export async function POST(req: Request) {
   const session = await getSessionEmployee();
   if (!session) return unauthorized();
 
-  const body = await req.json() as {
+  const body = (await req.json()) as {
     ds_type?: string;
     ds_types?: string[];
     industry?: string;
@@ -96,9 +147,13 @@ export async function POST(req: Request) {
   };
 
   /* 하위 호환: ds_type 단일 → ds_types 배열 */
-  const dsTypes: string[] = body.ds_types ?? (body.ds_type ? [body.ds_type] : []);
+  const dsTypes: string[] =
+    body.ds_types ?? (body.ds_type ? [body.ds_type] : []);
   if (dsTypes.length === 0) {
-    return NextResponse.json({ error: "ds_type 또는 ds_types 필수" }, { status: 400 });
+    return NextResponse.json(
+      { error: "ds_type 또는 ds_types 필수" },
+      { status: 400 },
+    );
   }
 
   const supabase = createAdminClient();
@@ -139,21 +194,59 @@ export async function POST(req: Request) {
         .single();
 
       if (error) {
-        return NextResponse.json({ error: `${dsType}: ${error.message}` }, { status: 500 });
+        return NextResponse.json(
+          { error: `${dsType}: ${error.message}` },
+          { status: 500 },
+        );
       }
 
       posts.push({ id: data?.id, title: input.title, html });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : `${dsType} 데이터 조회 실패`;
+      const msg =
+        e instanceof Error ? e.message : `${dsType} 데이터 조회 실패`;
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   }
 
-  /* 단일 결과는 기존 형식 유지 (하위 호환), 복수는 posts 배열 + 합성 HTML */
+  /* 단일: 기존 형식 유지, 복수: posts 배열 + 합성 HTML */
   if (posts.length === 1) {
     return NextResponse.json({ ok: true, post: posts[0] });
   }
 
+  /* 복수 DS → 합성 HTML도 별도 draft로 저장 */
   const compositeHtml = renderCompositeHtml(allInputs);
-  return NextResponse.json({ ok: true, posts, compositeHtml });
+  const compositeTitle = allInputs
+    .map((i) => i.dsType)
+    .join(" + ") + " 종합";
+
+  const { data: compositeData } = await supabase
+    .from("frandoor_blog_drafts")
+    .insert({
+      content_type: "datasheet",
+      channel: "frandoor",
+      title: compositeTitle,
+      content: compositeHtml,
+      status: "draft",
+      meta: {
+        ds_type: "composite",
+        combo: dsTypes,
+        industry: body.industry ?? null,
+        region: body.region ?? null,
+        brand: body.brand ?? null,
+        ym: body.ym ?? null,
+        base_date: allInputs[0]?.baseDate ?? "",
+      },
+    })
+    .select()
+    .single();
+
+  return NextResponse.json({
+    ok: true,
+    posts,
+    composite: {
+      id: compositeData?.id ?? null,
+      title: compositeTitle,
+      html: compositeHtml,
+    },
+  });
 }

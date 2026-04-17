@@ -71,3 +71,13 @@ scripts/publish/.sessions/
 26년*.html
 blog-generator/output/
 blog-renderer/output/
+
+# local tooling caches
+scripts/.aeo-chrome-profile/
+supabase/.temp/
+
+# internal docs / screenshots (do NOT push to public repo)
+*.docx
+screenshots/
+오공김밥*.html
+프랜도어*.html

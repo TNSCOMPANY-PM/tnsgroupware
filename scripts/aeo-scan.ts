@@ -26,15 +26,16 @@ const USER_DATA_DIR = path.join(__dirname, ".aeo-chrome-profile");
 const SCREENSHOT_DIR = path.join(__dirname, "..", "screenshots", "aeo");
 const TODAY = new Date().toISOString().slice(0, 10);
 
+// 도메인 매칭에 사용 — url.includes() 로 비교하므로 specific → general 순서로 배치
+// "frandoor" 같은 짧은 패턴은 false positive 유발하므로 제거
 const OUR_DOMAINS = [
-  "frandoor.co.kr",
-  "frandoor",
   "50gimbab.frandoor.co.kr",
   "hanshinudong.frandoor.co.kr",
   "jangsajang.frandoor.co.kr",
   "blog.naver.com/frandoor",
   "frandoor.tistory.com",
   "medium.com/@frandoor",
+  "frandoor.co.kr",
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -170,11 +171,16 @@ async function scanGoogleKeyword(page: Page, keyword: string, debug = false): Pr
   await sleep(jitter(2500, 4500));
 
   // "AI 개요" 또는 "AI Overview" 텍스트가 있는 블록 대기 (있으면)
+  // innerText 는 전체 DOM을 reflow 해서 느림 → querySelectorAll + textContent 로 대체
   try {
     await page.waitForFunction(() => {
-      const all = document.body.innerText || "";
-      return all.includes("AI 개요") || all.includes("AI Overview") || all.includes("AI 요약");
-    }, { timeout: 5000 });
+      const els = document.querySelectorAll("h1,h2,h3,div,span");
+      for (const el of els) {
+        const t = el.textContent || "";
+        if (t.includes("AI 개요") || t.includes("AI Overview") || t.includes("AI 요약")) return true;
+      }
+      return false;
+    }, { timeout: 6000 });
   } catch {
     // AI Overview가 안 뜨는 키워드도 있음 — 정상 케이스
   }
@@ -229,6 +235,8 @@ async function scanGoogleKeyword(page: Page, keyword: string, debug = false): Pr
 
     // citation 링크 추출 — container 내부의 모든 a[href] + role=link
     const seen = new Set<string>();
+    // Google 자체 링크(검색, 정책, 도움말 등) 제외
+    const googleNoise = ["google.com/search", "support.google.com", "policies.google.com", "accounts.google.com", "maps.google.com"];
     const links = container.querySelectorAll('a[href], [role="link"]');
     links.forEach(el => {
       const a = el as HTMLAnchorElement;
@@ -242,9 +250,21 @@ async function scanGoogleKeyword(page: Page, keyword: string, debug = false): Pr
           if (real) href = real;
         } catch { /* noop */ }
       }
+      // Google 자체 링크 필터
+      if (googleNoise.some(n => href.includes(n))) return;
       if (seen.has(href)) return;
       seen.add(href);
-      const title = (a.textContent || a.getAttribute("aria-label") || "").trim().slice(0, 200);
+      // 텍스트가 비어있으면 aria-label → img alt → URL hostname 순으로 fallback
+      let title = (a.textContent || "").trim();
+      if (!title) title = a.getAttribute("aria-label") || "";
+      if (!title) {
+        const img = a.querySelector("img");
+        if (img) title = img.getAttribute("alt") || "";
+      }
+      if (!title) {
+        try { title = new URL(href).hostname; } catch { /* noop */ }
+      }
+      title = title.slice(0, 200);
       out.citations.push({ title, url: href });
     });
 
@@ -505,7 +525,7 @@ async function runScan(opts: ReturnType<typeof parseArgs>) {
     viewport: { width: 1366, height: 900 },
     locale: "ko-KR",
     timezoneId: "Asia/Seoul",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
     args: [
       "--disable-blink-features=AutomationControlled",
       "--no-first-run",
@@ -620,7 +640,6 @@ async function runScan(opts: ReturnType<typeof parseArgs>) {
 const opts = parseArgs();
 runScan(opts)
   .then(() => {
-    // 정상 종료 — libuv가 핸들을 다 닫을 시간을 주기 위해 강제 exit 대신 exitCode 만 설정
     process.exitCode = 0;
   })
   .catch(e => {
@@ -628,7 +647,10 @@ runScan(opts)
     if (msg !== "BRAND_NOT_FOUND" && msg !== "NO_KEYWORDS") {
       console.error("❌ 치명적 오류:", e);
     }
-    // process.exit(1) 을 바로 호출하면 supabase keep-alive 소켓 teardown 중에
-    // libuv UV_HANDLE_CLOSING assertion 이 발생할 수 있음 → exitCode 만 설정
     process.exitCode = 1;
+  })
+  .finally(() => {
+    // Supabase keep-alive 소켓이 이벤트 루프를 잡고 있으면 프로세스가 안 죽을 수 있음
+    // 5초 대기 후 강제 종료 — libuv assertion 우회를 위한 안전장치
+    setTimeout(() => process.exit(process.exitCode ?? 0), 5000).unref();
   });

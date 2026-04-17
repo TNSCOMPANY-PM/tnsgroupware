@@ -50,9 +50,10 @@ function createSupabase(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function runAeoScan(brandName: string, platform: "google" | "naver" | "both"): Promise<void> {
+async function runAeoScan(brandId: string, platform: "google" | "naver" | "both"): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = ["tsx", "scripts/aeo-scan.ts", `--brand=${brandName}`];
+    // --brand-id(UUID)를 씀 — 한글 브랜드명을 CMD shell 으로 넘기면 인코딩 깨짐
+    const args = ["tsx", "scripts/aeo-scan.ts", `--brand-id=${brandId}`];
     if (platform !== "both") args.push(`--platform=${platform}`);
 
     console.log(`▶ npx ${args.join(" ")}`);
@@ -86,8 +87,10 @@ async function processNextJob(sb: SupabaseClient): Promise<boolean> {
   }
   if (!job) return false;
 
-  const brandName = (job.geo_brands as unknown as { name: string } | null)?.name;
-  if (!brandName) {
+  const brandId = job.brand_id as string;
+  const brandName = (job.geo_brands as unknown as { name: string } | null)?.name ?? brandId;
+
+  if (!brandId) {
     await sb.from("aeo_scan_queue").update({
       status: "failed",
       error_message: "브랜드 정보 없음",
@@ -105,7 +108,7 @@ async function processNextJob(sb: SupabaseClient): Promise<boolean> {
   console.log(`\n🏃 작업 시작: ${brandName} (${job.platform})`);
 
   try {
-    await runAeoScan(brandName, job.platform);
+    await runAeoScan(brandId, job.platform);
     await sb.from("aeo_scan_queue").update({
       status: "done",
       finished_at: new Date().toISOString(),

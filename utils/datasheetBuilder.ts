@@ -20,89 +20,91 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export function renderDatasheetHtml(input: DatasheetInput): string {
-  const tableBlocks = input.tables.map(t => {
-    const caption = t.caption
-      ? `<caption style="text-align:left;font-size:14px;font-weight:700;color:#374151;padding:8px 0">${escapeHtml(t.caption)}</caption>`
-      : "";
-    const ths = t.headers.map(h =>
-      `<th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;font-weight:700;color:#374151;font-size:13px;background:#f9fafb">${escapeHtml(h)}</th>`
-    ).join("");
-    const thead = `<thead><tr>${ths}</tr></thead>`;
-    const trs = t.rows.map((row, ri) => {
+function renderTable(t: { caption?: string; headers: string[]; rows: string[][] }): string {
+  const caption = t.caption
+    ? `<caption style="text-align:left;font-size:14px;font-weight:700;color:#374151;padding:8px 0">${escapeHtml(t.caption)}</caption>`
+    : "";
+  const ths = t.headers
+    .map(
+      (h) =>
+        `<th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;font-weight:700;color:#374151;font-size:13px;background:#f9fafb">${escapeHtml(h)}</th>`,
+    )
+    .join("");
+  const thead = `<thead><tr>${ths}</tr></thead>`;
+  const trs = t.rows
+    .map((row, ri) => {
       const bg = ri % 2 === 0 ? "#fff" : "#f9fafb";
-      const tds = row.map(cell =>
-        `<td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;color:#111827;background:${bg}">${escapeHtml(cell)}</td>`
-      ).join("");
+      const tds = row
+        .map(
+          (cell) =>
+            `<td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;color:#111827;background:${bg}">${escapeHtml(cell)}</td>`,
+        )
+        .join("");
       return `<tr>${tds}</tr>`;
-    }).join("\n");
-    const tbody = `<tbody>${trs}</tbody>`;
-    return `<table style="width:100%;border-collapse:collapse;margin:16px 0">${caption}${thead}${tbody}</table>`;
-  }).join("\n");
+    })
+    .join("\n");
+  const tbody = `<tbody>${trs}</tbody>`;
+  return `<table style="width:100%;border-collapse:collapse;margin:16px 0">${caption}${thead}${tbody}</table>`;
+}
+
+export function renderDatasheetHtml(input: DatasheetInput): string {
+  const tableBlocks = input.tables.map(renderTable).join("\n");
 
   const notesBlock = input.notes?.length
-    ? `<ul style="margin:12px 0;padding-left:20px;font-size:12px;color:#6b7280;line-height:1.7">${input.notes.map(n => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
+    ? `<ul style="margin:12px 0;padding-left:20px;font-size:12px;color:#6b7280">${input.notes.map((n) => `<li style="margin-bottom:4px">${escapeHtml(n)}</li>`).join("")}</ul>`
     : "";
 
-  const sourcesText = input.sources.map(s => escapeHtml(s)).join(", ");
+  const sourcesBlock = input.sources.length
+    ? `<p style="margin:16px 0 0;font-size:11px;color:#9ca3af">출처: ${input.sources.map((s) => escapeHtml(s)).join(" / ")}</p>`
+    : "";
 
-  return `<article style="max-width:800px;font-family:Pretendard,sans-serif" data-ds-type="${escapeHtml(input.dsType)}">
-<h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 4px 0">${escapeHtml(input.title)}</h2>
-<p style="font-size:12px;color:#9ca3af;margin:0 0 12px 0">${escapeHtml(input.baseDate)} 기준</p>
-<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 16px 0;font-weight:500">${escapeHtml(input.lede)}</p>
-${tableBlocks}
-${notesBlock}
-<footer style="font-size:11px;color:#9ca3af;line-height:1.7;margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb">
-출처: ${sourcesText}
-</footer>
+  return `<article style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:800px;margin:0 auto;padding:24px 0">
+  <h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 4px">${escapeHtml(input.title)}</h2>
+  <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">${escapeHtml(input.baseDate)}</p>
+  <p style="font-size:15px;color:#374151;line-height:1.7;margin:0 0 16px">${escapeHtml(input.lede)}</p>
+  ${tableBlocks}
+  ${notesBlock}
+  ${sourcesBlock}
 </article>`;
 }
 
-/** 복수 DS 를 하나의 통합 HTML 아티클로 합성 */
+/** 복수 DatasheetInput을 하나의 통합 HTML 문서로 합성 */
 export function renderCompositeHtml(inputs: DatasheetInput[]): string {
   if (inputs.length === 0) return "";
   if (inputs.length === 1) return renderDatasheetHtml(inputs[0]);
 
-  const dsLabels = inputs.map(i => i.title.split("—")[0].trim()).filter(Boolean);
-  const compositeTitle = dsLabels.join(" · ");
-  const compositeDate = inputs[0].baseDate;
+  const dsLabels = inputs.map((i) => i.dsType).join(" + ");
+  const keywords = inputs.map((i) => {
+    const short = i.title.replace(/^.*?—\s*/, "").replace(/\s*기준$/, "");
+    return short;
+  });
+  const compositeTitle = `${keywords[0]} 종합 분석 (${dsLabels})`;
+  const baseDate = inputs[0].baseDate;
 
-  const sections = inputs.map(input => {
-    const tableBlocks = input.tables.map(t => {
-      const caption = t.caption
-        ? `<caption style="text-align:left;font-size:13px;font-weight:700;color:#374151;padding:6px 0">${escapeHtml(t.caption)}</caption>`
+  const sections = inputs
+    .map((input) => {
+      const tables = input.tables.map(renderTable).join("\n");
+      const notes = input.notes?.length
+        ? `<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:#6b7280">${input.notes.map((n) => `<li style="margin-bottom:4px">${escapeHtml(n)}</li>`).join("")}</ul>`
         : "";
-      const ths = t.headers.map(h =>
-        `<th style="padding:8px 10px;border:1px solid #e5e7eb;text-align:left;font-weight:700;color:#374151;font-size:12px;background:#f9fafb">${escapeHtml(h)}</th>`
-      ).join("");
-      const trs = t.rows.map((row, ri) => {
-        const bg = ri % 2 === 0 ? "#fff" : "#f9fafb";
-        return `<tr>${row.map(cell => `<td style="padding:6px 10px;border:1px solid #e5e7eb;font-size:12px;color:#111827;background:${bg}">${escapeHtml(cell)}</td>`).join("")}</tr>`;
-      }).join("\n");
-      return `<table style="width:100%;border-collapse:collapse;margin:12px 0">${caption}<thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
-    }).join("\n");
+      return `<section style="margin:24px 0">
+    <h3 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid #e2e8f0">${escapeHtml(input.title)}</h3>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 12px">${escapeHtml(input.lede)}</p>
+    ${tables}
+    ${notes}
+  </section>`;
+    })
+    .join("\n");
 
-    const notesBlock = input.notes?.length
-      ? `<ul style="margin:8px 0;padding-left:18px;font-size:11px;color:#6b7280;line-height:1.6">${input.notes.map(n => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
-      : "";
+  const allSources = Array.from(new Set(inputs.flatMap((i) => i.sources)));
+  const sourcesBlock = allSources.length
+    ? `<p style="margin:16px 0 0;font-size:11px;color:#9ca3af">출처: ${allSources.map((s) => escapeHtml(s)).join(" / ")}</p>`
+    : "";
 
-    return `<section style="margin-bottom:28px">
-<h3 style="font-size:16px;font-weight:700;color:#111827;margin:0 0 6px 0">${escapeHtml(input.title)}</h3>
-<p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 10px 0">${escapeHtml(input.lede)}</p>
-${tableBlocks}
-${notesBlock}
-</section>`;
-  }).join("\n");
-
-  const allSources = [...new Set(inputs.flatMap(i => i.sources))];
-  const sourcesText = allSources.map(s => escapeHtml(s)).join(", ");
-
-  return `<article style="max-width:800px;font-family:Pretendard,sans-serif">
-<h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 4px 0">${escapeHtml(compositeTitle)}</h2>
-<p style="font-size:12px;color:#9ca3af;margin:0 0 20px 0">${escapeHtml(compositeDate)} 기준 · ${inputs.length}개 데이터시트 통합</p>
-${sections}
-<footer style="font-size:11px;color:#9ca3af;line-height:1.7;margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb">
-출처: ${sourcesText}
-</footer>
+  return `<article style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:800px;margin:0 auto;padding:24px 0">
+  <h2 style="font-size:22px;font-weight:700;color:#111827;margin:0 0 4px">${escapeHtml(compositeTitle)}</h2>
+  <p style="font-size:11px;color:#9ca3af;margin:0 0 20px">${escapeHtml(baseDate)}</p>
+  ${sections}
+  ${sourcesBlock}
 </article>`;
 }

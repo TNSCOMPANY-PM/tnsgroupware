@@ -227,6 +227,7 @@ async function fetchPortal(
 // ───────────────────────────────────────────────
 export type IndutyOpenCloseRate = {
   industry: string;
+  lclas: string;
   totalStores: number;
   openRate: number;
   closeRate: number;
@@ -247,10 +248,11 @@ export async function fetchIndutyOpenCloseRate(
     { yr },
   );
   return raw.map(r => ({
-    industry: r.indutyLclasNm ?? r.indutyMlsfcNm ?? "",
-    totalStores: toNum(r.frcsCnt),
-    openRate: toNum(r.opnRate),
-    closeRate: toNum(r.clsRate),
+    industry: r.indutyMlsfcNm ?? r.indutyLclasNm ?? "",
+    lclas: r.indutyLclasNm ?? lclas,
+    totalStores: toNum(r.allFrcsCnt ?? r.frcsCnt),
+    openRate: toNum(r.newFrcsRt ?? r.opnRate),
+    closeRate: toNum(r.endCncltnRt ?? r.clsRate),
   }));
 }
 
@@ -284,27 +286,27 @@ export async function fetchIndutyFrcsFluctuation(
 // 7. 브랜드별 직영/가맹 비율
 //    FftcBrandIndutyDropFrcsStatsService
 // ───────────────────────────────────────────────
-export type BrandDirectFrcsRatio = {
-  brand: string;
-  industry: string;
-  franchiseCount: number;
-  directCount: number;
+export type DirectFrcsByScale = {
+  lclas: string;
+  scale: string;
+  totalBrands: number;
+  directBrands: number;
   directRatio: number;
 };
 
 export async function fetchBrandDirectFrcsRatio(
   yr: string,
-): Promise<BrandDirectFrcsRatio[]> {
+): Promise<DirectFrcsByScale[]> {
   const raw = await fetchPortal(
     "FftcBrandIndutyDropFrcsStatsService/getBrandIndutyFrcsStats",
     { yr },
   );
   return raw.map(r => ({
-    brand: r.brandNm ?? "",
-    industry: r.indutyLclasNm ?? "",
-    franchiseCount: toNum(r.frcsSeBrandCnt),
-    directCount: toNum(r.droperSeBrandCnt),
-    directRatio: toNum(r.brandRt),
+    lclas: r.indutyLclasNm ?? "",
+    scale: r.frcsSeNm ?? "",
+    totalBrands: toNum(r.frcsSeBrandCnt),
+    directBrands: toNum(r.indutyJngSeBrandCnt),
+    directRatio: toNum(r.indutyLclasBrandCntRt),
   }));
 }
 
