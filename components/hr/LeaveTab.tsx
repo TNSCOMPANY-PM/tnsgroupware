@@ -1,7 +1,7 @@
 "use client";
 
 import "react-day-picker/style.css";
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import React, { Fragment, useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -37,6 +37,7 @@ import {
 import {
   LEAVE_TYPE_CARDS,
   getRequiresProof,
+  getLeaveTypeLabel,
   type LeaveTypeKey,
 } from "@/constants/leaveTypes";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -724,6 +725,16 @@ function LeaveOverviewTab({
             ))}
           </ul>
         </div>
+      )}
+
+      {/* C레벨 전용: 인원별 연차 현황 (최근 충전일 기준) */}
+      {isCLevel && (
+        <PerEmployeeLeaveSection
+          employees={employees}
+          leaveRequests={leaveRequests}
+          filterYear={filterYear}
+          getGrantedDaysForUser={getGrantedDaysForUser}
+        />
       )}
 
       {/* 휴가 등록 — C레벨 제외 */}
@@ -1651,5 +1662,171 @@ function LeaveApplicationModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** C레벨 전용 — 인원별 연차 현황 (입사일 기준 최근 충전일 집계) */
+function PerEmployeeLeaveSection({
+  employees,
+  leaveRequests,
+  filterYear,
+  getGrantedDaysForUser,
+}: {
+  employees: Employee[];
+  leaveRequests: LeaveRequest[];
+  filterYear: number;
+  getGrantedDaysForUser: (userId: string, year: number) => number;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const today = new Date();
+
+  const computeCutoff = (hireDate: string | null | undefined): Date => {
+    if (!hireDate) return new Date(today.getFullYear(), 0, 1);
+    const clean = hireDate.replace(/\./g, "-");
+    const [hy, hm, hd] = clean.split("-").map(Number);
+    if (!hy || !hm || !hd) return new Date(today.getFullYear(), 0, 1);
+    const currAnn = new Date(today.getFullYear(), hm - 1, hd);
+    return currAnn <= today
+      ? currAnn
+      : new Date(today.getFullYear() - 1, hm - 1, hd);
+  };
+
+  const rows = useMemo(() => {
+    const activeEmps = employees.filter((e) => !e.employment_status || e.employment_status === "재직");
+    const list = activeEmps.map((emp) => {
+      const joinStr = emp.hire_date ? emp.hire_date.replace(/-/g, ".") : "";
+      const granted = joinStr ? getAnnualLeaveGranted(joinStr, filterYear) : 0;
+      const bonus = getGrantedDaysForUser(String(emp.id), filterYear);
+      const cutoff = computeCutoff(emp.hire_date);
+      const cutoffStr = format(cutoff, "yyyy-MM-dd");
+
+      const myUses = leaveRequests
+        .filter(
+          (r) =>
+            r.applicantId === emp.id &&
+            r.status === "승인_완료" &&
+            ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
+            r.startDate >= cutoffStr
+        )
+        .sort((a, b) => b.startDate.localeCompare(a.startDate));
+      const used = Math.round(myUses.reduce((s, r) => s + (Number(r.days) || 0), 0) * 1000) / 1000;
+      const total = granted + bonus;
+      return {
+        id: String(emp.id),
+        name: emp.name ?? "(미상)",
+        department: emp.department ?? "-",
+        hire_date: emp.hire_date ?? "-",
+        cutoff: cutoffStr,
+        granted: total,
+        used,
+        remaining: Math.round((total - used) * 1000) / 1000,
+        uses: myUses,
+      };
+    });
+    const q = query.trim();
+    return q
+      ? list.filter(
+          (r) => r.name.includes(q) || (r.department ?? "").includes(q)
+        )
+      : list;
+  }, [employees, leaveRequests, filterYear, getGrantedDaysForUser, query]);
+
+  return (
+    <section className="rounded-2xl border border-slate-200/60 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-semibold text-slate-800">인원별 연차 현황 (C레벨 전용)</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            입사일 기준 최근 충전일(anniversary)부터 오늘까지의 사용량 · 연차 계열만 집계
+          </p>
+        </div>
+        <Input
+          placeholder="이름 또는 부서 검색"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="h-9 w-full sm:w-64"
+        />
+      </div>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="border-b border-slate-200 text-xs text-slate-500">
+            <tr>
+              <th className="py-2 text-left font-medium">이름</th>
+              <th className="py-2 text-left font-medium">부서</th>
+              <th className="py-2 text-left font-medium">입사일</th>
+              <th className="py-2 text-left font-medium">최근 충전일</th>
+              <th className="py-2 text-right font-medium">발생</th>
+              <th className="py-2 text-right font-medium">사용</th>
+              <th className="py-2 text-right font-medium">잔여</th>
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const isOpen = expandedId === r.id;
+              return (
+                <Fragment key={r.id}>
+                  <tr
+                    className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50"
+                    onClick={() => setExpandedId(isOpen ? null : r.id)}
+                  >
+                    <td className="py-2 font-medium text-slate-800">{r.name}</td>
+                    <td className="py-2 text-slate-600">{r.department}</td>
+                    <td className="py-2 text-slate-600">{r.hire_date}</td>
+                    <td className="py-2 text-slate-600">{r.cutoff}</td>
+                    <td className="py-2 text-right tabular-nums">{r.granted}</td>
+                    <td className="py-2 text-right tabular-nums text-slate-500">{r.used}</td>
+                    <td
+                      className={cn(
+                        "py-2 text-right font-semibold tabular-nums",
+                        r.remaining < 0 ? "text-red-500" : r.remaining < 3 ? "text-amber-600" : "text-emerald-600"
+                      )}
+                    >
+                      {r.remaining}
+                    </td>
+                    <td className="py-2 text-right text-slate-400">{isOpen ? "▾" : "▸"}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-slate-50/60">
+                      <td colSpan={8} className="px-4 py-3">
+                        {r.uses.length === 0 ? (
+                          <p className="text-xs text-slate-500">
+                            {r.cutoff} 이후 사용 내역이 없습니다.
+                          </p>
+                        ) : (
+                          <ul className="space-y-1 text-xs text-slate-600">
+                            {r.uses.map((u) => (
+                              <li key={u.id} className="flex items-center gap-2">
+                                <span className="w-32 font-mono text-slate-500">
+                                  {u.startDate === u.endDate ? u.startDate : `${u.startDate}~${u.endDate}`}
+                                </span>
+                                <span className="rounded bg-white px-2 py-0.5 text-[11px] ring-1 ring-slate-200">
+                                  {getLeaveTypeLabel(u.leaveType)}
+                                </span>
+                                <span className="tabular-nums text-slate-500">{u.days}일</span>
+                                {u.reason && <span className="text-slate-400">· {u.reason}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-6 text-center text-sm text-slate-400">
+                  표시할 직원이 없습니다.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
