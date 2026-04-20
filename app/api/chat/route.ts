@@ -159,7 +159,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: "function", function: {
       name: "query_annual_leaves",
-      description: "직원별 연차 현황(발생/사용/잔여 + 올해 사용내역 날짜별 히스토리)을 조회합니다. 연차 계열(연차/반차/반반차/시간차)만 사용일수로 집계하며, 예비군·경조사 등은 제외합니다.",
+      description: "직원별 연차 현황(발생/사용/잔여 + 사용내역)을 조회합니다. 사용량은 입사일 기준 '가장 최근 충전일(anniversary)'부터 오늘까지 집계하며 연차 계열(연차/반차/반반차/시간차)만 포함합니다. 예비군·경조사·병가 등은 제외. 반환에 최근충전일·입사일도 포함됩니다.",
       parameters: { type: "object", properties: {
         employee_name: { type: "string", description: "특정 직원 이름 (없으면 전체)" },
       }},
@@ -596,24 +596,47 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
 
   if (name === "query_annual_leaves") {
     const year = new Date().getFullYear();
-    const yearStart = `${year}-01-01`;
-    const yearEnd = `${year}-12-31`;
+    const today = new Date();
     const ANNUAL_TYPES = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
 
+    const { data: employees } = await supabase.from("employees").select("id,hire_date");
+    const hireDateById = new Map<string, string>();
+    for (const e of ((employees as Record<string, unknown>[]) ?? [])) {
+      if (e.id && e.hire_date) hireDateById.set(String(e.id), String(e.hire_date));
+    }
+
     const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
+    if (!granted) return "연차 데이터가 없습니다.";
+
+    const eighteenMonthsAgo = new Date(today);
+    eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18);
+    const queryFrom = eighteenMonthsAgo.toISOString().slice(0, 10);
+
     const { data: used } = await supabase.from("leave_requests")
       .select("id,applicant_id,applicant_name,leave_type,start_date,end_date,days,status,reason")
       .eq("status", "승인_완료")
       .in("leave_type", ANNUAL_TYPES)
-      .gte("start_date", yearStart)
-      .lte("start_date", yearEnd)
+      .gte("start_date", queryFrom)
       .order("start_date", { ascending: false });
-    if (!granted) return "연차 데이터가 없습니다.";
+
+    const anniversaryCutoff = (hireDate: string | undefined): string => {
+      if (!hireDate) return `${year}-01-01`;
+      const clean = hireDate.replace(/\./g, "-");
+      const [hy, hm, hd] = clean.split("-").map(Number);
+      if (!hy || !hm || !hd) return `${year}-01-01`;
+      const currYearAnn = new Date(today.getFullYear(), hm - 1, hd);
+      const cycleStart = currYearAnn <= today
+        ? currYearAnn
+        : new Date(today.getFullYear() - 1, hm - 1, hd);
+      return `${cycleStart.getFullYear()}-${String(cycleStart.getMonth() + 1).padStart(2, "0")}-${String(cycleStart.getDate()).padStart(2, "0")}`;
+    };
 
     const grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
     const usedRows = (used as Record<string, unknown>[] ?? []);
     const summary = grantedThisYear.map((g) => {
-      const myUses = usedRows.filter((u) => u.applicant_id === g.user_id);
+      const hire = hireDateById.get(String(g.user_id));
+      const cutoff = anniversaryCutoff(hire);
+      const myUses = usedRows.filter((u) => u.applicant_id === g.user_id && String(u.start_date) >= cutoff);
       const usedDays = myUses.reduce((s, u) => s + (Number(u.days) || 0), 0);
       const history = myUses.map((u) => ({
         날짜: u.start_date === u.end_date ? u.start_date : `${u.start_date}~${u.end_date}`,
@@ -623,6 +646,8 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
       }));
       return {
         이름: g.user_name,
+        입사일: hire ?? null,
+        최근충전일: cutoff,
         발생: Number(g.days) || 0,
         사용: Math.round(usedDays * 1000) / 1000,
         잔여: Math.round((Number(g.days) - usedDays) * 1000) / 1000,
