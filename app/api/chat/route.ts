@@ -159,7 +159,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: "function", function: {
       name: "query_annual_leaves",
-      description: "직원별 연차 현황(발생/사용/잔여)을 조회합니다.",
+      description: "직원별 연차 현황(발생/사용/잔여 + 올해 사용내역 날짜별 히스토리)을 조회합니다. 연차 계열(연차/반차/반반차/시간차)만 사용일수로 집계하며, 예비군·경조사 등은 제외합니다.",
       parameters: { type: "object", properties: {
         employee_name: { type: "string", description: "특정 직원 이름 (없으면 전체)" },
       }},
@@ -595,14 +595,39 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
   }
 
   if (name === "query_annual_leaves") {
-    const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
-    const { data: used } = await supabase.from("leave_requests").select("applicant_id,applicant_name,days,status").eq("status", "승인_완료");
-    if (!granted) return "연차 데이터가 없습니다.";
     const year = new Date().getFullYear();
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year}-12-31`;
+    const ANNUAL_TYPES = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
+
+    const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
+    const { data: used } = await supabase.from("leave_requests")
+      .select("id,applicant_id,applicant_name,leave_type,start_date,end_date,days,status,reason")
+      .eq("status", "승인_완료")
+      .in("leave_type", ANNUAL_TYPES)
+      .gte("start_date", yearStart)
+      .lte("start_date", yearEnd)
+      .order("start_date", { ascending: false });
+    if (!granted) return "연차 데이터가 없습니다.";
+
     const grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
+    const usedRows = (used as Record<string, unknown>[] ?? []);
     const summary = grantedThisYear.map((g) => {
-      const usedDays = (used as Record<string, unknown>[] ?? []).filter((u) => u.applicant_id === g.user_id).reduce((s, u) => s + (Number(u.days) || 0), 0);
-      return { 이름: g.user_name, 발생: g.days, 사용: usedDays, 잔여: Number(g.days) - usedDays };
+      const myUses = usedRows.filter((u) => u.applicant_id === g.user_id);
+      const usedDays = myUses.reduce((s, u) => s + (Number(u.days) || 0), 0);
+      const history = myUses.map((u) => ({
+        날짜: u.start_date === u.end_date ? u.start_date : `${u.start_date}~${u.end_date}`,
+        종류: u.leave_type,
+        일수: Number(u.days) || 0,
+        사유: u.reason ?? "",
+      }));
+      return {
+        이름: g.user_name,
+        발생: Number(g.days) || 0,
+        사용: Math.round(usedDays * 1000) / 1000,
+        잔여: Math.round((Number(g.days) - usedDays) * 1000) / 1000,
+        사용내역: history,
+      };
     });
     if (args.employee_name) {
       const filtered = summary.filter((s) => String(s.이름).includes(args.employee_name as string));
