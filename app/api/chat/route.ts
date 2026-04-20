@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { generateDailyHoroscope } from "@/utils/generateDailyHoroscope";
 import { LUNCH_MENUS } from "@/constants/dashboard";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
+import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -159,7 +160,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: "function", function: {
       name: "query_annual_leaves",
-      description: "직원별 연차 현황(발생/사용/잔여 + 사용내역)을 조회합니다. 사용량은 입사일 기준 '가장 최근 충전일(anniversary)'부터 오늘까지 집계하며 연차 계열(연차/반차/반반차/시간차)만 포함합니다. 예비군·경조사·병가 등은 제외. 반환에 최근충전일·입사일도 포함됩니다.",
+      description: "재직 직원별 연차 현황을 조회합니다. 발생은 [법정발생(근로기준법 15일+3년차부터 2년마다 1일 가산 최대 25일)] + [조정(C레벨 부여·포상·조정 누적)]. 사용은 입사일 기준 '가장 최근 충전일(anniversary)'부터 오늘까지 연차 계열만 집계. 반환에 입사일·최근충전일·법정발생·조정·발생·사용·잔여·사용내역 포함.",
       parameters: { type: "object", properties: {
         employee_name: { type: "string", description: "특정 직원 이름 (없으면 전체)" },
       }},
@@ -599,14 +600,17 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
     const today = new Date();
     const ANNUAL_TYPES = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
 
-    const { data: employees } = await supabase.from("employees").select("id,hire_date");
-    const hireDateById = new Map<string, string>();
-    for (const e of ((employees as Record<string, unknown>[]) ?? [])) {
-      if (e.id && e.hire_date) hireDateById.set(String(e.id), String(e.hire_date));
-    }
+    const { data: employees } = await supabase.from("employees").select("id,name,hire_date,employment_status");
+    const activeEmps = ((employees as Record<string, unknown>[]) ?? [])
+      .filter(e => !e.employment_status || e.employment_status === "재직");
 
-    const { data: granted } = await supabase.from("granted_leaves").select("user_id,user_name,year,days,type");
-    if (!granted) return "연차 데이터가 없습니다.";
+    const { data: granted } = await supabase.from("granted_leaves").select("user_id,year,days,type");
+    const bonusByUser = new Map<string, number>();
+    for (const g of ((granted as Record<string, unknown>[]) ?? [])) {
+      if (Number(g.year) !== year) continue;
+      const uid = String(g.user_id);
+      bonusByUser.set(uid, (bonusByUser.get(uid) ?? 0) + (Number(g.days) || 0));
+    }
 
     const eighteenMonthsAgo = new Date(today);
     eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18);
@@ -631,12 +635,17 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
       return `${cycleStart.getFullYear()}-${String(cycleStart.getMonth() + 1).padStart(2, "0")}-${String(cycleStart.getDate()).padStart(2, "0")}`;
     };
 
-    const grantedThisYear = (granted as Record<string, unknown>[]).filter((g) => g.year === year);
     const usedRows = (used as Record<string, unknown>[] ?? []);
-    const summary = grantedThisYear.map((g) => {
-      const hire = hireDateById.get(String(g.user_id));
+    const summary = activeEmps.map((emp) => {
+      const uid = String(emp.id);
+      const hire = emp.hire_date ? String(emp.hire_date) : undefined;
+      const hireDot = hire ? hire.replace(/-/g, ".") : "";
       const cutoff = anniversaryCutoff(hire);
-      const myUses = usedRows.filter((u) => u.applicant_id === g.user_id && String(u.start_date) >= cutoff);
+      const legalGranted = hireDot ? getAnnualLeaveGranted(hireDot, year) : 0;
+      const bonus = bonusByUser.get(uid) ?? 0;
+      const totalGranted = legalGranted + bonus;
+
+      const myUses = usedRows.filter((u) => u.applicant_id === uid && String(u.start_date) >= cutoff);
       const usedDays = myUses.reduce((s, u) => s + (Number(u.days) || 0), 0);
       const history = myUses.map((u) => ({
         날짜: u.start_date === u.end_date ? u.start_date : `${u.start_date}~${u.end_date}`,
@@ -644,13 +653,16 @@ async function runTool(name: string, args: Record<string, unknown>, user: UserCo
         일수: Number(u.days) || 0,
         사유: u.reason ?? "",
       }));
+
       return {
-        이름: g.user_name,
+        이름: emp.name,
         입사일: hire ?? null,
         최근충전일: cutoff,
-        발생: Number(g.days) || 0,
+        법정발생: legalGranted,
+        조정: bonus,
+        발생: Math.round(totalGranted * 1000) / 1000,
         사용: Math.round(usedDays * 1000) / 1000,
-        잔여: Math.round((Number(g.days) - usedDays) * 1000) / 1000,
+        잔여: Math.round((totalGranted - usedDays) * 1000) / 1000,
         사용내역: history,
       };
     });
