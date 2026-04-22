@@ -69,7 +69,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
   if (crosscheck.strict && !crosscheck.ok) {
     throw new Error(
-      `GATE crosscheck(strict) 실패: unmatched ${crosscheck.unmatched.length}건 — ${crosscheck.unmatched.slice(0, 3).join(" | ")}`,
+      `GATE crosscheck(strict) 실패: unmatched ${crosscheck.unmatched.length}건 — ${crosscheck.unmatched.slice(0, 20).join(" | ")}`,
     );
   }
 

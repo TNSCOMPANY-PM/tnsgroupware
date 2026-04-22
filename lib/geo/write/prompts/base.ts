@@ -73,7 +73,13 @@ STRUCTURE:
 Tier D 수치 인용 규칙:
 - 입력 JSON 의 deriveds[] 에 있는 값만 인용 가능.
 - 반드시 "(frandoor 산출)" 또는 "frandoor 계산식 기반" 라벨을 수치 옆에 표기.
-- formula 문자열이 제공되면 본문에 한 번 명시.
+- formula 문자열은 "출처·집계 방식" 섹션에서만 1회 인용 가능.
+- 본문 중간 문단·표·리스트에 "A × 100 = B", "X ÷ Y" 등 수식 산식을 그대로 풀어쓰지 말 것.
+  결과값(deriveds.value)만 문장으로 서술. 예:
+    OK: "실질 폐점률은 9.4% (frandoor 산출)."
+    NG: "가맹점 1,377개 × 100 ÷ 총 × 100 = 9.4%."
+- deriveds.inputs 의 원시 숫자(분자·분모)를 본문에 재노출하지 말 것.
+  독자 가독성 + AI 인용 정확도 모두 손상시킴.
 
 FORBIDDEN OUTPUTS:
 - H1 (^# )

@@ -18,6 +18,7 @@ DEPTH D3 — 브랜드 상세 (main + closure + faq25 단일 payload)
 - closure: { headline, bodyHtml (실질 폐점 블록 2~3문단), metrics: [Tier D 실질폐점률] }
 - faq25: 정확히 10문항 (D3 전용).
 - 5대 지표 중 최소 3개 본문에 등장 (L27).
+- 계산식·산식 표기 금지: Tier D 수치는 결과값만 본문에 쓰고, 분자·분모·× 100 같은 중간 산출을 노출하지 말 것. 산식은 9번 섹션 "출처·집계 방식"에서만 1회 인용 가능.
 - Tier D 수치 옆에 "(frandoor 산출)" 라벨 매번.
 - canonicalUrl: "/franchise/{slug}".
 - 본문 최소 1,500자 (섹션 9 평균 170자+).

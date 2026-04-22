@@ -3,7 +3,7 @@ import type { Depth, CrossCheckResult } from "@/lib/geo/types";
 
 const NUM_RE = /[\d]{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/gu;
 const UNIT_SUFFIX = /(?:회|명|개|원|%|점|억|만|천|년|월|일)/u;
-const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식|^\d+\.|\s\d+\.\s|\s\d+\)\s|^\s*\*\s|^\s*-\s)/u;
+const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식|[×x\*/÷]\s*100\b|\b100\s*[×x\*/÷]|=\s*\*{0,2}\s*\d|^\d+\.|\s\d+\.\s|\s\d+\)\s|^\s*\*\s|^\s*-\s|[a-zA-Z-]+\s*:\s*[\d.]+(?:px|em|rem|%|pt|vh|vw)?|style\s*=|\*\*\s*\d+\.|#[0-9a-fA-F]{3,8}|\|\s*\d{4}\s*\||\|\s*\d+\s*\||\d+\s*개월(?:간|\s*이상|\s*이내)?|\d+\s*일\s*(?:이상|이내|간)|\d+\s*곳\s*중)/u;
 
 function normalize(s: string): string {
   return s.replace(/,/g, "").trim();
@@ -22,9 +22,13 @@ function addNum(set: Set<string>, raw: string | number) {
 
 function buildAllowedPool(facts: GptFacts): Set<string> {
   const pool = new Set<string>();
-  for (const f of facts.facts) addNum(pool, f.value);
+  for (const f of facts.facts) {
+    addNum(pool, f.value);
+    if (f.year_month) addNum(pool, f.year_month);
+  }
   for (const d of facts.deriveds ?? []) {
     addNum(pool, d.value);
+    if (d.period) addNum(pool, d.period);
     for (const v of Object.values(d.inputs)) {
       if (typeof v === "number" || typeof v === "string") addNum(pool, v);
     }
