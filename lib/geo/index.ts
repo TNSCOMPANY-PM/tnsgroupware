@@ -1,15 +1,19 @@
 import "server-only";
-import { NotImplementedError, type GeoInput, type GeoOutput } from "./types";
+import type { GeoInput, GeoOutput } from "./types";
+import { runD0 } from "./depth/D0";
+import { runD1 } from "./depth/D1";
+import { runD2 } from "./depth/D2";
+import { runD3 } from "./depth/D3";
 
 export async function generate(input: GeoInput): Promise<GeoOutput> {
   switch (input.depth) {
     case "D0":
-      throw new NotImplementedError("D0 runner pending (T7)");
+      return runD0(input);
     case "D1":
-      throw new NotImplementedError("D1 runner pending (T7)");
+      return runD1(input);
     case "D2":
-      throw new NotImplementedError("D2 runner pending (T7)");
+      return runD2(input);
     case "D3":
-      throw new NotImplementedError("D3 runner pending (T7)");
+      return runD3(input);
   }
 }
