@@ -3,6 +3,7 @@ import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import { GeoInputSchema } from "@/lib/geo/schema";
 import { generate } from "@/lib/geo";
 import { NotImplementedError } from "@/lib/geo/types";
+import { toErrorResponse } from "@/utils/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     if (e instanceof NotImplementedError) {
       return NextResponse.json({ error: "NOT_IMPLEMENTED", message: e.message }, { status: 501 });
     }
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: "GENERATE_FAILED", message: msg }, { status: 500 });
+    const { body, status } = toErrorResponse(e, "GENERATE_FAILED");
+    return NextResponse.json(body, { status });
   }
 }

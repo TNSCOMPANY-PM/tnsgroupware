@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import { SyndicateInputSchema, syndicate } from "@/lib/geo/syndicate";
+import { toErrorResponse } from "@/utils/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
     const out = await syndicate(parsed.data);
     return NextResponse.json(out);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: "SYNDICATE_FAILED", message: msg }, { status: 500 });
+    const { body, status } = toErrorResponse(e, "SYNDICATE_FAILED");
+    return NextResponse.json(body, { status });
   }
 }
