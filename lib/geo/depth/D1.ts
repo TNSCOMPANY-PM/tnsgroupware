@@ -8,6 +8,7 @@ import { normalizeFaqs } from "@/lib/geo/render/faq25";
 import { buildFaqPage, buildBreadcrumb, defaultBreadcrumbs } from "@/lib/geo/render/jsonLd";
 import { lintForDepth } from "@/lib/geo/gates/lint";
 import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
+import { checkFactSanity } from "@/lib/geo/gates/factSanity";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 
 export async function runD1(input: GeoInput): Promise<GeoOutput> {
@@ -22,6 +23,11 @@ export async function runD1(input: GeoInput): Promise<GeoOutput> {
   log(`[prefetch] sources=${pre.sources.length}`);
 
   const { facts } = await callGpt(input, pre.block);
+  const sanityIssues = checkFactSanity(facts.facts);
+  if (sanityIssues.length > 0) {
+    console.warn(`[factSanity] D1 advisory ${sanityIssues.length}건:`, JSON.stringify(sanityIssues, null, 2));
+    log(`[factSanity] advisory ${sanityIssues.length}건 (D1 non-blocking)`);
+  }
   const factsPlus = { ...facts, deriveds: pre.deriveds };
 
   const sonnet = await callSonnet(input, factsPlus);

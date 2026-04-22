@@ -13,6 +13,7 @@ import {
 } from "@/lib/geo/render/jsonLd";
 import { lintForDepth } from "@/lib/geo/gates/lint";
 import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
+import { assertFactSanityStrict } from "@/lib/geo/gates/factSanity";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 
 export async function runD3(input: GeoInput): Promise<GeoOutput> {
@@ -27,6 +28,9 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
   const { facts } = await callGpt(input, pre.block);
+  // FS01/FS02 strict: 단위·범위 상식 검증 — 실패 시 파이프라인 차단
+  assertFactSanityStrict(facts.facts);
+  log(`[factSanity] D3 strict pass (facts=${facts.facts.length})`);
   // L24 안전망: GPT 가 단일 도메인만 반환하면 KOSIS 참조 fact 를 1 건 주입해 도메인 다양성 확보
   const uniqueDomains = new Set<string>();
   for (const f of facts.facts) {
