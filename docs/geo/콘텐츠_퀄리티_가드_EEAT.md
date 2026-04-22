@@ -127,7 +127,7 @@ FORBIDDEN OUTPUTS:
 | L16 Title 길이 | frontmatter title 한글 25~45자 (영문 50~60자 상당) | WARN |
 | L17 description 길이 | 80~120자 | WARN |
 | L18 tags 개수 | 3~5개 | WARN |
-| L19 thumbnail URL | `/^https:\/\/images\.unsplash\.com\//` 또는 허용 도메인 | WARN |
+| L19 thumbnail 상대경로 | `/^\/images\/[a-z0-9][a-z0-9-]*\.(jpg\|jpeg\|png\|webp)$/i` (외부 URL 금지, public/images/ 업로드 필수) | ERROR |
 | L20 author 메타 | frontmatter `author` 존재 | WARN |
 | L21 dateModified | frontmatter `dateModified` 존재 (갱신 시 필수) | WARN |
 | L22 measurement_floor 표기 | floor 사실 포함 시 본문에 "(< 10" 또는 "최소값" 문구 | WARN |
@@ -158,12 +158,13 @@ GATE-3 (Cross-check): GPT JSON facts ↔ Sonnet 본문 숫자 완전 일치
 ---
 title: "2026년 4월 치킨 프랜차이즈 관심도 TOP 10 — 교촌 40만 · BHC 35만"
 description: "2026-04 네이버 검색광고 API 기준 치킨 프랜차이즈 검색량 TOP 10. 1위 교촌치킨(40만), 2위 BHC(35만). 출처: 네이버 검색광고 API."
+slug: "chicken-franchise-interest-ranking-2026-04"
 category: "관심도 랭킹"
 date: "2026-04-22"
 dateModified: "2026-04-22"
 author: "프랜도어 편집팀"
 tags: ["치킨", "관심도랭킹", "2026-04"]
-thumbnail: "https://images.unsplash.com/photo-XXX?w=800"
+thumbnail: "/images/chicken-franchise-2026-04.jpg"
 sources:
   - "https://searchad.naver.com/"
   - "https://franchise.ftc.go.kr/"

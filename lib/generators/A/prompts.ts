@@ -69,10 +69,21 @@ FORBIDDEN OUTPUTS:
 - 숫자 없는 FAQ 답변
 - "업계 관계자에 따르면" 같은 근거 없는 권위
 
+FRONTMATTER FIELD RULES (2026-04-22 사이트 담당자 가이드):
+- title: 5자 이상, 기준월 + 핵심 숫자 포함
+- description: 100자 내외, 첫 문장 핵심 답 + 출처
+- slug: 영어 소문자+하이픈만, 핵심 키워드 포함 (예: "chicken-franchise-interest-ranking-2026")
+- category: 매트릭스 Sheet 2 14개 콘텐츠 타입 중 1개
+- date: YYYY-MM-DD (입력 JSON의 collected_at 또는 오늘)
+- tags: 3개 (브랜드|업종 + 주제 + 기준월)
+- thumbnail: "/images/영어-하이픈.jpg" 상대경로만 (외부 URL·Unsplash 직접링크 금지)
+- sources: 본문에 인용한 기관 URL 배열 (≥ 2)
+- faq: 2~3쌍, 각 답변에 숫자+출처+기준월
+
 OUTPUT FORMAT:
 Return ONE JSON object:
 {
-  "frontmatter": { title, description, category, date, dateModified, author, tags[], thumbnail, sources[], measurement_notes, faq[{q,a}] },
+  "frontmatter": { title, description, slug, category, date, dateModified, author, tags[], thumbnail, sources[], measurement_notes, faq[{q,a}] },
   "body": "<Markdown body starting with '## ' — NO H1>"
 }
 

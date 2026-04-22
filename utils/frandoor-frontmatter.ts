@@ -1,6 +1,7 @@
 export interface FrandoorFrontmatterOpts {
   title: string;
   description: string;
+  slug?: string;
   category: string;
   date: string;
   dateModified?: string;
@@ -28,11 +29,18 @@ export function generate(opts: FrandoorFrontmatterOpts): string {
   if (!opts.date) throw new Error("frontmatter: date 필수");
   if (!opts.tags || opts.tags.length === 0) throw new Error("frontmatter: tags 필수");
   if (!opts.thumbnail) throw new Error("frontmatter: thumbnail 필수");
+  if (!opts.thumbnail.startsWith("/images/")) {
+    throw new Error("frontmatter: thumbnail은 /images/ 상대경로만 허용 (외부 URL 금지)");
+  }
   if (!opts.faq || opts.faq.length < 2) throw new Error("frontmatter: faq ≥ 2 필수");
+  if (opts.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(opts.slug)) {
+    throw new Error("frontmatter: slug는 영어 소문자+하이픈만 허용");
+  }
 
   const lines: string[] = ["---"];
   lines.push(`title: ${yaml(opts.title)}`);
   lines.push(`description: ${yaml(opts.description)}`);
+  if (opts.slug) lines.push(`slug: ${yaml(opts.slug)}`);
   lines.push(`category: ${yaml(opts.category)}`);
   lines.push(`date: ${yaml(opts.date)}`);
   lines.push(`dateModified: ${yaml(opts.dateModified ?? opts.date)}`);

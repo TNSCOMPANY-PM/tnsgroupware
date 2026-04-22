@@ -130,10 +130,10 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
   const tags = arr(fm.tags);
   if (tags.length < 3 || tags.length > 5) warns.push({ code: "L18", level: "WARN", msg: `tags 개수 ${tags.length}개 (3~5)` });
 
-  // L19
+  // L19 - thumbnail 상대경로 강제 (2026-04-22 사이트 가이드)
   const thumb = str(fm.thumbnail);
-  if (thumb && !/^https:\/\/(images\.unsplash\.com|cdn\.|[\w-]+\.frandoor\.)/.test(thumb)) {
-    warns.push({ code: "L19", level: "WARN", msg: `thumbnail 도메인 확인: ${thumb.slice(0, 40)}` });
+  if (thumb && !/^\/images\/[a-z0-9][a-z0-9-]*\.(jpg|jpeg|png|webp)$/i.test(thumb)) {
+    errors.push({ code: "L19", level: "ERROR", msg: `thumbnail은 /images/*.jpg 상대경로만 허용: ${thumb.slice(0, 60)}` });
   }
 
   // L20

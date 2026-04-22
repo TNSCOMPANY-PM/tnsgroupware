@@ -31,12 +31,18 @@ export const FrontmatterFaqItemSchema = z.object({
 export const FrontmatterSchema = z.object({
   title: z.string().min(5),
   description: z.string().min(10),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug는 영어 소문자+하이픈만 허용")
+    .optional(),
   category: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dateModified: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   author: z.string().optional(),
   tags: z.array(z.string()).min(1),
-  thumbnail: z.string().url(),
+  thumbnail: z
+    .string()
+    .regex(/^\/images\/[a-z0-9][a-z0-9-]*\.(jpg|jpeg|png|webp)$/i, "thumbnail은 /images/ 상대경로만 허용"),
   sources: z.array(z.string().url()).optional(),
   measurement_notes: z.string().optional(),
   faq: z.array(FrontmatterFaqItemSchema).min(2),
