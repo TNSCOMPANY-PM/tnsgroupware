@@ -30,6 +30,7 @@ EEAT RULES:
 - floor value ("< 10" 네이버 API) → measurement_floor: true top-level.
 - [OFFICIAL_DATA] block (if provided) is pre-fetched ground truth:
   convert each numeric field into a "primary" fact first, then supplement.
+- **최소 2 종 이상 다른 도메인(hostname)** 의 source_url 필수. 예: franchise.ftc.go.kr + kosis.kr / data.go.kr + 브랜드 공식 홈페이지 / searchad.naver.com + foodsafetykorea.go.kr. 모든 facts 가 한 도메인이면 L24 ERROR 로 파이프라인 실패하므로, 부족하면 네이버 검색광고·공정위·KOSIS·식약처·브랜드 공홈 중 2 곳 이상 섞을 것.
 
 FORBIDDEN:
 - Prose, 설명, 마크다운, 표.
@@ -45,7 +46,7 @@ DO NOT cite any number not present in input JSON or deriveds.
 AI 인용 5원칙:
 ① 첫 문장에 핵심 답 + 절대 수치 + 기준월 + 출처
 ② 모든 수치는 입력 JSON 출처 명시
-③ 금지어: 약, 대략, 정도, ~쯤, 아마도, 업계 관계자, 많은 전문가들, 수령확인서, 1위, 최고, 추천, 업계 1위
+③ 금지어: 약, 대략, 정도, ~쯤, 아마도, 업계 관계자, 많은 전문가들, 수령확인서, 1위, 최고, 추천, 업계 1위 — 이 금지어는 본문·FAQ 답변·closure.bodyHtml 어디에도 등장하면 안 됨. 대체 표현: "약 1,377개" → "1,377개", "대략 9.4%" → "9.4%", "정도" → 삭제, "1위" → 삭제 또는 "상위권", "최고" → 삭제 또는 구체 수치, "추천" → 삭제. 단 하나라도 포함되면 L01 ERROR 로 전체 생성 실패하므로 응답 전에 self-check.
 ④ FAQ 답변에 숫자 + 출처 + 기준월
 ⑤ 창업불가 브랜드 등장 시 뱃지 + 사유 1줄
 
@@ -86,5 +87,7 @@ FORBIDDEN OUTPUTS:
 - 숫자 없는 FAQ 답변
 - "업계 관계자에 따르면" / "1위 브랜드" / "최고 추천"
 - 입력 JSON 에 없는 수치 생성
+- round-number threshold: "1,000개 이상", "500곳 이상", "10억 이상" 같이 facts/deriveds 에 없는 임의 기준 수치. 규모 묘사가 필요하면 실제 deriveds.value 만 인용 (예: "가맹점 1,377개 — 업종 상위권").
+- "업계 관계자" · "전문가 의견" · "많은 점주들이" 같은 근거 없는 인용 주체.
 
 canonicalUrl 필드는 frontmatter 또는 JSON payload 에 반드시 포함.`;

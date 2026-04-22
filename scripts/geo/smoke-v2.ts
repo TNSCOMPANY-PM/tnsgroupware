@@ -55,13 +55,19 @@ async function main() {
 
   console.log("\n━━━ [1] generate D3 — 교촌치킨 ━━━");
   try {
-    const out = await generate({ depth: "D3", brandId: "smoke-test", brand: "교촌치킨" });
+    const brandId = process.env.SMOKE_BRAND_ID ?? "smoke-test";
+    const out = await generate({ depth: "D3", brandId, brand: "교촌치킨" });
     console.log(`  payload.kind=${out.payload.kind}`);
     console.log(`  canonicalUrl=${out.canonicalUrl}`);
     console.log(`  tiers D count=${out.tiers.D.length}`);
     console.log(`  jsonLd types=${out.jsonLd.map((l) => (l as { ["@type"]?: string })["@type"]).join(", ")}`);
     console.log(`  lint errors=${out.lint.errors.length} warns=${out.lint.warns.length}`);
+    for (const e of out.lint.errors) console.log(`    ERR ${e.code} ${e.level} | ${e.msg} ${e.where ? `[${e.where}]` : ""}`);
     console.log(`  crosscheck matched=${out.crosscheck.matchedCount} unmatched=${out.crosscheck.unmatched.length}`);
+    if (out.crosscheck.unmatched.length > 0) {
+      for (const u of out.crosscheck.unmatched.slice(0, 10)) console.log(`    UNMATCHED: ${u}`);
+    }
+
 
     console.log("\n━━━ [2] syndicate invest-focus/tistory ━━━");
     try {

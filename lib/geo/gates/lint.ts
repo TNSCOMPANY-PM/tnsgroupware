@@ -24,7 +24,9 @@ export interface GeoLintOutput {
   warns: LintEntry[];
 }
 
-const FORBIDDEN = /(약|대략|정도|쯤|아마도|업계\s*관계자|많은\s*전문가들?)/u;
+// "약" 은 "계약/약관/약정/약속" 같은 복합어를 오탐하지 않도록, 앞이 Hangul 이 아니고 뒤에 공백+숫자 또는 바로 숫자가 오는 "근사치" 용례만 포착.
+const FORBIDDEN_YAK = /(?:^|[^가-힣])약\s*\d/u;
+const FORBIDDEN = /(대략|정도|쯤|아마도|업계\s*관계자|많은\s*전문가들?)/u;
 const FORBIDDEN_V2 = /(수령확인서|1\s*위|최고|추천|업계\s*1위)/u;
 const DATE_RE = /(\d{4}-\d{2}|\d{4}년\s*\d{1,2}월)/u;
 const AGENCY_RE = /(공정거래위원회|공정위|네이버\s*검색광고|공공데이터포털|식품의약품안전처|통계청)/u;
@@ -46,6 +48,8 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
   // L01 금지어 (V1)
   const fMatch = body.match(FORBIDDEN);
   if (fMatch) errors.push({ code: "L01", level: "ERROR", msg: `금지어 발견: ${fMatch[0]}`, where: "body" });
+  const yakMatch = body.match(FORBIDDEN_YAK);
+  if (yakMatch) errors.push({ code: "L01", level: "ERROR", msg: `금지어 발견: 약(근사치)`, where: "body" });
 
   // L02 기준월
   if (!DATE_RE.test(body)) errors.push({ code: "L02", level: "ERROR", msg: "기준월(YYYY-MM) 미기재" });

@@ -20,7 +20,7 @@ function inputDescriptor(input: GeoInput): string {
     case "D2":
       return `DEPTH: D2\nINDUSTRY: ${input.industry}${input.topic ? `\nTOPIC: ${input.topic}` : ""}`;
     case "D3":
-      return `DEPTH: D3\nBRAND: ${input.brand}\nBRAND_ID: ${input.brandId}`;
+      return `DEPTH: D3\nBRAND: ${input.brand}`;
   }
 }
 

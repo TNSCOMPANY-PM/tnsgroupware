@@ -24,7 +24,7 @@ function inputSummary(input: GeoInput): string {
     case "D0": return `TOPIC: ${input.topic}`;
     case "D1": return `TOPIC: ${input.topic}`;
     case "D2": return `INDUSTRY: ${input.industry}${input.topic ? ` · TOPIC: ${input.topic}` : ""}`;
-    case "D3": return `BRAND: ${input.brand} (id: ${input.brandId})`;
+    case "D3": return `BRAND: ${input.brand}`;
   }
 }
 

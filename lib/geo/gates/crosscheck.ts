@@ -3,7 +3,7 @@ import type { Depth, CrossCheckResult } from "@/lib/geo/types";
 
 const NUM_RE = /[\d]{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/gu;
 const UNIT_SUFFIX = /(?:회|명|개|원|%|점|억|만|천|년|월|일)/u;
-const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식|[×x\*/÷]\s*100\b|\b100\s*[×x\*/÷]|=\s*\*{0,2}\s*\d|^\d+\.|\s\d+\.\s|\s\d+\)\s|^\s*\*\s|^\s*-\s|[a-zA-Z-]+\s*:\s*[\d.]+(?:px|em|rem|%|pt|vh|vw)?|style\s*=|\*\*\s*\d+\.|#[0-9a-fA-F]{3,8}|\|\s*\d{4}\s*\||\|\s*\d+\s*\||\d+\s*개월(?:간|\s*이상|\s*이내)?|\d+\s*일\s*(?:이상|이내|간)|\d+\s*곳\s*중)/u;
+const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식|[×x\*/÷]\s*100\b|\b100\s*[×x\*/÷]|=\s*\*{0,2}\s*\d|^\d+\.|\s\d+\.\s|\s\d+\)\s|^\s*\*\s|^\s*-\s|[a-zA-Z-]+\s*:\s*[\d.]+(?:px|em|rem|%|pt|vh|vw)?|style\s*=|\*\*\s*\d+\.|#[0-9a-fA-F]{3,8}|\|\s*\d{4}\s*\||\|\s*\d+\s*\||\d+\s*개월(?:간|\s*이상|\s*이내)?|\d+\s*일\s*(?:이상|이내|간|\s*숙려|\s*기간|\s*사전|\s*제공|\s*이전|\s*이후|\s*전)|\d+\s*곳\s*중|\(\s*\d+\s*(?:일|개월|년)\s*\)|숙려\s*기간|사전\s*제공|\d+\s*차|\d+\s*호|Tier\s*[A-D]|\d+\s*[~\-]\s*\d+\s*평|\d+\s*평(?:형|대)?|\d+\s*대\s*(?:핵심|지표|요소|과제|원칙|전략|키워드|카테고리)|\d+\s*단계|\d+\s*가지)/u;
 
 function normalize(s: string): string {
   return s.replace(/,/g, "").trim();

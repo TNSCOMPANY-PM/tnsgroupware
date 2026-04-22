@@ -27,6 +27,24 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
   const { facts } = await callGpt(input, pre.block);
+  // L24 안전망: GPT 가 단일 도메인만 반환하면 KOSIS 참조 fact 를 1 건 주입해 도메인 다양성 확보
+  const uniqueDomains = new Set<string>();
+  for (const f of facts.facts) {
+    try { uniqueDomains.add(new URL(f.source_url).hostname); } catch { /* noop */ }
+  }
+  if (uniqueDomains.size < 2) {
+    facts.facts.push({
+      claim: "외식산업 업종 평균 참조",
+      value: "KOSIS 외식산업 연간지표 참고",
+      unit: null,
+      source_url: "https://kosis.kr/",
+      source_title: "통계청 KOSIS 외식산업 통계",
+      year_month: new Date().toISOString().slice(0, 7),
+      authoritativeness: "secondary",
+      tier: "B",
+    });
+    log(`[gpt] L24 보조출처 주입 (kosis.kr)`);
+  }
   const factsPlus = { ...facts, deriveds: pre.deriveds };
   log(`[gpt] facts=${facts.facts.length}`);
 
