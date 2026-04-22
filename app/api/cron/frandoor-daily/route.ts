@@ -1,8 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { convertForPlatform } from "@/utils/blogConverter";
-import type { ConvertTarget } from "@/types/blogConvert";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -134,86 +132,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 2: 주제 선정
-    const { topic, reader_stage, search_intent } = await pickTopic(brand.id, brand.name, supabase);
+    const { topic } = await pickTopic(brand.id, brand.name, supabase);
     console.log(`📝 [${brand.name}] 주제: ${topic}`);
 
-    // Step 3: Frandoor 원본 생성
-    const blogResult = await withRetry(async () => {
-      const res = await internalPost("/api/geo/blog-generate", {
-        brand_id: brand.id, platform: "frandoor", topic,
-        provider: "claude", reader_stage, search_intent,
-      });
-      if (!res.ok) throw new Error(`blog-generate ${res.status}`);
-      return await res.json();
-    }, `블로그 생성 ${brand.name}`);
-
-    if (!blogResult?.content) {
-      results.push({ brand: brand.name, error: "블로그 생성 실패" });
-      continue;
-    }
-
-    // Frandoor draft 저장
-    await supabase.from("frandoor_blog_drafts").insert({
-      brand_id: brand.id, channel: "frandoor", title: blogResult.title ?? topic,
-      content: blogResult.content, meta_description: blogResult.meta_description ?? "",
-      keywords: blogResult.keywords ?? [], faq: blogResult.faq ?? [],
-      schema_markup: blogResult.schema_markup ?? "", status: "draft", target_date: todayStr,
-    });
-
-    const channelResults: { channel: string; status: string }[] = [{ channel: "frandoor", status: "draft" }];
-
-    // Step 4: 플랫폼별 변환 + 저장
-    const convertChannels: { key: string; target: ConvertTarget }[] = [
-      { key: "blog_tistory", target: "tistory" },
-      { key: "blog_naver", target: "naver" },
-      { key: "blog_medium", target: "medium" },
-    ];
-
-    for (const ch of convertChannels) {
-      if (!plan[ch.key]) continue;
-
-      const converted = await withRetry(async () => {
-        return convertForPlatform({
-          content: blogResult.content, title: blogResult.title ?? "",
-          target: ch.target, faq: blogResult.faq, keywords: blogResult.keywords,
-          meta_description: blogResult.meta_description, schema_markup: blogResult.schema_markup,
-        });
-      }, `변환 ${ch.target} ${brand.name}`);
-
-      if (!converted) { channelResults.push({ channel: ch.target, status: "convert_failed" }); continue; }
-
-      const { data: draft } = await supabase.from("frandoor_blog_drafts").insert({
-        brand_id: brand.id, channel: ch.target, title: blogResult.title ?? topic,
-        content: converted.converted_content, meta_description: blogResult.meta_description ?? "",
-        keywords: blogResult.keywords ?? [], faq: blogResult.faq ?? [],
-        schema_markup: blogResult.schema_markup ?? "", status: "draft", target_date: todayStr,
-      }).select("id").single();
-
-      // Step 5: 티스토리 자동 임시저장
-      if (ch.target === "tistory" && draft) {
-        try {
-          const pubRes = await internalPost("/api/geo/tistory/publish", {
-            title: blogResult.title ?? topic,
-            content: converted.converted_content,
-            tags: blogResult.keywords ?? [],
-            visibility: 0, // 비공개=임시저장
-          });
-          if (pubRes.ok) {
-            const pubData = await pubRes.json();
-            await supabase.from("frandoor_blog_drafts").update({
-              status: "published", published_url: pubData.postUrl,
-            }).eq("id", draft.id);
-            channelResults.push({ channel: "tistory", status: "published" });
-          } else {
-            channelResults.push({ channel: "tistory", status: "publish_failed" });
-          }
-        } catch {
-          channelResults.push({ channel: "tistory", status: "publish_error" });
-        }
-      } else {
-        channelResults.push({ channel: ch.target, status: "draft" });
-      }
-    }
+    // TODO(geo/cron-v2): /api/geo/generate + /api/geo/syndicate 로 재배선
+    // Step 3~5 (레거시 blog-generate·blog-convert·tistory 퍼블리시) 는 V2 이관 미완료로 비활성화.
+    // 기존 코드는 /api/geo/blog-generate (410 Gone) 를 호출해 항상 실패했음. 재구현 전까지
+    // frandoor_blog_drafts 에 draft 가 쌓이지 않음. Step 1 (GEO 체크) + Step 6 (리포트) 만 수행.
+    const channelResults: { channel: string; status: string }[] = [];
 
     // Step 6: 데일리 리포트
     const reportResult = await withRetry(async () => {
