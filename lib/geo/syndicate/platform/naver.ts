@@ -1,8 +1,7 @@
-// 네이버 스마트에디터: <script>/<style>/<link>/class/id 금지. style 최소화.
+// 네이버 스마트에디터: <link>/class/id 금지, style 최소화. XSS 정화는 syndicate/index.ts 에서 선행.
 export function prepareForNaver(html: string): string {
   let out = html;
-  out = out.replace(/<script\b[\s\S]*?<\/script>/gi, "");
-  out = out.replace(/<style\b[\s\S]*?<\/style>/gi, "");
+  // 네이버는 <link rel=canonical> 도 허용 안 함 → 제거
   out = out.replace(/<link\b[^>]*>/gi, "");
   out = out.replace(/\s+class="[^"]*"/g, "");
   out = out.replace(/\s+id="[^"]*"/g, "");
