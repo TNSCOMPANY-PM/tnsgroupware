@@ -1493,7 +1493,7 @@ ${aeoHtml}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-700">{selectedBrand?.name ?? "브랜드"} 발행 이력</h3>
-            <Link href={selectedBrand ? `/content/brand?brand_id=${selectedBrand.id}` : "/content/brand"}
+            <Link href={selectedBrand ? `/content/d3?brand_id=${selectedBrand.id}` : "/content/d3"}
               className="text-xs px-3 py-1.5 rounded-md bg-violet-600 text-white hover:bg-violet-700 inline-flex items-center gap-1">
               <FileText className="h-3 w-3" />새 블로그 작성
             </Link>

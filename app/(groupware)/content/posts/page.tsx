@@ -19,11 +19,16 @@ type Row = {
 type Brand = { id: string; name: string };
 
 const TYPE_LABEL: Record<string, string> = {
-  brand: "브랜드 A",
-  compare: "비교 B",
-  guide: "가이드 C",
-  trend: "트렌드 D",
-  external: "외부채널",
+  D0: "창업일반",
+  D1: "프차일반",
+  D2: "업종",
+  D3: "브랜드",
+  // 하위 호환 — 레거시 행 렌더용
+  brand:     "브랜드 (legacy)",
+  compare:   "비교 (legacy)",
+  guide:     "가이드 (legacy)",
+  trend:     "트렌드 (legacy)",
+  external:  "외부채널 (legacy)",
   datasheet: "데이터시트",
 };
 
@@ -74,12 +79,16 @@ export default function PostsPage() {
         <select value={contentType} onChange={e => { setContentType(e.target.value); setPage(1); }}
           className="text-xs border border-slate-200 rounded-md px-2 py-1.5">
           <option value="">전체 타입</option>
-          <option value="brand">브랜드 (A)</option>
-          <option value="compare">비교 (B)</option>
-          <option value="guide">가이드 (C)</option>
-          <option value="trend">트렌드 (D)</option>
-          <option value="external">외부채널</option>
+          <option value="D0">창업일반 (D0)</option>
+          <option value="D1">프차일반 (D1)</option>
+          <option value="D2">업종 (D2)</option>
+          <option value="D3">브랜드 (D3)</option>
           <option value="datasheet">데이터시트</option>
+          <option value="brand">브랜드 (legacy)</option>
+          <option value="compare">비교 (legacy)</option>
+          <option value="guide">가이드 (legacy)</option>
+          <option value="trend">트렌드 (legacy)</option>
+          <option value="external">외부채널 (legacy)</option>
         </select>
         <select value={brandId} onChange={e => { setBrandId(e.target.value); setPage(1); }}
           className="text-xs border border-slate-200 rounded-md px-2 py-1.5">
@@ -126,7 +135,7 @@ export default function PostsPage() {
                     {TYPE_LABEL[r.content_type] ?? r.content_type}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-slate-700">{r.content_type === "brand" ? (r.geo_brands?.name ?? "-") : "-"}</td>
+                <td className="px-3 py-2 text-slate-700">{(r.content_type === "brand" || r.content_type === "D3") ? (r.geo_brands?.name ?? "-") : "-"}</td>
                 <td className="px-3 py-2 text-slate-600">{r.channel}</td>
                 <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[280px]">{r.title || "(제목 없음)"}</td>
                 <td className="px-3 py-2">
@@ -156,7 +165,7 @@ export default function PostsPage() {
       </div>
 
       <div className="text-[10px] text-slate-400">
-        <Link href="/content/brand" className="hover:underline">새 브랜드 콘텐츠 작성하러 가기 →</Link>
+        <Link href="/content/d3" className="hover:underline">새 브랜드 콘텐츠 작성하러 가기 →</Link>
       </div>
     </div>
   );

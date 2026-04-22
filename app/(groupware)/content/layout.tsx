@@ -3,16 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { FileText, GitCompareArrows, BookOpen, TrendingUp, Globe, BarChart3, History } from "lucide-react";
+import { Sparkles, Layers, Boxes, FileText, BarChart3, History } from "lucide-react";
 
 const TABS = [
-  { href: "/content/brand",    label: "브랜드 (A)", icon: FileText,         color: "violet" },
-  { href: "/content/compare",  label: "비교 (B)",   icon: GitCompareArrows, color: "sky" },
-  { href: "/content/guide",    label: "가이드 (C)", icon: BookOpen,         color: "emerald" },
-  { href: "/content/trend",    label: "트렌드 (D)", icon: TrendingUp,       color: "amber" },
-  { href: "/content/external",  label: "외부채널",    icon: Globe,            color: "rose" },
-  { href: "/content/datasheet", label: "데이터시트", icon: BarChart3,        color: "indigo" },
-  { href: "/content/posts",    label: "발행 이력",  icon: History,          color: "slate" },
+  { href: "/content/d0",        label: "창업일반 (D0)", icon: Sparkles,  color: "violet" },
+  { href: "/content/d1",        label: "프차일반 (D1)", icon: Layers,    color: "sky" },
+  { href: "/content/d2",        label: "업종 (D2)",     icon: Boxes,     color: "emerald" },
+  { href: "/content/d3",        label: "브랜드 (D3)",   icon: FileText,  color: "amber" },
+  { href: "/content/datasheet", label: "데이터시트",    icon: BarChart3, color: "indigo" },
+  { href: "/content/posts",     label: "발행 이력",     icon: History,   color: "slate" },
 ] as const;
 
 export default function ContentLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +20,7 @@ export default function ContentLayout({ children }: { children: React.ReactNode 
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="border-b border-slate-200 bg-white px-6 pt-4">
         <h1 className="text-base font-semibold text-slate-800 mb-1">콘텐츠 발행</h1>
-        <p className="text-xs text-slate-400 mb-3">v3 전략: 타입 A(브랜드) / B(비교) / C(가이드) / D(트렌드) + 외부채널</p>
+        <p className="text-xs text-slate-400 mb-3">depth 기반 canonical + 멀티채널 syndicate</p>
         <nav className="flex gap-1 overflow-x-auto">
           {TABS.map(t => {
             const active = pathname?.startsWith(t.href);
