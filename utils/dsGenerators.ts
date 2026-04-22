@@ -71,7 +71,8 @@ function today(): string {
 
 function fmtAmt(v: number): string {
   if (v <= 0) return "-";
-  return `${Math.round(v / 1000).toLocaleString("ko-KR")}만원`;
+  // FTC avrgSlsAmt 는 천원 단위 → 만원: ÷10. (1 만원 = 10 천원)
+  return `${Math.round(v / 10).toLocaleString("ko-KR")}만원`;
 }
 
 function fmtAmtRaw(v: number): string {

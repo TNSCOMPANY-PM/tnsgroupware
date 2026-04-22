@@ -229,7 +229,7 @@ export async function fetchFtcFactByBrandName(brandName: string): Promise<{
       `신규등록: ${stat.newFrcsRgsCnt > 0 ? `${stat.newFrcsRgsCnt}개` : "공식자료 미공개"}`,
       `계약종료: ${stat.ctrtEndCnt > 0 ? `${stat.ctrtEndCnt}개` : "공식자료 미공개"}`,
       `계약해지: ${stat.ctrtCncltnCnt > 0 ? `${stat.ctrtCncltnCnt}개` : "공식자료 미공개"}`,
-      `평균매출: ${stat.avrgSlsAmt > 0 ? `${Math.round(stat.avrgSlsAmt / 1000).toLocaleString()}만원(연)` : "공식자료 미공개"}`,
+      `평균매출: ${stat.avrgSlsAmt > 0 ? `${Math.round(stat.avrgSlsAmt / 10).toLocaleString()}만원(연)` : "공식자료 미공개"}`,
     ];
     // 폐점률 = (ctrtEndCnt + ctrtCncltnCnt) / frcsCnt * 100
     if (stat.frcsCnt > 0) {
