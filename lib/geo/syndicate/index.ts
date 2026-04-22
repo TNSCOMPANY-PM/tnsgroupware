@@ -8,6 +8,7 @@ import { crosscheckAgainstCanonical } from "./guards";
 import { prepareForTistory } from "./platform/tistory";
 import { prepareForNaver } from "./platform/naver";
 import { prepareForMedium } from "./platform/medium";
+import { sanitizeGeneratedHtml } from "@/lib/geo/sanitize";
 
 export const SyndicateInputSchema = z.object({
   sourceUrl: z.string().startsWith("/"),
@@ -48,7 +49,11 @@ export async function syndicate(input: SyndicateInput): Promise<SyndicateOutput>
   const rewritten = await rewriteForAngle(subset, input.angle, input.platform, canonical.canonical_url, input.length);
   log(`[syndicate.rewrite] title="${rewritten.title.slice(0, 30)}..." html=${rewritten.html.length}자`);
 
-  const withBacklink = ensureBacklink(rewritten.html, canonical.canonical_url, rewritten.anchor);
+  // XSS 차단: LLM 원문(rewritten.html) 을 allowlist sanitize → 이후 trusted 백링크·platform 후처리 적용
+  const sanitized = sanitizeGeneratedHtml(rewritten.html);
+  log(`[syndicate.sanitize] ${rewritten.html.length}→${sanitized.length}자`);
+
+  const withBacklink = ensureBacklink(sanitized, canonical.canonical_url, rewritten.anchor);
   const platformReady = applyPlatform(input.platform, withBacklink);
   log(`[syndicate.platform:${input.platform}] html=${platformReady.length}자`);
 
