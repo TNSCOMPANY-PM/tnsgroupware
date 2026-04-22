@@ -9,6 +9,10 @@ export function crosscheckAgainstCanonical(
   factsRaw: FactsRaw,
 ): CrossCheckResult {
   const factsInput: GptFacts = {
+    brand: undefined,
+    industry: undefined,
+    topic: undefined,
+    category: undefined,
     facts: factsRaw.facts as GptFacts["facts"],
     deriveds: (factsRaw.deriveds ?? []) as GptFacts["deriveds"],
     collected_at: "1970-01-01",

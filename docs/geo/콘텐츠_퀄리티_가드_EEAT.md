@@ -133,8 +133,19 @@ FORBIDDEN OUTPUTS:
 | L22 measurement_floor 표기 | floor 사실 포함 시 본문에 "(< 10" 또는 "최소값" 문구 | WARN |
 | L23 내부 링크 | 본문에 `[.*](/.*)` Markdown 내부 링크 ≥ 3개 | WARN |
 | L24 이중 소스 | GPT facts에 source_url ≥ 2개 고유 도메인 (검증 게이트) | ERROR |
+| L25 금지어 V2 | `/(수령확인서|1\s*위|최고|추천|업계\s*1위)/` (2026-04-22 사이트 가이드) | ERROR |
+| L26 최소 분량 | body ≥ 1,500자 (D0/D1/D3), ≥ 2,000자 (D2) | ERROR |
+| L27 5대 지표 (D3 전용) | 본문에 `실투자금|투자회수|순마진|업종\s*내\s*포지션|실질\s*폐점률` 중 ≥ 3개 | ERROR |
+| L28 Tier D 출처 표기 | Tier D 수치 옆 "(frandoor 산출)" 또는 "frandoor 계산식 기반" 라벨 | ERROR |
+| L29 canonical self-ref | frontmatter 또는 payload에 `canonicalUrl` 존재 | ERROR |
+| L30 JSON-LD 3종 | `FAQPage` + `BreadcrumbList` + (D3 한정 `FoodEstablishment` or `LocalBusiness`) | ERROR |
 
 **ERROR = PR 생성 차단. WARN = PR 코멘트로 남김.**
+
+**depth 별 룰셋 (lib/geo/gates/lint.ts::lintForDepth)**:
+- D0/D1: L01~L26 · L28~L30 (L27 제외)
+- D2: L01~L26 · L28~L30 (2,000자 · L27 제외)
+- D3: L01~L30 전체
 
 ---
 

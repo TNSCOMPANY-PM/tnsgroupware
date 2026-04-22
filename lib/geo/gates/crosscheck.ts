@@ -3,7 +3,7 @@ import type { Depth, CrossCheckResult } from "@/lib/geo/types";
 
 const NUM_RE = /[\d]{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/gu;
 const UNIT_SUFFIX = /(?:회|명|개|원|%|점|억|만|천|년|월|일)/u;
-const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식)/u;
+const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식|^\d+\.|\s\d+\.\s|\s\d+\)\s|^\s*\*\s|^\s*-\s)/u;
 
 function normalize(s: string): string {
   return s.replace(/,/g, "").trim();
@@ -23,7 +23,12 @@ function addNum(set: Set<string>, raw: string | number) {
 function buildAllowedPool(facts: GptFacts): Set<string> {
   const pool = new Set<string>();
   for (const f of facts.facts) addNum(pool, f.value);
-  for (const d of facts.deriveds ?? []) addNum(pool, d.value);
+  for (const d of facts.deriveds ?? []) {
+    addNum(pool, d.value);
+    for (const v of Object.values(d.inputs)) {
+      if (typeof v === "number" || typeof v === "string") addNum(pool, v);
+    }
+  }
   return pool;
 }
 

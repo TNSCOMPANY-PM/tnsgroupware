@@ -43,16 +43,22 @@ export const DerivedMetricSchema = z.object({
 });
 
 export const GptFactsSchema = z.object({
-  brand: z.string().min(1).optional(),
-  industry: z.string().optional(),
-  topic: z.string().optional(),
-  category: z.string().optional(),
+  brand: z.string().min(1).nullable().optional(),
+  industry: z.string().nullable().optional(),
+  topic: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
   facts: z.array(FactSchema).min(1),
   deriveds: z.array(DerivedMetricSchema).optional(),
   collected_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   measurement_floor: z.boolean().default(false),
   conflicts: z.array(z.object({ field: z.string(), reason: z.string() })).default([]),
-});
+}).transform((v) => ({
+  ...v,
+  brand: v.brand ?? undefined,
+  industry: v.industry ?? undefined,
+  topic: v.topic ?? undefined,
+  category: v.category ?? undefined,
+}));
 
 export type GptFacts = z.infer<typeof GptFactsSchema>;
 
