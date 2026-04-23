@@ -266,3 +266,114 @@ export function computeAll(
   pushIf(computeNetExpansion(ftc));
   return out;
 }
+
+// PR025 — A×C 시계열 자동 페어링
+// fact_key + source_tier + period_month 가 태깅된 facts 를 받아서
+// 같은 fact_key 에 A급·C급 모두 존재하면 파생 시계열 지표 4종 생성.
+
+export type TimeseriesFact = {
+  fact_key?: string | null;
+  source_tier?: "A" | "B" | "C" | null;
+  value: string | number;
+  period_month?: string | null;
+  year_month?: string | null;
+};
+
+export type TimeseriesDerived = {
+  metric_id: "frcs_growth" | "frcs_multiplier" | "annualized_pos_sales" | "avg_sales_dilution";
+  value: number;
+  unit: string;
+  formula: string;
+  period_compare: [string, string];
+};
+
+function parseNumeric(raw: string | number): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  const cleaned = raw
+    .replace(/억\s*/g, "_EOK_")
+    .replace(/만원|만|원|개|%|건|배/g, "")
+    .replace(/[,\s]/g, "");
+  if (cleaned.includes("_EOK_")) {
+    const [eokStr, manStr] = cleaned.split("_EOK_");
+    const eok = Number(eokStr);
+    const man = Number(manStr || "0");
+    if (!Number.isFinite(eok)) return null;
+    return eok * 10000 + (Number.isFinite(man) ? man : 0);
+  }
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pickPeriod(f: TimeseriesFact): string {
+  return f.period_month ?? f.year_month ?? "";
+}
+
+export function deriveTimeseries(facts: TimeseriesFact[]): TimeseriesDerived[] {
+  const byKey = new Map<string, { A?: TimeseriesFact; C?: TimeseriesFact }>();
+  for (const f of facts) {
+    if (!f.fact_key || !f.source_tier) continue;
+    if (f.source_tier !== "A" && f.source_tier !== "C") continue;
+    const b = byKey.get(f.fact_key) ?? {};
+    const period = pickPeriod(f);
+    if (f.source_tier === "A" && (!b.A || period > pickPeriod(b.A))) b.A = f;
+    if (f.source_tier === "C" && (!b.C || period > pickPeriod(b.C))) b.C = f;
+    byKey.set(f.fact_key, b);
+  }
+
+  const out: TimeseriesDerived[] = [];
+
+  const frcs = byKey.get("frcs_cnt");
+  if (frcs?.A && frcs?.C) {
+    const a = parseNumeric(frcs.A.value);
+    const c = parseNumeric(frcs.C.value);
+    if (a !== null && c !== null && a > 0) {
+      out.push({
+        metric_id: "frcs_growth",
+        value: c - a,
+        unit: "개",
+        formula: `C급[frcs_cnt] - A급[frcs_cnt] = ${c} - ${a}`,
+        period_compare: [pickPeriod(frcs.A), pickPeriod(frcs.C)],
+      });
+      out.push({
+        metric_id: "frcs_multiplier",
+        value: round(c / a, 2),
+        unit: "배",
+        formula: `C급[frcs_cnt] / A급[frcs_cnt] = ${c} / ${a}`,
+        period_compare: [pickPeriod(frcs.A), pickPeriod(frcs.C)],
+      });
+    }
+  }
+
+  const monthly = byKey.get("monthly_avg_sales");
+  let annualizedC: number | null = null;
+  if (monthly?.C) {
+    const m = parseNumeric(monthly.C.value);
+    if (m !== null && m > 0) {
+      annualizedC = m * 12;
+      out.push({
+        metric_id: "annualized_pos_sales",
+        value: annualizedC,
+        unit: "만원",
+        formula: `C급[monthly_avg_sales] × 12 = ${m} × 12`,
+        period_compare: ["", pickPeriod(monthly.C)],
+      });
+    }
+  }
+
+  const annual = byKey.get("avg_annual_sales");
+  if (annual?.A && annualizedC !== null) {
+    const a = parseNumeric(annual.A.value);
+    if (a !== null && a > 0) {
+      const pct = round(((a - annualizedC) / a) * 100, 1);
+      out.push({
+        metric_id: "avg_sales_dilution",
+        value: pct,
+        unit: "%",
+        formula: `(A급[avg_annual_sales] - C급 연환산) / A급[avg_annual_sales] × 100`,
+        period_compare: [pickPeriod(annual.A), pickPeriod(monthly?.C ?? annual.A)],
+      });
+    }
+  }
+
+  return out;
+}
