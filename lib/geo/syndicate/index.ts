@@ -4,7 +4,7 @@ import type { SyndicateInput, SyndicateOutput } from "./types";
 import { loadCanonical, extractSubset } from "./extract";
 import { rewriteForAngle } from "./rewrite";
 import { ensureBacklink } from "./backlink";
-import { crosscheckAgainstCanonical } from "./guards";
+import { crosscheckAgainstCanonical, forbiddenWordCheck } from "./guards";
 import { prepareForTistory } from "./platform/tistory";
 import { prepareForNaver } from "./platform/naver";
 import { prepareForMedium } from "./platform/medium";
@@ -58,6 +58,13 @@ export async function syndicate(input: SyndicateInput): Promise<SyndicateOutput>
     throw new Error(
       `syndicate crosscheck(strict) 실패: unmatched ${cc.unmatched.length}건 — ${cc.unmatched.slice(0, 3).join(" | ")}`,
     );
+  }
+
+  // L01 금지어 게이트 — syndicate rewrite 결과에 "약 N" / "1위" 등 누수 차단
+  const forbidden = forbiddenWordCheck(platformReady);
+  log(`[syndicate.forbidden] hits=${forbidden.hits.length}`);
+  if (!forbidden.ok) {
+    throw new Error(`syndicate L01 금지어 검출: ${forbidden.hits.join(" | ")}`);
   }
 
   return {
