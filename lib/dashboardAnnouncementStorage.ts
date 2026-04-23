@@ -22,6 +22,7 @@ function dbRowToAnnouncement(row: Record<string, unknown>): DashboardAnnouncemen
     isImportant: !!(row.is_important),
     authorId: (row.author_id as string) ?? undefined,
     authorName: (row.author_name as string) ?? undefined,
+    images: (row.images as string[]) ?? [],
   };
 }
 

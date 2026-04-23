@@ -19,10 +19,10 @@ type Row = {
 type Brand = { id: string; name: string };
 
 const TYPE_LABEL: Record<string, string> = {
-  brand: "브랜드 A",
-  compare: "비교 B",
-  guide: "가이드 C",
-  trend: "트렌드 D",
+  brand: "브랜드(D3)",
+  compare: "카테고리(D1/D2)",
+  guide: "가이드(D0)",
+  trend: "트렌드",
   external: "외부채널",
   datasheet: "데이터시트",
 };
@@ -128,7 +128,11 @@ export default function PostsPage() {
                 </td>
                 <td className="px-3 py-2 text-slate-700">{r.content_type === "brand" ? (r.geo_brands?.name ?? "-") : "-"}</td>
                 <td className="px-3 py-2 text-slate-600">{r.channel}</td>
-                <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[280px]">{r.title || "(제목 없음)"}</td>
+                <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[280px]">
+                  <Link href={`/content/posts/${r.id}`} className="hover:underline">
+                    {r.title || "(제목 없음)"}
+                  </Link>
+                </td>
                 <td className="px-3 py-2">
                   <span className={"text-[10px] px-2 py-0.5 rounded " + (r.status === "published" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500")}>
                     {r.status}
@@ -156,7 +160,7 @@ export default function PostsPage() {
       </div>
 
       <div className="text-[10px] text-slate-400">
-        <Link href="/content/brand" className="hover:underline">새 브랜드 콘텐츠 작성하러 가기 →</Link>
+        <Link href="/content/editor" className="hover:underline">새 콘텐츠 작성하러 가기 →</Link>
       </div>
     </div>
   );

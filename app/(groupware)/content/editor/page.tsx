@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import type { GeoOutput } from "@/lib/geo/types";
 
 type Depth = "D0" | "D1" | "D2" | "D3";
 type Tier = "A" | "B" | "C";
@@ -11,10 +12,10 @@ type Brand = {
   name: string;
 };
 
-type GeneratedDraft = {
-  id: string;
-  title: string;
-  sections?: Array<{ heading: string; body: string }>;
+// 서버가 반환하는 shape: GeoOutput + PR028 에서 추가된 draftId / saveError.
+type GenerateResponse = GeoOutput & {
+  draftId?: string | null;
+  saveError?: string | null;
 };
 
 const DEPTH_DESCRIPTIONS: Record<Depth, { label: string; example: string }> = {
@@ -30,7 +31,7 @@ export default function EditorPage() {
   const [brandId, setBrandId] = useState<string>("");
   const [topic, setTopic] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<GeneratedDraft | null>(null);
+  const [result, setResult] = useState<GenerateResponse | null>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -259,43 +260,114 @@ export default function EditorPage() {
       </div>
 
       {/* 결과 표시 */}
-      {result && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-emerald-900">생성 완료</h3>
-            <a
-              href="/content/posts"
-              className="text-xs text-blue-600 hover:underline"
-            >
-              발행 관리에서 편집 →
-            </a>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">제목</p>
-              <p className="text-sm font-medium text-slate-800">{result.title}</p>
-            </div>
-            {result.sections && result.sections.length > 0 && (
-              <div>
-                <p className="text-xs text-slate-500 mb-2">섹션 미리보기</p>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {result.sections.slice(0, 3).map((section, i) => (
-                    <div key={i} className="text-xs">
-                      <p className="font-semibold text-slate-700">{section.heading}</p>
-                      <p className="text-slate-600 line-clamp-2">{section.body}</p>
-                    </div>
-                  ))}
-                  {result.sections.length > 3 && (
-                    <p className="text-xs text-slate-400 text-center">
-                      외 {result.sections.length - 3}개 섹션...
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {result && <ResultPreview result={result} />}
     </div>
   );
+}
+
+function ResultPreview({ result }: { result: GenerateResponse }) {
+  const preview = buildPreview(result);
+  const detailHref = result.draftId
+    ? `/content/posts/${result.draftId}`
+    : "/content/posts";
+
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-emerald-900">생성 완료</h3>
+          {result.draftId && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+              저장됨 · {result.draftId.slice(0, 8)}
+            </span>
+          )}
+        </div>
+        <a href={detailHref} className="text-xs text-blue-600 hover:underline">
+          발행 관리에서 열기 →
+        </a>
+      </div>
+
+      {result.saveError && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <p className="text-xs font-medium text-amber-800">저장 실패</p>
+          <p className="text-xs text-amber-700 mt-0.5 whitespace-pre-wrap break-words">
+            {result.saveError}
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs text-slate-500 mb-1">제목</p>
+          <p className="text-sm font-medium text-slate-800">{preview.title || "(제목 없음)"}</p>
+        </div>
+
+        {preview.sections.length > 0 && (
+          <div>
+            <p className="text-xs text-slate-500 mb-2">섹션 미리보기</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {preview.sections.slice(0, 3).map((s, i) => (
+                <div key={i} className="text-xs">
+                  <p className="font-semibold text-slate-700">{s.heading}</p>
+                  <p className="text-slate-600 line-clamp-2">{s.body}</p>
+                </div>
+              ))}
+              {preview.sections.length > 3 && (
+                <p className="text-xs text-slate-400 text-center">
+                  외 {preview.sections.length - 3}개 섹션...
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {preview.bodyExcerpt && (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">본문 발췌</p>
+            <pre className="text-xs text-slate-600 whitespace-pre-wrap bg-white/60 rounded p-2 max-h-48 overflow-y-auto">
+              {preview.bodyExcerpt}
+            </pre>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-2 border-t border-emerald-200">
+          <span>depth {result.depth}</span>
+          <span>·</span>
+          <span>canonical {result.canonicalUrl}</span>
+          {result.lint && (
+            <>
+              <span>·</span>
+              <span>lint err={result.lint.errors.length}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildPreview(result: GenerateResponse): {
+  title: string;
+  sections: Array<{ heading: string; body: string }>;
+  bodyExcerpt: string;
+} {
+  const p = result.payload;
+  if (p.kind === "markdown") {
+    const title = typeof p.frontmatter?.title === "string" ? p.frontmatter.title : "";
+    return { title, sections: [], bodyExcerpt: (p.body ?? "").slice(0, 500) };
+  }
+  if (p.kind === "industryDoc") {
+    const title = p.sections?.[0]?.heading ?? "";
+    return { title, sections: p.sections ?? [], bodyExcerpt: "" };
+  }
+  if (p.kind === "franchiseDoc") {
+    const title = p.closure?.headline ?? p.sections?.[0]?.heading ?? "";
+    const excerpt = (p.closure?.bodyHtml ?? "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500);
+    return { title, sections: p.sections ?? [], bodyExcerpt: excerpt };
+  }
+  return { title: "", sections: [], bodyExcerpt: "" };
 }

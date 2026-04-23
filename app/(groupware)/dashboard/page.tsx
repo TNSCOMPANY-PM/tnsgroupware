@@ -133,6 +133,7 @@ export default function DashboardPage() {
             isImportant: !!(row.is_important),
             authorId: (row.author_id as string) ?? undefined,
             authorName: (row.author_name as string) ?? undefined,
+            images: (row.images as string[]) ?? [],
           }))
         );
       }
@@ -352,6 +353,7 @@ export default function DashboardPage() {
         isImportant: !!(row.is_important),
         authorId: (row.author_id as string) ?? undefined,
         authorName: (row.author_name as string) ?? undefined,
+        images: (row.images as string[]) ?? [],
       }))
     );
     setAnnounceWriteOpen(false);
@@ -677,11 +679,18 @@ export default function DashboardPage() {
                       {ann.body && (
                         <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{ann.body}</p>
                       )}
-                      {ann.isImportant && (
-                        <span className="mt-1 inline-block rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                          📌 필독
-                        </span>
-                      )}
+                      <div className="mt-1 flex items-center gap-1.5">
+                        {ann.isImportant && (
+                          <span className="inline-block rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                            📌 필독
+                          </span>
+                        )}
+                        {ann.images && ann.images.length > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                            🖼 {ann.images.length}
+                          </span>
+                        )}
+                      </div>
                     </button>
                     <div className="flex shrink-0 items-center gap-1 pr-2">
                       <span className="text-xs text-slate-400">{format(parseISO(ann.date), "M/d")}</span>
@@ -956,6 +965,16 @@ export default function DashboardPage() {
               <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{announceDetailItem.body}</p>
             ) : (
               <p className="text-sm text-slate-400">내용 없음</p>
+            )}
+            {announceDetailItem?.images && announceDetailItem.images.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {announceDetailItem.images.map((src, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg border border-slate-200">
+                    <img src={src} alt={`공지 이미지 ${i + 1}`} className="h-full w-full object-cover" />
+                  </a>
+                ))}
+              </div>
             )}
           </div>
         </DialogContent>
