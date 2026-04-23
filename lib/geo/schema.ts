@@ -4,10 +4,10 @@ export const DepthSchema = z.enum(["D0", "D1", "D2", "D3"]);
 export const TierRankSchema = z.enum(["A", "B", "C", "D"]);
 
 export const GeoInputSchema = z.discriminatedUnion("depth", [
-  z.object({ depth: z.literal("D0"), topic: z.string().min(2) }),
-  z.object({ depth: z.literal("D1"), topic: z.string().min(2) }),
-  z.object({ depth: z.literal("D2"), industry: z.string().min(1), topic: z.string().optional() }),
-  z.object({ depth: z.literal("D3"), brandId: z.string().min(1), brand: z.string().min(1) }),
+  z.object({ depth: z.literal("D0"), topic: z.string().min(2), tiers: z.array(z.enum(["A", "B", "C"])).optional(), brandId: z.string().nullable().optional() }),
+  z.object({ depth: z.literal("D1"), topic: z.string().min(2), tiers: z.array(z.enum(["A", "B", "C"])).optional(), brandId: z.string().nullable().optional() }),
+  z.object({ depth: z.literal("D2"), industry: z.string().min(1), topic: z.string().optional(), tiers: z.array(z.enum(["A", "B", "C"])).optional(), brandId: z.string().nullable().optional() }),
+  z.object({ depth: z.literal("D3"), brandId: z.string().min(1), brand: z.string().min(1), tiers: z.array(z.enum(["A", "B", "C"])).optional() }),
 ]);
 
 export const FactSchema = z.object({
