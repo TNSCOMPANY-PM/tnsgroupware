@@ -78,7 +78,21 @@ async function main() {
       console.log(`  html ${syn.html.length}자, canonical link=${hasCanonical}, backlink=${hasBacklink}`);
       console.log(`  anchor: ${syn.anchor}`);
     } catch (e) {
-      console.error(`  [syndicate] 실패 사유: ${e instanceof Error ? e.message : e}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      // KNOWN-failing 패턴: 한국식 억/만 표기 또는 금지어 "약" — geo/syndicate-large-numbers 에서 추적
+      // 정규식: "N억 N,NNN만" 같은 쪼개진 숫자 또는 독립형 "약" (단어 경계)
+      const KOREAN_LARGENUM = /\d+\s*억\s*[\d,]+\s*만|\d,\d{3}\s*만/u;
+      const FORBIDDEN_YAK = /(?:^|\s|[^가-힣])약(?=\s|$|\))/u;
+      if (KOREAN_LARGENUM.test(msg) || FORBIDDEN_YAK.test(msg)) {
+        console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.warn("  KNOWN: syndicate large-number crosscheck issue");
+        console.warn("  tracked in geo/syndicate-large-numbers");
+        console.warn(`  원문: ${msg.slice(0, 200)}`);
+        console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      } else {
+        console.error(`  [syndicate] 실패 사유: ${msg}`);
+        process.exitCode = 1;
+      }
     }
   } catch (e) {
     console.error(`  [generate] 실패 사유: ${e instanceof Error ? e.message : e}`);
