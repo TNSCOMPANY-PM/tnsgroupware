@@ -3,6 +3,7 @@ import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import { GeoInputSchema } from "@/lib/geo/schema";
 import { generate } from "@/lib/geo";
 import { NotImplementedError, type GeoOutput } from "@/lib/geo/types";
+import { D3T4BlockedError } from "@/lib/geo/depth/tier";
 import { createAdminClient } from "@/utils/supabase/admin";
 
 export const runtime = "nodejs";
@@ -100,6 +101,12 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof NotImplementedError) {
       return NextResponse.json({ error: "NOT_IMPLEMENTED", message: e.message }, { status: 501 });
+    }
+    if (e instanceof D3T4BlockedError) {
+      return NextResponse.json(
+        { error: e.code, message: e.message, tierInput: e.tierInput },
+        { status: 400 },
+      );
     }
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: "GENERATE_FAILED", message: msg }, { status: 500 });

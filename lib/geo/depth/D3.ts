@@ -1,6 +1,6 @@
 import "server-only";
 import type { GeoInput, GeoOutput, FaqItem, DerivedMetric } from "@/lib/geo/types";
-import { runMatrixGate, runPrefetch, canonicalUrlFor } from "./shared";
+import { runMatrixGate, runPrefetch, canonicalUrlFor, resolveStoresLatest } from "./shared";
 import { callGpt } from "@/lib/geo/write/gpt";
 import { callSonnet } from "@/lib/geo/write/sonnet";
 import { assembleFranchiseDoc } from "@/lib/geo/render/franchiseDoc";
@@ -15,6 +15,7 @@ import { lintForDepth } from "@/lib/geo/gates/lint";
 import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
+import { classifyTier, D3T4BlockedError } from "./tier";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -54,6 +55,23 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const pre = await runPrefetch(input);
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
+  // T3 stores resolve + T4 tier classify + T4 차단 — Sonnet 호출 전에 수행
+  const { resolved: stores, honsa } = await resolveStoresLatest(input.brandId, pre.ftcFact);
+  log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}`);
+
+  const ftcFirstYear = parseInt(honsa?.ftc_first_registered?.slice(0, 4) ?? "0", 10);
+  const nowYear = new Date().getFullYear();
+  const tierInput = {
+    stores: stores.count,
+    ftcYears: ftcFirstYear ? nowYear - ftcFirstYear : (pre.ftcFact ? 1 : 0),
+    posMonths: honsa?.pos_monthly?.length ?? 0,
+  };
+  const tier = classifyTier(tierInput);
+  log(`[tier] ${input.brand} = ${tier}`);
+  if (tier === "T4") {
+    throw new D3T4BlockedError(input.brand, tierInput);
+  }
+
   const { facts } = await callGpt(input, pre.block);
   // L24 안전망: GPT 가 단일 도메인만 반환하면 KOSIS 참조 fact 를 1 건 주입해 도메인 다양성 확보
   const uniqueDomains = new Set<string>();
@@ -84,7 +102,24 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
 
-  const sonnet = await callSonnet(input, factsPlus, pre.deriveds);
+  const latestPos = honsa?.pos_monthly?.[honsa.pos_monthly.length - 1] ?? null;
+  const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
+    tier,
+    stores_resolved: stores,
+    corporation_founded_year: honsa?.corporation_founded_year ?? null,
+    ftc_first_registered: honsa?.ftc_first_registered ?? null,
+    pos_monthly_summary: honsa
+      ? {
+          months: honsa.pos_monthly.length,
+          from: honsa.pos_monthly[0]?.year_month ?? null,
+          to: latestPos?.year_month ?? null,
+          latest_store_count: latestPos?.store_count ?? null,
+          latest_per_store_avg: latestPos?.per_store_avg ?? null,
+          top3_stores: latestPos?.top3_stores ?? [],
+          bottom3_stores: latestPos?.bottom3_stores ?? [],
+        }
+      : null,
+  });
   const raw = sonnet.raw as {
     canonicalUrl?: unknown;
     sections?: unknown;
@@ -112,7 +147,14 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     buildFoodEstablishment({ brand: input.brand, canonicalUrl, description, category }),
   ];
 
-  const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd });
+  const stance =
+    raw.meta && typeof raw.meta.stance === "string" ? (raw.meta.stance as string) : undefined;
+  const availableStoreNames = [
+    ...(latestPos?.top3_stores ?? []),
+    ...(latestPos?.bottom3_stores ?? []),
+  ].map((s) => s.name).filter((n): n is string => Boolean(n));
+  const d3Ctx = { tier: tier as "T1" | "T2" | "T3", stance, availableStoreNames };
+  const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [
     ...payload.sections.map((s) => s.body),
     payload.closure.bodyHtml,

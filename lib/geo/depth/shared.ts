@@ -3,6 +3,7 @@ import type { GeoInput, DerivedMetric } from "@/lib/geo/types";
 import { prefetchOfficial } from "@/lib/geo/prefetch/official";
 import { computeAll, type FtcFact } from "@/lib/geo/metrics/derived";
 import { matrixCheck } from "@/lib/geo/gates/matrix";
+import { fetchFrandoorBrandFact, type FrandoorFact } from "@/lib/geo/prefetch/frandoorDb";
 
 function slugify(s: string): string {
   return s
@@ -83,4 +84,39 @@ export async function runPrefetch(input: GeoInput): Promise<{
   }
 
   return { block: pre.block, sources: pre.sources, deriveds, ftcFact };
+}
+
+export type ResolvedStores = {
+  count: number | null;
+  source: "C_honsa_pos" | "A_ftc" | "unknown";
+  as_of: string | null;
+};
+
+/** stores_latest fallback — C(본사 POS) > A(공정위) > unknown. */
+export async function resolveStoresLatest(
+  brandId: string | undefined,
+  ftcFact: FtcFact | null,
+): Promise<{ resolved: ResolvedStores; honsa: FrandoorFact | null }> {
+  const honsa = brandId ? await fetchFrandoorBrandFact(brandId) : null;
+  if (honsa?.stores_latest != null) {
+    return {
+      resolved: {
+        count: honsa.stores_latest,
+        source: "C_honsa_pos",
+        as_of: honsa.stores_latest_as_of ?? null,
+      },
+      honsa,
+    };
+  }
+  if (ftcFact?.frcsCnt != null && ftcFact.frcsCnt > 0) {
+    return {
+      resolved: {
+        count: ftcFact.frcsCnt,
+        source: "A_ftc",
+        as_of: ftcFact.yr ? `${ftcFact.yr}-12` : null,
+      },
+      honsa,
+    };
+  }
+  return { resolved: { count: null, source: "unknown", as_of: null }, honsa };
 }

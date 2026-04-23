@@ -59,6 +59,11 @@ const FACT_KEY_TIMESERIES_DERIVED = new Set<string>([
   "avg_sales_dilution",
 ]);
 const C_TIER_FOOTER_RE = /(본사\s*집계|POS\s*집계|본사\s*공지)/u;
+// L38 — 시스템 누출 문구 차단 (Sonnet 이 facts 부재를 그대로 본문에 누출하는 패턴)
+const SYSTEM_LEAK_RE = /(데이터\s*부재|산출\s*불가|현재\s*입력\s*JSON|제공되지\s*않|포함되어\s*있지\s*않)/u;
+// L39 — 섹션 끝 stake 문구
+const STAKE_MARK_RE = /→\s*즉[,\s]/u;
+// L42 — 실점포명은 pos_monthly_summary.top3_stores / bottom3_stores 에서 lintForDepth opts 로 공급받음.
 
 function str(v: unknown): string { return v == null ? "" : String(v); }
 function arr(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
@@ -197,12 +202,18 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
   return { ok: errors.length === 0, errors, warns };
 }
 
-// V2 ─ depth별 lint 확장 (L25~L30)
+// V2 ─ depth별 lint 확장 (L25~L30, D3: L33~L42)
+export type D3LintContext = {
+  tier?: "T1" | "T2" | "T3";
+  stance?: string;
+  availableStoreNames?: string[];
+};
+
 export function lintForDepth(
   depth: Depth,
   payload: GeoPayload,
   facts: GptFacts,
-  opts: { canonicalUrl: string; jsonLd: Record<string, unknown>[] },
+  opts: { canonicalUrl: string; jsonLd: Record<string, unknown>[]; d3?: D3LintContext },
 ): GeoLintOutput {
   // depth별 "frontmatter + body" 매핑
   let fm: Record<string, unknown> = {};
@@ -236,10 +247,19 @@ export function lintForDepth(
   const v2Match = body.match(FORBIDDEN_V2);
   if (v2Match) errors.push({ code: "L25", level: "ERROR", msg: `V2 금지어 발견: ${v2Match[0]}`, where: "body" });
 
-  // L26 최소 분량
-  const minLen = depth === "D2" ? 2000 : 1500;
+  // L26 최소 분량 — D3 는 tier 에 따라 가변 (T1=3000, T2=1800, T3=600)
+  const minLen = (() => {
+    if (depth === "D2") return 2000;
+    if (depth === "D3") {
+      const t = opts.d3?.tier;
+      if (t === "T1") return 3000;
+      if (t === "T2") return 1800;
+      if (t === "T3") return 600;
+    }
+    return 1500;
+  })();
   if (body.length < minLen) {
-    errors.push({ code: "L26", level: "ERROR", msg: `본문 ${body.length}자 < 최소 ${minLen}자 (depth=${depth})` });
+    errors.push({ code: "L26", level: "ERROR", msg: `본문 ${body.length}자 < 최소 ${minLen}자 (depth=${depth}${opts.d3?.tier ? `/${opts.d3.tier}` : ""})` });
   }
 
   // L27 5대 지표 (D3만)
@@ -355,6 +375,52 @@ export function lintForDepth(
     for (const d of tsDeriveds) {
       if (!citesValue(d.value)) {
         errors.push({ code: "L37", level: "ERROR", msg: `시계열 파생지표 ${d.key}(${d.value}) 본문 미인용` });
+      }
+    }
+
+    // L38 시스템 누출 문구 차단
+    const leak = body.match(SYSTEM_LEAK_RE);
+    if (leak) {
+      errors.push({ code: "L38", level: "ERROR", msg: `시스템 누출 문구: "${leak[0]}"` });
+    }
+
+    // L39 섹션당 stake 마커 ("→ 즉,") 최소 1회 — D3 만
+    if (payload.kind === "franchiseDoc") {
+      const stakeMisses = payload.sections.filter((s) => !STAKE_MARK_RE.test(s.body));
+      if (stakeMisses.length > 0) {
+        errors.push({
+          code: "L39",
+          level: "ERROR",
+          msg: `섹션 ${stakeMisses.length}개에 "→ 즉," stake 마커 누락 (예: "${stakeMisses[0].heading}")`,
+        });
+      }
+    }
+
+    // L40 FAQ 3~5개 (D3 전용 상한)
+    if (payload.kind === "franchiseDoc") {
+      const n = payload.faq25.length;
+      if (n < 3 || n > 5) {
+        errors.push({ code: "L40", level: "ERROR", msg: `D3 FAQ ${n}개 (3~5 필수)` });
+      }
+    }
+
+    // L41 stance 필드 필수 — payload.meta.stance 또는 opts.d3.stance
+    const metaStance = opts.d3?.stance;
+    if (!metaStance || !["진입 가능", "조건부 가능", "판단 유보", "비권장"].includes(metaStance)) {
+      errors.push({ code: "L41", level: "ERROR", msg: `stance 누락 또는 비허용값: "${metaStance ?? "(없음)"}"` });
+    }
+
+    // L42 실점포명 최소 3개 — T1/T2 만 (T3 면제), availableStoreNames 공급된 경우만
+    const names = opts.d3?.availableStoreNames ?? [];
+    const tierForL42 = opts.d3?.tier;
+    if (names.length > 0 && (tierForL42 === "T1" || tierForL42 === "T2")) {
+      const cited = names.filter((n) => body.includes(n));
+      if (cited.length < 3) {
+        errors.push({
+          code: "L42",
+          level: "ERROR",
+          msg: `실점포명 ${cited.length}개 인용 (T1/T2 최소 3개). 후보: ${names.slice(0, 6).join(", ")}`,
+        });
       }
     }
   }

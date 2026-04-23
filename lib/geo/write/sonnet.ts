@@ -42,15 +42,17 @@ export async function callSonnet(
   input: GeoInput,
   facts: GptFacts,
   deriveds: DerivedMetric[] = [],
+  extraContext: Record<string, unknown> = {},
 ): Promise<SonnetCallResult> {
   const system = systemForDepth(input.depth);
   const factsWithDeriveds = { ...facts, deriveds: deriveds.length > 0 ? deriveds : facts.deriveds };
+  const inputJson = { ...extraContext, facts: factsWithDeriveds };
   const userPrompt = fillPrompt(
     "DEPTH: {depth}\n{summary}\n\nFACTS (input JSON):\n{input_json}\n\nReturn ONE JSON object as OUTPUT FORMAT above.",
     {
       depth: input.depth,
       summary: inputSummary(input),
-      input_json: JSON.stringify(factsWithDeriveds, null, 2),
+      input_json: JSON.stringify(inputJson, null, 2),
     },
   );
 
