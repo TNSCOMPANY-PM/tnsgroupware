@@ -20,6 +20,23 @@ export async function POST(req: Request) {
     );
   }
 
+  const depth = parsed.data.depth;
+  const tiers = parsed.data.tiers ?? ["A", "B"];
+
+  if (depth !== "D3" && tiers.includes("C")) {
+    return NextResponse.json(
+      { error: "C_TIER_D3_ONLY", message: "C급은 D3 전용" },
+      { status: 400 },
+    );
+  }
+
+  if (depth === "D3" && !parsed.data.brandId) {
+    return NextResponse.json(
+      { error: "D3_REQUIRES_BRAND_ID", message: "D3는 brandId 필수" },
+      { status: 400 },
+    );
+  }
+
   try {
     const out = await generate(parsed.data);
     return NextResponse.json(out);
