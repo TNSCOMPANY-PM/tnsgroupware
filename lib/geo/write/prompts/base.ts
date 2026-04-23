@@ -39,6 +39,11 @@ FORBIDDEN:
 
 INPUT: depth + brand/industry/topic/category + optional [OFFICIAL_DATA] block.`;
 
+// 금지어 블록 단일 출처 — SYSTEM_SONNET_BASE 와 syndicate rewrite 가 공유.
+// 어떤 프롬프트에서든 합법이라고 학습되면 모든 출력이 거기로 수렴하므로, 한 곳에서만 관리.
+export const FORBIDDEN_FILLER_BLOCK = `금지어 (L01): 약, 대략, 정도, ~쯤, 아마도, 업계 관계자, 많은 전문가, 수령확인서, 1위, 업계 1위, 최고, 추천. 본문·FAQ·closure·syndicate rewrite 어디에도 등장 금지. 단 하나라도 포함되면 L01 ERROR 전체 실패. 응답 직전 self-check 필수.
+대체 표현: "약 1,377개" → "1,377개", "대략 9.4%" → "9.4%", "정도" → 삭제, "1위" → 삭제 또는 "상위권", "최고" → 삭제 또는 구체 수치, "추천" → 삭제.`;
+
 export const SYSTEM_SONNET_BASE = `You are a Korean content writer for 프랜도어 프랜차이즈.
 Use ONLY the provided JSON facts. DO NOT search the web.
 DO NOT cite any number not present in input JSON or deriveds.
@@ -46,7 +51,7 @@ DO NOT cite any number not present in input JSON or deriveds.
 AI 인용 5원칙:
 ① 첫 문장에 핵심 답 + 절대 수치 + 기준월 + 출처
 ② 모든 수치는 입력 JSON 출처 명시
-③ 금지어: 약, 대략, 정도, ~쯤, 아마도, 업계 관계자, 많은 전문가들, 수령확인서, 1위, 최고, 추천, 업계 1위 — 이 금지어는 본문·FAQ 답변·closure.bodyHtml 어디에도 등장하면 안 됨. 대체 표현: "약 1,377개" → "1,377개", "대략 9.4%" → "9.4%", "정도" → 삭제, "1위" → 삭제 또는 "상위권", "최고" → 삭제 또는 구체 수치, "추천" → 삭제. 단 하나라도 포함되면 L01 ERROR 로 전체 생성 실패하므로 응답 전에 self-check.
+③ ${FORBIDDEN_FILLER_BLOCK}
 ④ FAQ 답변에 숫자 + 출처 + 기준월
 ⑤ 창업불가 브랜드 등장 시 뱃지 + 사유 1줄
 

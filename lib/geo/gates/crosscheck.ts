@@ -1,6 +1,30 @@
 import type { GptFacts } from "@/lib/geo/schema";
 import type { Depth, CrossCheckResult } from "@/lib/geo/types";
 
+/**
+ * 한국식 큰 숫자 표기를 만원 기준 정수로 치환.
+ *  - "6억 9,430만"  → "69430만"
+ *  - "3억"          → "30000만"
+ *  - "9,430만"      → "9,430만"  (억 없으면 변경 없음, 기존 NUM_RE 로 매칭)
+ *  - "5억원"        → "50000만원" (붙여쓰기 OK)
+ *  - "1조"          → 변경 없음  (범위 밖, 필요시 확장)
+ */
+export function normalizeKoreanNumbers(text: string): string {
+  return text
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*억\s*(\d{1,3}(?:,\d{3})*|\d+)\s*만/gu,
+      (_, eok: string, man: string) => {
+        const eokN = parseInt(eok.replace(/,/g, ""), 10);
+        const manN = parseInt(man.replace(/,/g, ""), 10);
+        return `${eokN * 10000 + manN}만`;
+      },
+    )
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*억(?!\s*\d)/gu,
+      (_, eok: string) => `${parseInt(eok.replace(/,/g, ""), 10) * 10000}만`,
+    );
+}
+
 const NUM_RE = /[\d]{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/gu;
 const UNIT_SUFFIX = /(?:회|명|개|원|%|점|억|만|천|년|월|일)/u;
 const IGNORE_CONTEXT = /(순위|제\s*\d|\d+위|TOP\s*\d|\d{4}년\s*\d{1,2}월|\d{4}-\d{2}|\d{4}년|목차|차례|H[1-6]|표\s*\d|그림\s*\d|\([^)]*출처[^)]*\)|frandoor\s*산출|계산식|[×x\*/÷]\s*100\b|\b100\s*[×x\*/÷]|=\s*\*{0,2}\s*\d|^\d+\.|\s\d+\.\s|\s\d+\)\s|^\s*\*\s|^\s*-\s|[a-zA-Z-]+\s*:\s*[\d.]+(?:px|em|rem|%|pt|vh|vw)?|style\s*=|\*\*\s*\d+\.|#[0-9a-fA-F]{3,8}|\|\s*\d{4}\s*\||\|\s*\d+\s*\||\d+\s*개월(?:간|\s*이상|\s*이내)?|\d+\s*일\s*(?:이상|이내|간|\s*숙려|\s*기간|\s*사전|\s*제공|\s*이전|\s*이후|\s*전)|\d+\s*곳\s*중|\(\s*\d+\s*(?:일|개월|년)\s*\)|숙려\s*기간|사전\s*제공|\d+\s*차|\d+\s*호|Tier\s*[A-D]|\d+\s*[~\-]\s*\d+\s*평|\d+\s*평(?:형|대)?|\d+\s*대\s*(?:핵심|지표|요소|과제|원칙|전략|키워드|카테고리)|\d+\s*단계|\d+\s*가지)/u;
@@ -10,7 +34,8 @@ function normalize(s: string): string {
 }
 
 function addNum(set: Set<string>, raw: string | number) {
-  const str = String(raw);
+  // facts 값에 "6억 9,430만원" 같은 한국식 표기가 섞여 와도 pool 에 69430 으로 들어가도록 정규화
+  const str = typeof raw === "string" ? normalizeKoreanNumbers(raw) : String(raw);
   const matches = str.match(NUM_RE) ?? [];
   for (const m of matches) {
     const n = normalize(m);
@@ -41,12 +66,14 @@ export function numberCrossCheck(body: string, facts: GptFacts): CrossCheckResul
   const unmatched: string[] = [];
   let matched = 0;
 
+  // 본문 내 "N억 M,MMM만" 같은 한국식 표기를 "NM만" 으로 정규화해서 pool 매칭 확률을 높임
+  const normalizedBody = normalizeKoreanNumbers(body);
   const regex = new RegExp(`(${NUM_RE.source})\\s*(?:${UNIT_SUFFIX.source})?`, "gu");
-  for (const m of body.matchAll(regex)) {
+  for (const m of normalizedBody.matchAll(regex)) {
     const raw = m[1];
     const ctxStart = Math.max(0, (m.index ?? 0) - 8);
-    const ctxEnd = Math.min(body.length, (m.index ?? 0) + raw.length + 8);
-    const ctx = body.slice(ctxStart, ctxEnd);
+    const ctxEnd = Math.min(normalizedBody.length, (m.index ?? 0) + raw.length + 8);
+    const ctx = normalizedBody.slice(ctxStart, ctxEnd);
     if (IGNORE_CONTEXT.test(ctx)) continue;
 
     const n = Number(normalize(raw));

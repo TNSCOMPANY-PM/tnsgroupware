@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Angle, Platform } from "./types";
 import type { AngleSubset } from "./extract";
 import { ANGLE_DESCRIPTION } from "./angles";
+import { FORBIDDEN_FILLER_BLOCK } from "@/lib/geo/write/prompts/base";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -12,8 +13,11 @@ const SYSTEM_SYNDICATE = `You are a Korean content adapter for franchise syndica
 - 입력 JSON 의 숫자/기관명/브랜드명만 사용. JSON 에 없는 수치 절대 생성 금지.
 - 새로운 공정위 인용 추가 금지. 새 출처 URL 생성 금지.
 - 본문 내에 canonical 원문 링크 1회 이상 삽입 (제공된 {canonical_url} 사용).
-- 본문 어디에도 "1위", "최고", "추천", "업계 1위", "수령확인서" 금지.
-- "약/대략/정도/쯤/아마도/업계 관계자/많은 전문가" 금지.
+- 숫자 표기: "N억 M,MMM만 원" 같이 억/만을 섞지 말고 단일 단위(만원)로 표기.
+  예: 69,430만 원(O) / 6억 9,430만 원(X).
+
+[FORBIDDEN]
+${FORBIDDEN_FILLER_BLOCK}
 
 [OUTPUT]
 JSON one object:
