@@ -1,5 +1,5 @@
 import "server-only";
-import type { GeoInput, GeoOutput, FaqItem } from "@/lib/geo/types";
+import type { GeoInput, GeoOutput, FaqItem, DerivedMetric } from "@/lib/geo/types";
 import { runMatrixGate, runPrefetch, canonicalUrlFor } from "./shared";
 import { callGpt } from "@/lib/geo/write/gpt";
 import { callSonnet } from "@/lib/geo/write/sonnet";
@@ -14,6 +14,34 @@ import {
 import { lintForDepth } from "@/lib/geo/gates/lint";
 import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
+import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
+
+const TIMESERIES_META: Record<
+  TimeseriesDerived["metric_id"],
+  { key: DerivedMetric["key"]; label: string; unit: DerivedMetric["unit"] }
+> = {
+  frcs_growth: { key: "frcs_growth", label: "가맹점 증가수(A→C)", unit: "개" },
+  frcs_multiplier: { key: "frcs_multiplier", label: "가맹점 확장배수(A→C)", unit: "배" },
+  annualized_pos_sales: { key: "annualized_pos_sales", label: "C급 연환산 가맹점 평균매출", unit: "만원" },
+  avg_sales_dilution: { key: "avg_sales_dilution", label: "평균매출 희석률(A→C)", unit: "%" },
+};
+
+function timeseriesToDerived(ts: TimeseriesDerived): DerivedMetric {
+  const meta = TIMESERIES_META[ts.metric_id];
+  const [aPeriod, cPeriod] = ts.period_compare;
+  const period = aPeriod && cPeriod ? `${aPeriod}→${cPeriod}` : aPeriod || cPeriod || "";
+  return {
+    key: meta.key,
+    label: meta.label,
+    value: ts.value,
+    unit: meta.unit,
+    basis: ts.formula,
+    formula: ts.formula,
+    inputs: { period_A: aPeriod, period_C: cPeriod },
+    period,
+    confidence: "medium",
+  };
+}
 
 export async function runD3(input: GeoInput): Promise<GeoOutput> {
   if (input.depth !== "D3") throw new Error("runD3 requires depth=D3");
@@ -45,8 +73,16 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     });
     log(`[gpt] L24 보조출처 주입 (kosis.kr)`);
   }
-  const factsPlus = { ...facts, deriveds: pre.deriveds };
-  log(`[gpt] facts=${facts.facts.length}`);
+  const tsFacts: TimeseriesFact[] = facts.facts.map((f) => ({
+    fact_key: f.fact_key,
+    source_tier: f.source_tier,
+    value: f.value,
+    period_month: f.period_month,
+    year_month: f.year_month,
+  }));
+  const tsDeriveds = deriveTimeseries(tsFacts).map(timeseriesToDerived);
+  const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
+  log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
 
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds);
   const raw = sonnet.raw as {
