@@ -16,6 +16,9 @@ export type Fact = {
   year_month: string;
   authoritativeness: "primary" | "secondary";
   tier?: TierRank;
+  fact_key?: string;
+  source_tier?: "A" | "B" | "C";
+  period_month?: string;
 };
 
 export type DerivedMetric = {
@@ -27,7 +30,12 @@ export type DerivedMetric = {
     | "real_closure_rate"
     | "expansion_ratio"
     | "transfer_ratio"
-    | "net_expansion";
+    | "net_expansion"
+    | "frcs_growth"
+    | "frcs_multiplier"
+    | "annualized_pos_sales"
+    | "avg_sales_dilution"
+    | "industry_multiplier_restaurant";
   label: string;
   value: number;
   unit: "만원" | "개월" | "%" | "배" | "개";
