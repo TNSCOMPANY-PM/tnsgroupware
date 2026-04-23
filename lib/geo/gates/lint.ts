@@ -1,5 +1,21 @@
 import type { GptFacts } from "@/lib/geo/schema";
-import type { Depth, GeoPayload } from "@/lib/geo/types";
+import type { Depth, Fact, GeoPayload } from "@/lib/geo/types";
+
+function normalizeKoreanNumbers(text: string): string {
+  return text
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*억\s*(\d{1,3}(?:,\d{3})*|\d+)\s*만/gu,
+      (_, eok: string, man: string) => {
+        const eokN = parseInt(eok.replace(/,/g, ""), 10);
+        const manN = parseInt(man.replace(/,/g, ""), 10);
+        return `${eokN * 10000 + manN}만`;
+      },
+    )
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*억(?!\s*\d)/gu,
+      (_, eok: string) => `${parseInt(eok.replace(/,/g, ""), 10) * 10000}만`,
+    );
+}
 
 export type LintLevel = "ERROR" | "WARN";
 export interface LintEntry {
@@ -36,6 +52,13 @@ const H1_RE = /^#\s/mu;
 const H2_RE = /^##\s[^#]/gmu;
 const INDICATORS_RE = /(실투자금|투자회수|순마진|업종\s*내\s*포지션|실질\s*폐점률)/gu;
 const DERIVED_LABEL_RE = /\(frandoor\s*산출\)|frandoor\s*계산식\s*기반/u;
+const FACT_KEY_TIMESERIES_DERIVED = new Set<string>([
+  "frcs_growth",
+  "frcs_multiplier",
+  "annualized_pos_sales",
+  "avg_sales_dilution",
+]);
+const C_TIER_FOOTER_RE = /(본사\s*집계|POS\s*집계|본사\s*공지)/u;
 
 function str(v: unknown): string { return v == null ? "" : String(v); }
 function arr(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
@@ -255,10 +278,96 @@ export function lintForDepth(
     errors.push({ code: "L30", level: "ERROR", msg: "D3 전용 JSON-LD 누락: FoodEstablishment 또는 LocalBusiness" });
   }
 
-  // depth별 룰셋 셀렉트 — 일부 ERROR 완화
+  if (depth === "D3") {
+    const h2Count = (body.match(H2_RE) ?? []).length;
+    const l08w = warns.findIndex((w) => w.code === "L08");
+    if (l08w >= 0 && h2Count >= 3 && h2Count <= 9) warns.splice(l08w, 1);
+    const l08e = errors.findIndex((e) => e.code === "L08");
+    if (l08e >= 0 && h2Count >= 3 && h2Count <= 9) errors.splice(l08e, 1);
+  }
+
+  const normalizedBody = normalizeKoreanNumbers(body);
+  const citesValue = (raw: string | number): boolean => {
+    const s = String(raw);
+    if (body.includes(s)) return true;
+    const normalized = normalizeKoreanNumbers(s);
+    if (normalizedBody.includes(normalized)) return true;
+    const digits = normalized.replace(/[^\d.]/g, "");
+    if (digits && normalizedBody.replace(/,/g, "").includes(digits)) return true;
+    return false;
+  };
+
+  if (depth === "D3") {
+    const factsByKey = new Map<string, { tierA: Fact[]; tierC: Fact[] }>();
+    for (const f of facts.facts as Fact[]) {
+      if (!f.fact_key || !f.source_tier) continue;
+      if (f.source_tier !== "A" && f.source_tier !== "C") continue;
+      const bucket = factsByKey.get(f.fact_key) ?? { tierA: [], tierC: [] };
+      if (f.source_tier === "A") bucket.tierA.push(f);
+      else bucket.tierC.push(f);
+      factsByKey.set(f.fact_key, bucket);
+    }
+
+    const hasA = (facts.facts as Fact[]).some((f) => f.source_tier === "A");
+    if (hasA) {
+      const aCited = (facts.facts as Fact[]).some((f) => f.source_tier === "A" && citesValue(f.value));
+      if (!aCited) errors.push({ code: "L33", level: "ERROR", msg: "A급 팩트 존재하나 본문 인용 없음" });
+    }
+
+    for (const [key, { tierA, tierC }] of factsByKey) {
+      if (tierA.length && tierC.length) {
+        const aCited = tierA.some((f) => citesValue(f.value));
+        const cCited = tierC.some((f) => citesValue(f.value));
+        if (!(aCited && cCited)) {
+          errors.push({ code: "L34", level: "ERROR", msg: `fact_key "${key}": A×C 페어 시계열 비교 누락` });
+        }
+      }
+    }
+
+    const hasCOnly = (facts.facts as Fact[]).some((f) => f.source_tier === "C");
+    if (hasCOnly && !C_TIER_FOOTER_RE.test(body)) {
+      errors.push({ code: "L35", level: "ERROR", msg: "C급 수치 인용 시 '본사 집계/POS/공지' 꼬리표 누락" });
+    }
+
+    const pickMonth = (f: Fact): string | undefined => f.period_month ?? f.year_month;
+    const tierAMonths = new Set<string>();
+    const tierCMonths = new Set<string>();
+    for (const f of facts.facts as Fact[]) {
+      const m = pickMonth(f);
+      if (!m) continue;
+      if (f.source_tier === "A") tierAMonths.add(m);
+      else if (f.source_tier === "C") tierCMonths.add(m);
+    }
+    if (tierAMonths.size > 0) {
+      const anyA = [...tierAMonths].some((m) => body.includes(m));
+      if (!anyA) {
+        errors.push({ code: "L36", level: "ERROR", msg: `A급 기준월 본문 미등장 (${[...tierAMonths].join(", ")})` });
+      }
+    }
+    if (tierCMonths.size > 0) {
+      const anyC = [...tierCMonths].some((m) => body.includes(m));
+      if (!anyC) {
+        errors.push({ code: "L36", level: "ERROR", msg: `C급 기준월 본문 미등장 (${[...tierCMonths].join(", ")})` });
+      }
+    }
+
+    const tsDeriveds = (facts.deriveds ?? []).filter((d) => FACT_KEY_TIMESERIES_DERIVED.has(d.key));
+    for (const d of tsDeriveds) {
+      if (!citesValue(d.value)) {
+        errors.push({ code: "L37", level: "ERROR", msg: `시계열 파생지표 ${d.key}(${d.value}) 본문 미인용` });
+      }
+    }
+  }
+
+  if (depth !== "D3") {
+    const cCited = (facts.facts as Fact[]).some((f) => f.source_tier === "C" && citesValue(f.value));
+    if (cCited) {
+      errors.push({ code: "L33", level: "ERROR", msg: `C급 수치는 D3 전용 (현재 depth=${depth})` });
+    }
+  }
+
   const filteredErrors = errors.filter((e) => {
     if (depth === "D0" || depth === "D1") {
-      // L27 제외 (5대 지표는 D3 전용)
       if (e.code === "L27") return false;
     }
     if (depth === "D2") {

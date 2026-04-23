@@ -19,6 +19,9 @@ export const FactSchema = z.object({
   year_month: z.string().regex(/^\d{4}-\d{2}$/),
   authoritativeness: z.enum(["primary", "secondary"]),
   tier: TierRankSchema.optional(),
+  fact_key: z.string().optional(),
+  source_tier: z.enum(["A", "B", "C"]).optional(),
+  period_month: z.string().optional(),
 });
 
 export const DerivedMetricSchema = z.object({
@@ -31,6 +34,11 @@ export const DerivedMetricSchema = z.object({
     "expansion_ratio",
     "transfer_ratio",
     "net_expansion",
+    "frcs_growth",
+    "frcs_multiplier",
+    "annualized_pos_sales",
+    "avg_sales_dilution",
+    "industry_multiplier_restaurant",
   ]),
   label: z.string().min(1),
   value: z.number().finite(),
