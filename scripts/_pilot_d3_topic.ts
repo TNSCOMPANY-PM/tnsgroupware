@@ -34,7 +34,6 @@ async function runOne(label: string, input: unknown) {
     "utf8",
   );
   console.log(`[${label}] title:`, p?.meta?.title);
-  console.log(`[${label}] stance:`, p?.meta?.stance);
   console.log(`[${label}] sections:`, p?.sections?.length, "FAQ:", p?.faq25?.length);
   const topicLogs = (out.logs ?? []).filter((l: string) => l.includes("[topic]"));
   console.log(`[${label}] topic logs:`, topicLogs);

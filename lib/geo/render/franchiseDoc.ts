@@ -39,7 +39,6 @@ export function assembleFranchiseDoc(raw: unknown, faqs: FaqItem[], deriveds: De
     brand: asStr(rawMeta.brand),
     brandId: asStr(rawMeta.brandId),
     period: asStr(rawMeta.period),
-    stance: asStr(rawMeta.stance),
     tags,
   };
   return { kind: "franchiseDoc", sections, closure, faq25: faqs, meta };
