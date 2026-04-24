@@ -25,30 +25,35 @@ export type FtcFact = {
   etcAmt?: number;     // 기타 (천원)
 };
 
-/** FrandoorOfficial (만원·% 단위) → FtcFact (천원 단위) 어댑터.
- * FTC 단위 체계를 유지하기 위해 만원→천원 변환 (×10).
+/** FrandoorOfficial (v2 nested shape) → FtcFact (천원 단위) 어댑터.
+ * master + 최신 timeseries 합성. 만원→천원 변환 (×10).
  */
 function fromFrandoorOfficial(o: FrandoorOfficial): FtcFact {
   const toKW = (man: number | null | undefined): number => (man != null ? man * 10 : 0);
+  const m = o.master;
+  const latestTs = o.timeseries[0] ?? null;
+  const etcCandidate = m.other_cost != null
+    ? m.other_cost
+    : (m.cost_total != null && m.franchise_fee != null && m.education_fee != null && m.deposit != null
+        ? Math.max(0, m.cost_total - (m.franchise_fee + m.education_fee + m.deposit))
+        : undefined);
   return {
-    yr: o.source_year ?? "",
-    brandNm: o.brand_name ?? "",
-    corpNm: o.corp_name ?? "",
-    indutyLclasNm: "",
-    indutyMlsfcNm: "",
-    frcsCnt: o.stores_total ?? 0,
-    newFrcsRgsCnt: o.new_stores ?? 0,
-    ctrtEndCnt: o.closed_stores ?? 0,
-    ctrtCncltnCnt: o.terminated_stores ?? 0,
-    nmChgCnt: 0,
-    avrgSlsAmt: toKW((o.avg_monthly_revenue ?? 0) * 12 || 0), // 연환산 후 만원→천원
-    arUnitAvrgSlsAmt: toKW(o.area_unit_revenue ?? 0),
-    jnggmAmt: toKW(o.franchise_fee),
-    eduAmt: toKW(o.education_fee),
-    grntyAmt: toKW(o.deposit),
-    etcAmt: o.cost_total != null && o.franchise_fee != null && o.education_fee != null && o.deposit != null
-      ? Math.max(0, (o.cost_total - (o.franchise_fee + o.education_fee + o.deposit)) * 10)
-      : undefined,
+    yr: m.latest_year ?? m.source_year ?? "",
+    brandNm: m.brand_name ?? "",
+    corpNm: m.corp_name ?? "",
+    indutyLclasNm: m.industry_main ?? "",
+    indutyMlsfcNm: m.industry_sub ?? "",
+    frcsCnt: m.stores_total ?? latestTs?.stores_total ?? 0,
+    newFrcsRgsCnt: latestTs?.new_opens ?? 0,
+    ctrtEndCnt: latestTs?.contract_end ?? 0,
+    ctrtCncltnCnt: latestTs?.contract_terminate ?? 0,
+    nmChgCnt: latestTs?.name_change ?? 0,
+    avrgSlsAmt: toKW(m.latest_avg_annual_revenue ?? (m.avg_monthly_revenue != null ? m.avg_monthly_revenue * 12 : 0)),
+    arUnitAvrgSlsAmt: toKW(m.latest_avg_revenue_per_unit_area ?? 0),
+    jnggmAmt: toKW(m.franchise_fee),
+    eduAmt: toKW(m.education_fee),
+    grntyAmt: toKW(m.deposit),
+    etcAmt: etcCandidate != null ? etcCandidate * 10 : undefined,
   };
 }
 

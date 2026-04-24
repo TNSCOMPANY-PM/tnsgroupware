@@ -101,12 +101,13 @@ export async function resolveStoresLatest(
     };
   }
   const official = brandId ? await fetchFrandoorOfficial(brandId) : null;
-  if (official?.stores_total != null) {
+  const m = official?.master;
+  if (m?.stores_total != null) {
     return {
       resolved: {
-        count: official.stores_total,
+        count: m.stores_total,
         source: "A_frandoor_ftc",
-        as_of: official.source_year ? `${official.source_year}-12` : null,
+        as_of: m.latest_year ? `${m.latest_year}-12` : (m.source_year ? `${m.source_year}-12` : null),
         note: "공정위 정보공개서 (프랜도어 업로드)",
       },
       honsa,
