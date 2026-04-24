@@ -17,6 +17,7 @@ import { upsertCanonical } from "@/lib/geo/canonicalStore";
 import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
 import { InsufficientDataError } from "@/lib/geo/types";
 import { routeTopicToFacts } from "@/lib/geo/prefetch/topicRouter";
+import { fetchFrandoorDocx, extractHomepageFacts } from "@/lib/geo/prefetch/frandoorDocx";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -56,8 +57,8 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const pre = await runPrefetch(input);
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
-  // stores resolve (C 본사 POS > A frandoor_ftc_facts > unknown).
-  const { resolved: stores, honsa, official } = await resolveStoresLatest(input.brandId);
+  // stores resolve (A frandoor_ftc_facts > unknown). PR043: honsa(xlsx) 경로 제거.
+  const { resolved: stores, official } = await resolveStoresLatest(input.brandId);
   log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}${stores.note ? ` note=${stores.note}` : ""}`);
 
   const nowYear = new Date().getFullYear();
@@ -249,94 +250,160 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     );
   }
 
-  // 본사 POS 수치(점포수/평균/탑3·바텀3)를 C급 Fact 로 주입 — crosscheck pool 에 포함되어야
-  // Sonnet 이 인용한 POS 수치가 unmatched 로 잡히지 않음.
-  // 엑셀 원본이 원(KRW)일 수 있음 → 만원 스케일 자동 감지 후 변환 (per_store_avg 가 1억 원 이상이면 원 단위로 판정).
-  const latestPosRaw = honsa?.pos_monthly?.[honsa.pos_monthly.length - 1] ?? null;
-  const scaleDivisor = latestPosRaw && latestPosRaw.per_store_avg > 100_000_000 ? 10000 : 1;
-  const toMan = (n: number): number => Math.round(n / scaleDivisor);
-  const latestPos = latestPosRaw
-    ? {
-        ...latestPosRaw,
-        store_count: latestPosRaw.store_count,
-        total_sales: toMan(latestPosRaw.total_sales),
-        per_store_avg: toMan(latestPosRaw.per_store_avg),
-        top3_stores: (latestPosRaw.top3_stores ?? []).map((s) => ({ name: s.name, sales: toMan(s.sales) })),
-        bottom3_stores: (latestPosRaw.bottom3_stores ?? []).map((s) => ({ name: s.name, sales: toMan(s.sales) })),
+  // PR043 — docx (geo_brands.fact_data) 기반 facts 주입. xlsx POS 경로 폐기.
+  const docx = await fetchFrandoorDocx(input.brandId);
+  if (docx) {
+    const od = docx.official_data;
+    const hp = extractHomepageFacts(docx.raw_text_chunks);
+
+    const fmtManC = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
+    const sourceYearOfficial = od?.source_year ?? "";
+    const docxYm = sourceYearOfficial ? `${sourceYearOfficial}-12` : "2024-12";
+
+    const officialBase = {
+      source_url: "https://franchise.ftc.go.kr/",
+      source_title: `${input.brand} 공정위 정보공개서 ${sourceYearOfficial}`,
+      year_month: docxYm,
+      period_month: docxYm,
+      authoritativeness: "primary" as const,
+      tier: "A" as const,
+      source_tier: "A" as const,
+    };
+    const pushDocxOfficial = (claim: string, value: number, unit: string, fact_key: string) =>
+      facts.facts.push({ ...officialBase, claim, value, unit, fact_key });
+
+    if (od) {
+      if (od.stores_total != null)
+        pushDocxOfficial(
+          `공정위 정보공개서 ${sourceYearOfficial} 기준 가맹점수 ${od.stores_total.toLocaleString()}개`,
+          od.stores_total,
+          "개",
+          "docx_stores_total",
+        );
+      if (od.avg_monthly_revenue != null)
+        pushDocxOfficial(
+          `공정위 정보공개서 ${sourceYearOfficial} 기준 가맹점당 월평균매출 ${fmtManC(od.avg_monthly_revenue)}`,
+          od.avg_monthly_revenue,
+          "만원",
+          "docx_avg_monthly_revenue",
+        );
+      if (od.cost_total != null)
+        pushDocxOfficial(
+          `공정위 정보공개서 ${sourceYearOfficial} 기준 창업비용 총액 ${fmtManC(od.cost_total)}`,
+          od.cost_total,
+          "만원",
+          "docx_cost_total",
+        );
+      if (od.franchise_fee != null)
+        pushDocxOfficial(
+          `공정위 정보공개서 ${sourceYearOfficial} 기준 가맹비 ${fmtManC(od.franchise_fee)}`,
+          od.franchise_fee,
+          "만원",
+          "docx_franchise_fee",
+        );
+      if (od.closure_rate != null)
+        pushDocxOfficial(
+          `공정위 정보공개서 ${sourceYearOfficial} 기준 폐점률 ${od.closure_rate}%`,
+          od.closure_rate,
+          "%",
+          "docx_closure_rate",
+        );
+
+      // 업종 평균 — 공정위 가맹사업 현황 통계 (docx 작성자가 조사)
+      if (od.industry_avg_revenue != null) {
+        const industryBase = {
+          source_url: "https://www.ftc.go.kr/",
+          source_title: `공정위 가맹사업 현황 통계 ${sourceYearOfficial}`,
+          year_month: docxYm,
+          period_month: docxYm,
+          authoritativeness: "primary" as const,
+          tier: "B" as const,
+          source_tier: "B" as const,
+        };
+        facts.facts.push({
+          ...industryBase,
+          claim: `${sourceYearOfficial} 동 업종 프랜차이즈 평균 월매출 ${fmtManC(od.industry_avg_revenue)} (공정위 가맹사업 현황 통계)`,
+          value: od.industry_avg_revenue,
+          unit: "만원",
+          fact_key: "docx_industry_avg_revenue",
+        });
+
+        if (od.avg_monthly_revenue != null && od.industry_avg_revenue > 0) {
+          const ratio = Math.round((od.avg_monthly_revenue / od.industry_avg_revenue) * 100) / 100;
+          facts.facts.push({
+            ...officialBase,
+            claim: `${input.brand} 월평균매출은 동 업종 평균의 ${ratio}배 수준 (공정위 정보공개서 ${sourceYearOfficial} + 업종 평균 비교)`,
+            value: ratio,
+            unit: "배",
+            fact_key: "docx_industry_vs_brand_ratio",
+          });
+        }
       }
-    : null;
-  // 개별 점포명은 facts 에 넣지 않음 — 점주 개인정보·입지 기밀 (PR031 hotfix).
-  // 대신 top3/bot3 집계값(평균·최대-최소 배수·상위3 점유율·최하위 대비율) 을 익명 파생치로 주입.
-  if (latestPos) {
-    const asOf = latestPos.year_month;
-    const cBase = {
-      source_url: "https://frandoor.co.kr/",
-      source_title: "프랜도어 본사 POS 집계",
-      year_month: asOf,
-      period_month: asOf,
+    }
+
+    // __raw_text__ 기반 홈페이지 facts (본사 자체 공개 자료)
+    const homepageBase = {
+      source_url: "",
+      source_title: `${input.brand} 본사 홈페이지·공개 자료`,
+      year_month: new Date().toISOString().slice(0, 7),
+      period_month: new Date().toISOString().slice(0, 7),
       authoritativeness: "secondary" as const,
       tier: "C" as const,
       source_tier: "C" as const,
     };
-    const fmtMan = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
-    facts.facts.push({ ...cBase, claim: `본사 POS 활성 점포수 ${latestPos.store_count}개`, value: latestPos.store_count, unit: "개", fact_key: "frcs_cnt" });
-    facts.facts.push({ ...cBase, claim: `본사 POS 가맹점당 월평균매출 ${fmtMan(latestPos.per_store_avg)}`, value: latestPos.per_store_avg, unit: "만원", fact_key: "monthly_avg_sales" });
-    facts.facts.push({ ...cBase, claim: `본사 POS 전체 월매출 합계 ${fmtMan(latestPos.total_sales)}`, value: latestPos.total_sales, unit: "만원", fact_key: "total_sales" });
+    if (hp.stores_count_self != null)
+      facts.facts.push({
+        ...homepageBase,
+        claim: `본사 홈페이지 발표 ${hp.stores_count_self}호점 규모`,
+        value: hp.stores_count_self,
+        unit: "호점",
+        fact_key: "docx_hp_stores_count",
+      });
+    if (hp.avg_monthly_revenue_homepage != null)
+      facts.facts.push({
+        ...homepageBase,
+        claim: `본사 홈페이지 발표 평균 월매출 ${fmtManC(hp.avg_monthly_revenue_homepage)}`,
+        value: hp.avg_monthly_revenue_homepage,
+        unit: "만원",
+        fact_key: "docx_hp_avg_revenue",
+      });
+    if (hp.real_investment != null)
+      facts.facts.push({
+        ...homepageBase,
+        claim: `본사 홈페이지 발표 실투자금 ${fmtManC(hp.real_investment)}`,
+        value: hp.real_investment,
+        unit: "만원",
+        fact_key: "docx_hp_real_investment",
+      });
+    if (hp.legal_disputes_self != null)
+      facts.facts.push({
+        ...homepageBase,
+        claim: `본사 공개 자료 법적 분쟁 ${hp.legal_disputes_self}건`,
+        value: hp.legal_disputes_self,
+        unit: "건",
+        fact_key: "docx_hp_legal_disputes",
+      });
+    if (hp.profit_margin != null)
+      facts.facts.push({
+        ...homepageBase,
+        claim: `본사 공개 자료 순마진 ${hp.profit_margin}%`,
+        value: hp.profit_margin,
+        unit: "%",
+        fact_key: "docx_hp_profit_margin",
+      });
+    if (hp.payback_months != null)
+      facts.facts.push({
+        ...homepageBase,
+        claim: `본사 공개 자료 투자회수 ${hp.payback_months}개월`,
+        value: hp.payback_months,
+        unit: "개월",
+        fact_key: "docx_hp_payback_months",
+      });
 
-    const top = latestPos.top3_stores ?? [];
-    const bot = latestPos.bottom3_stores ?? [];
-    if (top.length > 0) {
-      const topAvg = Math.round(top.reduce((s, x) => s + x.sales, 0) / top.length);
-      facts.facts.push({ ...cBase, claim: `본사 POS 상위 3점포 월매출 평균 ${fmtMan(topAvg)}`, value: topAvg, unit: "만원", fact_key: "pos_top3_avg" });
-    }
-    if (bot.length > 0) {
-      const botAvg = Math.round(bot.reduce((s, x) => s + x.sales, 0) / bot.length);
-      facts.facts.push({ ...cBase, claim: `본사 POS 하위 3점포 월매출 평균 ${fmtMan(botAvg)}`, value: botAvg, unit: "만원", fact_key: "pos_bot3_avg" });
-    }
-    const topMax = top.length > 0 ? Math.max(...top.map((s) => s.sales)) : 0;
-    const botMin = bot.length > 0 ? Math.min(...bot.map((s) => s.sales)) : 0;
-    if (topMax > 0) {
-      facts.facts.push({ ...cBase, claim: `본사 POS ${asOf} 최상위 점포 월매출 ${fmtMan(topMax)}`, value: topMax, unit: "만원", fact_key: "pos_top_max" });
-    }
-    if (botMin > 0) {
-      facts.facts.push({ ...cBase, claim: `본사 POS ${asOf} 최하위 점포 월매출 ${fmtMan(botMin)}`, value: botMin, unit: "만원", fact_key: "pos_bottom_min" });
-    }
-    if (topMax > 0 && botMin > 0) {
-      const maxMinRatio = Math.round((topMax / botMin) * 10) / 10;
-      facts.facts.push({ ...cBase, claim: `본사 POS ${asOf} 최상위·최하위 점포 매출 ${maxMinRatio}배 격차`, value: maxMinRatio, unit: "배", fact_key: "pos_maxmin_ratio" });
-    }
-    if (top.length > 0 && latestPos.total_sales > 0) {
-      const top3Sum = top.reduce((s, x) => s + x.sales, 0);
-      const sharePct = Math.round((top3Sum / latestPos.total_sales) * 1000) / 10;
-      facts.facts.push({ ...cBase, claim: `본사 POS 상위 3점포 전체 매출 점유율 ${sharePct}%`, value: sharePct, unit: "%", fact_key: "pos_top3_share_pct" });
-    }
-    if (botMin > 0 && latestPos.per_store_avg > 0) {
-      const botVsAvg = Math.round((botMin / latestPos.per_store_avg) * 1000) / 10;
-      facts.facts.push({ ...cBase, claim: `본사 POS 최하위 점포 월매출 평균 대비 ${botVsAvg}%`, value: botVsAvg, unit: "%", fact_key: "pos_bottom_vs_avg_pct" });
-    }
-    log(`[gpt] C급 POS 주입(익명집계): stores=${latestPos.store_count} avg=${latestPos.per_store_avg}만원 scaleDiv=${scaleDivisor} top3avg bot3avg maxMin share botVsAvg`);
-
-    // PR033 — 파생지표 + 점포 등급 분포
-    const fmtManC = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
-    const pushC = (claim: string, value: number, unit: string, fact_key: string) =>
-      facts.facts.push({ ...cBase, claim, value, unit, fact_key });
-    if (honsa?.seasonal_ratio != null) pushC(`본사 POS 계절 변동 배수 ${honsa.seasonal_ratio}배 (성수기 ${honsa.seasonal_peak_month ?? "?"} / 비수기 ${honsa.seasonal_trough_month ?? "?"})`, honsa.seasonal_ratio, "배", "pos_season_amplitude");
-    if (honsa?.yoy_growth != null) pushC(`본사 POS YoY 성장률 ${honsa.yoy_growth}%`, honsa.yoy_growth, "%", "pos_yoy_growth");
-    if (honsa?.qoq_growth != null) pushC(`본사 POS QoQ 성장률 ${honsa.qoq_growth}%`, honsa.qoq_growth, "%", "pos_qoq_growth");
-    if (honsa?.survival_rate_12m != null) pushC(`본사 POS 1년차 생존율 ${honsa.survival_rate_12m}%`, honsa.survival_rate_12m, "%", "pos_survival_12m");
-    if (honsa?.survival_rate_24m != null) pushC(`본사 POS 2년차 생존율 ${honsa.survival_rate_24m}%`, honsa.survival_rate_24m, "%", "pos_survival_24m");
-    if (honsa?.multi_store_owner_pct != null) pushC(`본사 POS 다점포 점주 비율 ${honsa.multi_store_owner_pct}%`, honsa.multi_store_owner_pct, "%", "pos_multi_store_owner_pct");
-    // 점포 등급 분포
-    if (honsa && honsa.stores.length > 0) {
-      const aCount = honsa.stores.filter((s) => s.revenue_tier === "A").length;
-      const bCount = honsa.stores.filter((s) => s.revenue_tier === "B").length;
-      const cCount = honsa.stores.filter((s) => s.revenue_tier === "C").length;
-      if (aCount > 0) pushC(`본사 POS A급(상위 25%) 점포 ${aCount}개`, aCount, "개", "pos_tier_a_count");
-      if (bCount > 0) pushC(`본사 POS B급(중위 50%) 점포 ${bCount}개`, bCount, "개", "pos_tier_b_count");
-      if (cCount > 0) pushC(`본사 POS C급(하위 25%) 점포 ${cCount}개`, cCount, "개", "pos_tier_c_count");
-      // unused avoid warning
-      void fmtManC;
-    }
+    const hpFilled = Object.values(hp).filter((v) => v != null).length;
+    log(`[docx] ${input.brand} — official_data=${!!od} industry_avg=${od?.industry_avg_revenue ?? "-"} homepage_extracted=${hpFilled}`);
+  } else {
+    log(`[docx] ${input.brand} — geo_brands.fact_data 없음`);
   }
 
   // PR036 — facts 기반 데이터 충분성 게이트 (tier 분류 대체).
@@ -363,26 +430,13 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
     stores_resolved: stores,
-    corporation_founded_year: honsa?.corporation_founded_year ?? null,
-    ftc_first_registered: honsa?.ftc_first_registered ?? null,
-    pos_monthly_summary: honsa && latestPos
-      ? {
-          months: honsa.pos_monthly.length,
-          from: honsa.pos_monthly[0]?.year_month ?? null,
-          to: latestPos.year_month,
-          latest_store_count: latestPos.store_count,
-          latest_per_store_avg: latestPos.per_store_avg,
-          // PR031 hotfix: 실점포명 주입 금지. 집계값만 전달.
-          top3_avg: latestPos.top3_stores.length > 0
-            ? Math.round(latestPos.top3_stores.reduce((s, x) => s + x.sales, 0) / latestPos.top3_stores.length)
-            : null,
-          bottom3_avg: latestPos.bottom3_stores.length > 0
-            ? Math.round(latestPos.bottom3_stores.reduce((s, x) => s + x.sales, 0) / latestPos.bottom3_stores.length)
-            : null,
-          top_max: latestPos.top3_stores.length > 0 ? Math.max(...latestPos.top3_stores.map((s) => s.sales)) : null,
-          bottom_min: latestPos.bottom3_stores.length > 0 ? Math.min(...latestPos.bottom3_stores.map((s) => s.sales)) : null,
-        }
+    corporation_founded_year: official?.master.corp_founded_date
+      ? parseInt(official.master.corp_founded_date.slice(0, 4), 10)
       : null,
+    ftc_first_registered:
+      official?.master.ftc_first_registered_date ??
+      official?.master.source_first_registered_at ??
+      null,
   });
   const raw = sonnet.raw as {
     canonicalUrl?: unknown;
@@ -411,11 +465,8 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     buildFoodEstablishment({ brand: input.brand, canonicalUrl, description, category }),
   ];
 
-  const availableStoreNames = [
-    ...(latestPos?.top3_stores ?? []),
-    ...(latestPos?.bottom3_stores ?? []),
-  ].map((s) => s.name).filter((n): n is string => Boolean(n));
-  const d3Ctx = { availableStoreNames };
+  // PR043: xlsx POS 경로 폐기 → availableStoreNames 수집 대상 없음.
+  const d3Ctx = { availableStoreNames: [] as string[] };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [
     ...payload.sections.map((s) => s.body),
