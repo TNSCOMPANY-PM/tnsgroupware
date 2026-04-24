@@ -16,7 +16,6 @@ import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
 import { classifyTier, D3T4BlockedError } from "./tier";
-import { createAdminClient } from "@/utils/supabase/admin";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -56,28 +55,18 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const pre = await runPrefetch(input);
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
-  // T3 stores resolve + T4 tier classify + T4 차단 — Sonnet 호출 전에 수행.
-  // brandRow.fact_data 에서 docx 수작업 __official_data__.stores_total 을 B급 fallback 으로 사용.
-  let brandRow: { fact_data?: unknown } | null = null;
-  if (input.brandId) {
-    try {
-      const supa = createAdminClient();
-      const { data } = await supa.from("geo_brands").select("fact_data").eq("id", input.brandId).maybeSingle();
-      brandRow = data ?? null;
-    } catch { brandRow = null; }
-  }
-  const { resolved: stores, honsa } = await resolveStoresLatest(input.brandId, pre.ftcFact, brandRow);
+  // T3 stores resolve (C 본사 POS > A frandoor_ftc_facts > unknown) + T4 tier classify + T4 차단.
+  const { resolved: stores, honsa, official } = await resolveStoresLatest(input.brandId);
   log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}${stores.note ? ` note=${stores.note}` : ""}`);
 
-  // ftcYears: honsa.ftc_first_registered → FTC OpenAPI yr → 최후수단 "ftcFact 존재 시 최소 1"
-  const honsaFirstYear = parseInt(honsa?.ftc_first_registered?.slice(0, 4) ?? "0", 10);
-  const ftcApiYear = parseInt(pre.ftcFact?.yr ?? "0", 10);
+  // ftcYears: honsa.ftc_first_registered > official.source_first_registered_at > official.source_year
   const nowYear = new Date().getFullYear();
-  const ftcYears = honsaFirstYear
-    ? nowYear - honsaFirstYear
-    : ftcApiYear
-    ? Math.max(0, nowYear - ftcApiYear - (pre.ftcFact?.isFirstYear ? 0 : 0))
-    : 0;
+  const firstRegSrc =
+    honsa?.ftc_first_registered ??
+    official?.source_first_registered_at ??
+    (official?.source_year ? `${official.source_year}-12-31` : null);
+  const firstRegYear = firstRegSrc ? parseInt(firstRegSrc.slice(0, 4), 10) : 0;
+  const ftcYears = firstRegYear ? Math.max(0, nowYear - firstRegYear) : 0;
   const tierInput = {
     stores: stores.count,
     ftcYears,
@@ -108,6 +97,38 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     });
     log(`[gpt] L24 보조출처 주입 (kosis.kr)`);
   }
+
+  // A급 Fact 주입 — frandoor_ftc_facts (공정위 정보공개서 프랜도어 업로드)
+  if (official) {
+    const sourceLabel = `${input.brand} 공정위 정보공개서 (${official.source_registered_at ?? official.source_year ?? "등록일 미상"})`;
+    const ym = official.source_year ? `${official.source_year}-12` : (official.source_registered_at ?? "").slice(0, 7);
+    const aBase = {
+      source_url: "https://franchise.ftc.go.kr/",
+      source_title: sourceLabel,
+      year_month: ym || "2024-12",
+      period_month: ym || "2024-12",
+      authoritativeness: "primary" as const,
+      tier: "A" as const,
+      source_tier: "A" as const,
+    };
+    if (official.stores_total != null) {
+      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 연말 누적 가맹점 ${official.stores_total.toLocaleString()}개`, value: official.stores_total, unit: "개", fact_key: "ftc_stores_total" });
+    }
+    if (official.avg_monthly_revenue != null) {
+      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 기준 가맹점 월평균매출 ${official.avg_monthly_revenue.toLocaleString()}만원`, value: official.avg_monthly_revenue, unit: "만원", fact_key: "ftc_avg_monthly_revenue" });
+    }
+    if (official.cost_total != null) {
+      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 기준 창업비용 총액 ${official.cost_total.toLocaleString()}만원`, value: official.cost_total, unit: "만원", fact_key: "ftc_cost_total" });
+    }
+    if (official.closure_rate != null) {
+      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 기준 폐점률 ${official.closure_rate}%`, value: official.closure_rate, unit: "%", fact_key: "ftc_closure_rate" });
+    }
+    if (official.industry_avg_revenue != null) {
+      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 업종 평균 월매출 ${official.industry_avg_revenue.toLocaleString()}만원`, value: official.industry_avg_revenue, unit: "만원", fact_key: "ftc_industry_avg_revenue" });
+    }
+    log(`[gpt] A급 주입(${official.source_ingest_method ?? "n/a"}): stores=${official.stores_total} rev=${official.avg_monthly_revenue} cost=${official.cost_total} closure=${official.closure_rate}`);
+  }
+
   // 본사 POS 수치(점포수/평균/탑3·바텀3)를 C급 Fact 로 주입 — crosscheck pool 에 포함되어야
   // Sonnet 이 인용한 POS 수치가 unmatched 로 잡히지 않음.
   // 엑셀 원본이 원(KRW)일 수 있음 → 만원 스케일 자동 감지 후 변환 (per_store_avg 가 1억 원 이상이면 원 단위로 판정).

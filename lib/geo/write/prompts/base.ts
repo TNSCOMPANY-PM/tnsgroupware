@@ -30,7 +30,7 @@ EEAT RULES:
 - floor value ("< 10" 네이버 API) → measurement_floor: true top-level.
 - [OFFICIAL_DATA] block (if provided) is pre-fetched ground truth:
   convert each numeric field into a "primary" fact first, then supplement.
-- **최소 2 종 이상 다른 도메인(hostname)** 의 source_url 필수. 예: franchise.ftc.go.kr + kosis.kr / data.go.kr + 브랜드 공식 홈페이지 / searchad.naver.com + foodsafetykorea.go.kr. 모든 facts 가 한 도메인이면 L24 ERROR 로 파이프라인 실패하므로, 부족하면 네이버 검색광고·공정위·KOSIS·식약처·브랜드 공홈 중 2 곳 이상 섞을 것.
+- **최소 2 종 이상 다른 도메인(hostname)** 의 source_url 필수. 예: franchise.ftc.go.kr (프랜도어 업로드 정보공개서 원본) + kosis.kr / data.go.kr + 브랜드 공식 홈페이지 / searchad.naver.com + foodsafetykorea.go.kr. 모든 facts 가 한 도메인이면 L24 ERROR 로 파이프라인 실패하므로, 부족하면 네이버 검색광고·공정위 정보공개서·KOSIS·식약처·브랜드 공홈 중 2 곳 이상 섞을 것. 공정위 정보공개서는 **프랜도어 업로드 경유** 원본으로 인용하고 "공정위 OpenAPI" 같은 API 명칭은 쓰지 말 것.
 
 FORBIDDEN:
 - Prose, 설명, 마크다운, 표.
