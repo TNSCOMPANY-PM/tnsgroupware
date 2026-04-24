@@ -16,6 +16,7 @@ import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
 import { classifyTier, D3T4BlockedError } from "./tier";
+import { routeTopicToFacts } from "@/lib/geo/prefetch/topicRouter";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -235,6 +236,35 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     }
 
     log(`[gpt] A급 v2 주입: master ${Object.values(m).filter((v) => v != null).length}필드, ts=${official.timeseries.length}년, regional=${official.regional.length}행`);
+  }
+
+  // PR035 — topic → B급 라우팅 fact 주입
+  const topic = (input as { topic?: string }).topic;
+  if (topic && topic.trim().length > 0) {
+    const industry =
+      official?.master?.industry_sub ??
+      official?.master?.industry_main ??
+      facts.industry ??
+      "외식";
+    const topicRoute = await routeTopicToFacts(topic, { industry, brand: input.brand });
+    for (const f of topicRoute.facts) {
+      facts.facts.push({
+        claim: f.claim,
+        value: f.value,
+        unit: f.unit,
+        source_url: f.source_url,
+        source_title: f.source_title,
+        year_month: f.year_month,
+        period_month: f.period_month,
+        authoritativeness: f.authoritativeness,
+        tier: f.tier,
+        source_tier: f.source_tier,
+        fact_key: f.fact_key,
+      });
+    }
+    log(
+      `[topic] "${topic}" → matched=[${topicRoute.matched_routes.join(",")}] filled=[${topicRoute.filled_routes.join(",")}] facts 추가=${topicRoute.facts.length}`,
+    );
   }
 
   // 본사 POS 수치(점포수/평균/탑3·바텀3)를 C급 Fact 로 주입 — crosscheck pool 에 포함되어야

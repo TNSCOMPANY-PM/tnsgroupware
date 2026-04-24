@@ -5,7 +5,7 @@ export type GeoInput =
   | { depth: "D0"; topic: string }
   | { depth: "D1"; topic: string }
   | { depth: "D2"; industry: string; topic?: string }
-  | { depth: "D3"; brandId: string; brand: string };
+  | { depth: "D3"; brandId: string; brand: string; topic?: string };
 
 export type Fact = {
   claim: string;
