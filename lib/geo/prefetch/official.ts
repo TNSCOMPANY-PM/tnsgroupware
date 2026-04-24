@@ -1,5 +1,4 @@
 import "server-only";
-import { fetchFtcFactByBrandName } from "@/utils/ftcFranchise";
 import { fetchKosisIndustryAvg } from "@/utils/kosis";
 import { getCachedOrFetch as getKosisCached } from "@/utils/kosisCache";
 import { searchHygieneByBizName, FOODSAFETY_SERVICE } from "@/utils/foodSafety";
@@ -9,12 +8,11 @@ import {
 } from "@/utils/foodSafetyCache";
 import type { HygieneRow } from "@/types/foodSafety";
 
-export type FtcFact = Awaited<ReturnType<typeof fetchFtcFactByBrandName>>;
+// PR030 hotfix: FTC OpenAPI 경로 제거. 공정위 정보공개서는 frandoor_ftc_facts 테이블(프랜도어 업로드) 단일 경로.
 export type KosisFact = Awaited<ReturnType<typeof fetchKosisIndustryAvg>>;
 export type HygieneFact = { total: number; rows: HygieneRow[] };
 
 export type PrefetchRaw = {
-  ftc?: FtcFact;
   kosis?: KosisFact;
   hygiene?: HygieneFact;
 };
@@ -39,19 +37,8 @@ export async function prefetchOfficial(input: {
   const today = new Date();
   const prdKey = `${today.getUTCFullYear()}${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  // FTC — 브랜드 단위 (브랜드 있을 때만)
-  if (input.brand) {
-    try {
-      const ftc = await fetchFtcFactByBrandName(input.brand);
-      if (ftc.ok) {
-        raw.ftc = ftc;
-        sections.push(`[FTC_FRANCHISE]\n${ftc.factBlock}`);
-        sources.push("https://franchise.ftc.go.kr/");
-      }
-    } catch (e) {
-      console.warn(`[prefetch.official.ftc] ${input.brand}:`, e instanceof Error ? e.message : e);
-    }
-  }
+  // PR030 hotfix: 공정위 정보공개서는 frandoor_ftc_facts 테이블(A급, 프랜도어 업로드).
+  // prefetchOfficial 은 더 이상 공정위 데이터 조립 책임 없음. D3 경로가 fetchFrandoorOfficial(brandId) 직접 호출.
 
   // KOSIS — industry + brand 힌트
   const industryHint = [input.industry, input.category, input.brand].filter(Boolean).join(" ") || "외식";

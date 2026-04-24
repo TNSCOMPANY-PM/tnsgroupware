@@ -29,5 +29,19 @@ export function assembleFranchiseDoc(raw: unknown, faqs: FaqItem[], deriveds: De
   const obj = (raw as Record<string, unknown>) ?? {};
   const sections = sanitizeSections(obj.sections);
   const closure = sanitizeClosure(obj.closure, deriveds);
-  return { kind: "franchiseDoc", sections, closure, faq25: faqs };
+  const rawMeta = (obj.meta as Record<string, unknown>) ?? {};
+  const asStr = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const tagsRaw = Array.isArray(rawMeta.tags) ? (rawMeta.tags as unknown[]) : [];
+  const tags = tagsRaw.map(asStr).filter((x): x is string => Boolean(x));
+  const meta = {
+    title: asStr(rawMeta.title),
+    description: asStr(rawMeta.description),
+    brand: asStr(rawMeta.brand),
+    brandId: asStr(rawMeta.brandId),
+    period: asStr(rawMeta.period),
+    stance: asStr(rawMeta.stance),
+    tier: asStr(rawMeta.tier),
+    tags,
+  };
+  return { kind: "franchiseDoc", sections, closure, faq25: faqs, meta };
 }

@@ -1,8 +1,10 @@
 import "server-only";
 import type { GeoInput, DerivedMetric } from "@/lib/geo/types";
 import { prefetchOfficial } from "@/lib/geo/prefetch/official";
-import { computeAll, type FtcFact } from "@/lib/geo/metrics/derived";
 import { matrixCheck } from "@/lib/geo/gates/matrix";
+import { fetchFrandoorBrandFact, type FrandoorFact } from "@/lib/geo/prefetch/frandoorDb";
+import { fetchFrandoorOfficial, type FrandoorOfficial } from "@/lib/geo/prefetch/frandoorOfficial";
+import { computeAllFromOfficial } from "@/lib/geo/metrics/derived";
 
 function slugify(s: string): string {
   return s
@@ -47,7 +49,7 @@ export async function runPrefetch(input: GeoInput): Promise<{
   block: string;
   sources: string[];
   deriveds: DerivedMetric[];
-  ftcFact: FtcFact | null;
+  official: FrandoorOfficial | null;
 }> {
   const pre = await prefetchOfficial({
     brand: input.depth === "D3" ? input.brand : undefined,
@@ -60,27 +62,60 @@ export async function runPrefetch(input: GeoInput): Promise<{
     category: undefined,
   });
 
-  // Tier D 파생지표는 FTC 브랜드 fact 가 확보된 D3 에서만 실제 계산
+  // Tier D 파생지표 — A급은 frandoor_ftc_facts (프랜도어 업로드). FTC OpenAPI 경유 금지.
   let deriveds: DerivedMetric[] = [];
-  let ftcFact: FtcFact | null = null;
-  if (input.depth === "D3" && pre.raw.ftc?.ok && pre.raw.ftc.raw) {
-    const raw = pre.raw.ftc.raw as Record<string, unknown>;
-    ftcFact = {
-      yr: String(raw.yr ?? new Date().getFullYear() - 1),
-      brandNm: String(raw.brandNm ?? input.brand),
-      corpNm: String(raw.corpNm ?? ""),
-      indutyLclasNm: String(raw.indutyLclasNm ?? ""),
-      indutyMlsfcNm: String(raw.indutyMlsfcNm ?? ""),
-      frcsCnt: Number(raw.frcsCnt ?? 0),
-      newFrcsRgsCnt: Number(raw.newFrcsRgsCnt ?? 0),
-      ctrtEndCnt: Number(raw.ctrtEndCnt ?? 0),
-      ctrtCncltnCnt: Number(raw.ctrtCncltnCnt ?? 0),
-      nmChgCnt: Number(raw.nmChgCnt ?? 0),
-      avrgSlsAmt: Number(raw.avrgSlsAmt ?? 0),
-      arUnitAvrgSlsAmt: Number(raw.arUnitAvrgSlsAmt ?? 0),
-    };
-    deriveds = computeAll(ftcFact, { industryAvg: pre.raw.kosis ?? null });
+  let official: FrandoorOfficial | null = null;
+  if (input.depth === "D3" && input.brandId) {
+    official = await fetchFrandoorOfficial(input.brandId);
+    if (official) {
+      deriveds = computeAllFromOfficial(official, pre.raw.kosis ?? null);
+    }
   }
 
-  return { block: pre.block, sources: pre.sources, deriveds, ftcFact };
+  return { block: pre.block, sources: pre.sources, deriveds, official };
+}
+
+export type ResolvedStores = {
+  count: number | null;
+  source: "C_honsa_pos" | "A_frandoor_ftc" | "unknown";
+  as_of: string | null;
+  note?: string;
+};
+
+/** stores_latest fallback — C(본사 POS) > A(공정위 정보공개서, 프랜도어 업로드) > unknown.
+ * PR030 hotfix: FTC OpenAPI 경로 폐기. frandoor_ftc_facts 테이블 단일 경로.
+ * PR034: honsa 있어도 official 병행 로드 (A급 Fact 주입에 필요).
+ */
+export async function resolveStoresLatest(
+  brandId: string | undefined,
+): Promise<{ resolved: ResolvedStores; honsa: FrandoorFact | null; official: FrandoorOfficial | null }> {
+  const [honsa, official] = brandId
+    ? await Promise.all([fetchFrandoorBrandFact(brandId), fetchFrandoorOfficial(brandId)])
+    : [null, null];
+
+  if (honsa?.stores_latest != null) {
+    return {
+      resolved: {
+        count: honsa.stores_latest,
+        source: "C_honsa_pos",
+        as_of: honsa.stores_latest_as_of ?? null,
+      },
+      honsa,
+      official,
+    };
+  }
+  const m = official?.master;
+  if (m?.stores_total != null) {
+    return {
+      resolved: {
+        count: m.stores_total,
+        source: "A_frandoor_ftc",
+        as_of: m.latest_year ? `${m.latest_year}-12` : (m.source_year ? `${m.source_year}-12` : null),
+        note: "공정위 정보공개서 (프랜도어 업로드)",
+      },
+      honsa,
+      official,
+    };
+  }
+  return { resolved: { count: null, source: "unknown", as_of: null }, honsa, official };
 }

@@ -220,26 +220,40 @@ export async function fetchFtcFactByBrandName(brandName: string): Promise<{
     if (!stat) {
       return { ok: false, factBlock: `${brandName}: 공식자료 미공개`, raw: null };
     }
+    // FTC OpenAPI frcsCnt 는 "해당 연도 정보공개서 등록 기준치".
+    // frcsCnt === newFrcsRgsCnt && 계약종료/해지 0 이면 해당 연도가 **최초 등록 해** → "현 운영수 아님" 명시.
+    const isFirstYear =
+      stat.frcsCnt > 0 &&
+      stat.frcsCnt === stat.newFrcsRgsCnt &&
+      stat.ctrtEndCnt === 0 &&
+      stat.ctrtCncltnCnt === 0;
+    const frcsLabel = stat.frcsCnt > 0
+      ? (isFirstYear
+          ? `가맹점수(${stat.yr} 최초등록 기준, 현 운영수 아님): ${stat.frcsCnt.toLocaleString()}개`
+          : `가맹점수(${stat.yr} 공정위 정보공개서 기준): ${stat.frcsCnt.toLocaleString()}개`)
+      : `가맹점수(${stat.yr} 공정위 정보공개서 기준): 공식자료 미공개`;
     const lines: string[] = [
       `브랜드: ${stat.brandNm || brandName}`,
       `법인: ${stat.corpNm || "공식자료 미공개"}`,
       `업종: ${stat.indutyLclasNm || "공식자료 미공개"}${stat.indutyMlsfcNm ? ` / ${stat.indutyMlsfcNm}` : ""}`,
-      `기준연도: ${stat.yr}`,
-      `가맹점수: ${stat.frcsCnt > 0 ? `${stat.frcsCnt.toLocaleString()}개` : "공식자료 미공개"}`,
-      `신규등록: ${stat.newFrcsRgsCnt > 0 ? `${stat.newFrcsRgsCnt}개` : "공식자료 미공개"}`,
-      `계약종료: ${stat.ctrtEndCnt > 0 ? `${stat.ctrtEndCnt}개` : "공식자료 미공개"}`,
-      `계약해지: ${stat.ctrtCncltnCnt > 0 ? `${stat.ctrtCncltnCnt}개` : "공식자료 미공개"}`,
-      `평균매출: ${stat.avrgSlsAmt > 0 ? `${Math.round(stat.avrgSlsAmt / 10).toLocaleString()}만원(연)` : "공식자료 미공개"}`,
+      `기준연도: ${stat.yr}${isFirstYear ? " (최초 등록 해)" : ""}`,
+      frcsLabel,
+      `신규등록(${stat.yr} 기준): ${stat.newFrcsRgsCnt > 0 ? `${stat.newFrcsRgsCnt}개` : "공식자료 미공개"}`,
+      `계약종료(${stat.yr} 기준): ${stat.ctrtEndCnt > 0 ? `${stat.ctrtEndCnt}개` : "공식자료 미공개"}`,
+      `계약해지(${stat.yr} 기준): ${stat.ctrtCncltnCnt > 0 ? `${stat.ctrtCncltnCnt}개` : "공식자료 미공개"}`,
+      `평균매출(${stat.yr} 공정위): ${stat.avrgSlsAmt > 0 ? `${Math.round(stat.avrgSlsAmt / 10).toLocaleString()}만원(연)` : "공식자료 미공개"}`,
     ];
-    // 폐점률 = (ctrtEndCnt + ctrtCncltnCnt) / frcsCnt * 100
-    if (stat.frcsCnt > 0) {
+    // 폐점률 = (ctrtEndCnt + ctrtCncltnCnt) / frcsCnt * 100 — 단, 최초 등록 해는 분모 의미 약함
+    if (stat.frcsCnt > 0 && !isFirstYear) {
       const closed = stat.ctrtEndCnt + stat.ctrtCncltnCnt;
       const rate = Math.round((closed / stat.frcsCnt) * 1000) / 10;
-      lines.push(`폐점률(계약종료+해지/가맹점수): ${rate}%`);
+      lines.push(`폐점률(계약종료+해지/가맹점수, ${stat.yr}): ${rate}%`);
+    } else if (stat.frcsCnt > 0 && isFirstYear) {
+      lines.push(`폐점률: 최초등록 해라 의미 없음`);
     } else {
       lines.push(`폐점률: 공식자료 미공개`);
     }
-    return { ok: true, factBlock: lines.join("\n"), raw: stat };
+    return { ok: true, factBlock: lines.join("\n"), raw: { ...stat, isFirstYear } };
   } catch (e) {
     console.warn(`[ftcFranchise] fetchFtcFactByBrandName 실패 (${brandName}):`, e instanceof Error ? e.message : e);
     return { ok: false, factBlock: `${brandName}: 공식자료 미공개`, raw: null };

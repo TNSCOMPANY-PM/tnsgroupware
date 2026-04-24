@@ -95,6 +95,16 @@ export type GeoPayloadFranchise = {
   sections: FranchiseSection[];
   closure: Closure;
   faq25: FaqItem[];
+  meta?: {
+    title?: string;
+    description?: string;
+    brand?: string;
+    brandId?: string;
+    period?: string;
+    stance?: string;
+    tier?: string;
+    tags?: string[];
+  };
 };
 
 export type GeoPayload = GeoPayloadMarkdown | GeoPayloadIndustry | GeoPayloadFranchise;

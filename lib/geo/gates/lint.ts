@@ -40,7 +40,9 @@ export interface GeoLintOutput {
   warns: LintEntry[];
 }
 
-// "약" 은 "계약/약관/약정/약속" 같은 복합어를 오탐하지 않도록, 앞이 Hangul 이 아니고 뒤에 공백+숫자 또는 바로 숫자가 오는 "근사치" 용례만 포착.
+// "약" 근사치 감지 — "계약/약관/약정/약속" 같은 복합어 오탐 회피.
+// PR031: 프롬프트에서 "약·대략·정도·쯤" 전부 금지시켰으므로 린터는 여전히 "약 {숫자}" 패턴만 잡지만,
+// "약 2년", "약 10개월" 같은 자연스러운 기간 표현도 근사치에 해당하므로 ERROR 유지. 프롬프트가 1차 방어, 린터가 2차 재시도 트리거.
 const FORBIDDEN_YAK = /(?:^|[^가-힣])약\s*\d/u;
 const FORBIDDEN = /(대략|정도|쯤|아마도|업계\s*관계자|많은\s*전문가들?)/u;
 const FORBIDDEN_V2 = /(수령확인서|1\s*위|최고|추천|업계\s*1위)/u;
@@ -59,6 +61,11 @@ const FACT_KEY_TIMESERIES_DERIVED = new Set<string>([
   "avg_sales_dilution",
 ]);
 const C_TIER_FOOTER_RE = /(본사\s*집계|POS\s*집계|본사\s*공지)/u;
+// L38 — 시스템 누출 문구 차단 (Sonnet 이 facts 부재를 그대로 본문에 누출하는 패턴)
+const SYSTEM_LEAK_RE = /(데이터\s*부재|산출\s*불가|현재\s*입력\s*JSON|제공되지\s*않|포함되어\s*있지\s*않)/u;
+// L39 — 섹션 끝 stake 문구
+const STAKE_MARK_RE = /→\s*즉[,\s]/u;
+// L42 — 실점포명은 pos_monthly_summary.top3_stores / bottom3_stores 에서 lintForDepth opts 로 공급받음.
 
 function str(v: unknown): string { return v == null ? "" : String(v); }
 function arr(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
@@ -197,12 +204,18 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
   return { ok: errors.length === 0, errors, warns };
 }
 
-// V2 ─ depth별 lint 확장 (L25~L30)
+// V2 ─ depth별 lint 확장 (L25~L30, D3: L33~L42)
+export type D3LintContext = {
+  tier?: "T1" | "T2" | "T3";
+  stance?: string;
+  availableStoreNames?: string[];
+};
+
 export function lintForDepth(
   depth: Depth,
   payload: GeoPayload,
   facts: GptFacts,
-  opts: { canonicalUrl: string; jsonLd: Record<string, unknown>[] },
+  opts: { canonicalUrl: string; jsonLd: Record<string, unknown>[]; d3?: D3LintContext },
 ): GeoLintOutput {
   // depth별 "frontmatter + body" 매핑
   let fm: Record<string, unknown> = {};
@@ -218,12 +231,12 @@ export function lintForDepth(
       category: "브랜드 상세",
       faq: payload.faq25,
       sources: [],
-      title: payload.sections[0]?.heading ?? "",
-      description: payload.sections[0]?.body?.slice(0, 120) ?? "",
+      title: payload.meta?.title ?? payload.sections[0]?.heading ?? "",
+      description: payload.meta?.description ?? payload.sections[0]?.body?.slice(0, 120) ?? "",
       thumbnail: "",
       author: "프랜도어 편집팀",
       dateModified: new Date().toISOString().slice(0, 10),
-      tags: [],
+      tags: payload.meta?.tags ?? [],
     };
     body = payload.sections.map((s) => `## ${s.heading}\n\n${s.body}`).join("\n\n");
   }
@@ -236,10 +249,19 @@ export function lintForDepth(
   const v2Match = body.match(FORBIDDEN_V2);
   if (v2Match) errors.push({ code: "L25", level: "ERROR", msg: `V2 금지어 발견: ${v2Match[0]}`, where: "body" });
 
-  // L26 최소 분량
-  const minLen = depth === "D2" ? 2000 : 1500;
+  // L26 최소 분량 — D3 는 tier 에 따라 가변 (T1=3000, T2=1800, T3=600)
+  const minLen = (() => {
+    if (depth === "D2") return 2000;
+    if (depth === "D3") {
+      const t = opts.d3?.tier;
+      if (t === "T1") return 3000;
+      if (t === "T2") return 1800;
+      if (t === "T3") return 600;
+    }
+    return 1500;
+  })();
   if (body.length < minLen) {
-    errors.push({ code: "L26", level: "ERROR", msg: `본문 ${body.length}자 < 최소 ${minLen}자 (depth=${depth})` });
+    errors.push({ code: "L26", level: "ERROR", msg: `본문 ${body.length}자 < 최소 ${minLen}자 (depth=${depth}${opts.d3?.tier ? `/${opts.d3.tier}` : ""})` });
   }
 
   // L27 5대 지표 (D3만)
@@ -357,6 +379,111 @@ export function lintForDepth(
         errors.push({ code: "L37", level: "ERROR", msg: `시계열 파생지표 ${d.key}(${d.value}) 본문 미인용` });
       }
     }
+
+    // L38 시스템 누출 문구 차단
+    const leak = body.match(SYSTEM_LEAK_RE);
+    if (leak) {
+      errors.push({ code: "L38", level: "ERROR", msg: `시스템 누출 문구: "${leak[0]}"` });
+    }
+
+    // L39 섹션당 stake 마커 ("→ 즉,") 최소 1회 — D3 만.
+    // 체크리스트 / 출처·집계 섹션은 면제 (체크박스 nature 상 stake 마커 어색).
+    if (payload.kind === "franchiseDoc") {
+      const EXEMPT_RE = /(체크리스트|출처|집계\s*방식|레퍼런스)/u;
+      const stakeMisses = payload.sections
+        .filter((s) => !EXEMPT_RE.test(s.heading))
+        .filter((s) => !STAKE_MARK_RE.test(s.body));
+      if (stakeMisses.length > 0) {
+        errors.push({
+          code: "L39",
+          level: "ERROR",
+          msg: `섹션 ${stakeMisses.length}개에 "→ 즉," stake 마커 누락 (예: "${stakeMisses[0].heading}")`,
+        });
+      }
+    }
+
+    // L40 FAQ 3~5개 (D3 전용 상한)
+    if (payload.kind === "franchiseDoc") {
+      const n = payload.faq25.length;
+      if (n < 3 || n > 5) {
+        errors.push({ code: "L40", level: "ERROR", msg: `D3 FAQ ${n}개 (3~5 필수)` });
+      }
+    }
+
+    // L41 stance 필드 필수 — payload.meta.stance 또는 opts.d3.stance
+    const metaStance = opts.d3?.stance;
+    if (!metaStance || !["진입 가능", "조건부 가능", "판단 유보", "비권장"].includes(metaStance)) {
+      errors.push({ code: "L41", level: "ERROR", msg: `stance 누락 또는 비허용값: "${metaStance ?? "(없음)"}"` });
+    }
+
+    // L42 실점포명 본문 등장 금지 (PR031 hotfix). opts.d3.availableStoreNames 는 원본 점포명 세트.
+    // 1회라도 본문에 매칭되면 ERROR. 2음절 미만은 오탐 많음 → 스킵.
+    const storeNames = opts.d3?.availableStoreNames ?? [];
+    for (const name of storeNames) {
+      if (!name || name.length < 2) continue;
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(?<![가-힣])${escaped}(?![가-힣])`, "u");
+      if (re.test(body)) {
+        errors.push({ code: "L42", level: "ERROR", msg: `실점포명 본문 등장 금지: "${name}"`, where: "body" });
+      }
+    }
+
+    // L43 body number pool check (PR033) — 본문 숫자가 facts pool 또는 허용 상수에 있어야 함.
+    // 허용 예외: 0~10, 12, 24, 100 (시간·일반 상수), 연도(4자리 1900~2099), YYYY-MM 조각.
+    const ALLOW_TRIVIAL = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 24, 100]);
+    const poolNums = new Set<number>();
+    const addToPool = (v: unknown) => {
+      const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[,\s]/g, ""));
+      if (Number.isFinite(n)) poolNums.add(n);
+    };
+    for (const f of facts.facts as Fact[]) addToPool(f.value);
+    for (const d of facts.deriveds ?? []) addToPool(d.value);
+    // facts.value 의 입력 숫자 (inputs) 도 허용
+    for (const d of facts.deriveds ?? []) {
+      for (const v of Object.values(d.inputs ?? {})) addToPool(v);
+    }
+    const isDerivable = (n: number): boolean => {
+      const arr = Array.from(poolNums);
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = 0; j < arr.length; j++) {
+          if (i === j) continue;
+          const a = arr[i], b = arr[j];
+          if (b !== 0) {
+            if (Math.abs(a / b - n) < 0.05) return true;
+            if (Math.abs((a / b) * 100 - n) < 0.5) return true;
+            if (Math.abs(((a - b) / b) * 100 - n) < 0.5) return true;
+          }
+          if (Math.abs(a - b - n) < 0.5) return true;
+          if (Math.abs(a + b - n) < 0.5) return true;
+        }
+      }
+      return false;
+    };
+    const numMatches = [...body.matchAll(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?|\b\d+(?:\.\d+)?\b/g)];
+    const bodyNumsRaw = numMatches.map((m) => parseFloat(m[0].replace(/,/g, ""))).filter((n) => Number.isFinite(n));
+    const unmatched: number[] = [];
+    for (const n of bodyNumsRaw) {
+      if (ALLOW_TRIVIAL.has(n)) continue;
+      if (n >= 1900 && n <= 2099 && Number.isInteger(n)) continue; // 연도
+      if (poolNums.has(n)) continue;
+      if (isDerivable(n)) continue;
+      unmatched.push(n);
+    }
+    if (unmatched.length > 5) {
+      errors.push({
+        code: "L43",
+        level: "ERROR",
+        msg: `facts 풀 외 수치 ${unmatched.length}건 (상위 5: ${[...new Set(unmatched)].slice(0, 5).join(", ")})`,
+        where: "body",
+      });
+    } else if (unmatched.length > 0) {
+      warns.push({
+        code: "L43",
+        level: "WARN",
+        msg: `facts 풀 외 수치 ${unmatched.length}건 (${[...new Set(unmatched)].slice(0, 3).join(", ")})`,
+        where: "body",
+      });
+    }
   }
 
   if (depth !== "D3") {
@@ -366,6 +493,10 @@ export function lintForDepth(
     }
   }
 
+  // PR030: D3 새 프롬프트는 보이스 중심이라 L06(raw URL)/L27(5대 지표 3+)/L37(ts derived 본문 인용 강제) 가
+  // 의도와 충돌. D3 에서는 ERROR → WARN 으로 강등.
+  const D3_DEMOTE = new Set(["L06", "L27", "L37"]);
+  const demotedWarns: LintEntry[] = [];
   const filteredErrors = errors.filter((e) => {
     if (depth === "D0" || depth === "D1") {
       if (e.code === "L27") return false;
@@ -373,8 +504,13 @@ export function lintForDepth(
     if (depth === "D2") {
       if (e.code === "L27") return false;
     }
+    if (depth === "D3" && D3_DEMOTE.has(e.code)) {
+      demotedWarns.push({ ...e, level: "WARN" });
+      return false;
+    }
     return true;
   });
+  warns.push(...demotedWarns);
 
   return { ok: filteredErrors.length === 0, errors: filteredErrors, warns };
 }

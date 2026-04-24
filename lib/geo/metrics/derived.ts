@@ -1,30 +1,71 @@
 import type { DerivedMetric } from "../types";
-import type { BrandFrcsStat } from "@/utils/ftcDataPortal";
 import type { KosisIndustryAvg } from "@/utils/kosis";
+import type { FrandoorOfficial } from "@/lib/geo/prefetch/frandoorOfficial";
 
-// 공정위 공공데이터포털 기반 FTC fact 형태 (BrandFrcsStat 그대로 사용).
-// 단위: 가맹금/교육비/기타 = 천원, 평균매출 = 천원/년, 가맹점수 = 개
-export type FtcFact = Pick<
-  BrandFrcsStat,
-  | "yr"
-  | "brandNm"
-  | "corpNm"
-  | "indutyLclasNm"
-  | "indutyMlsfcNm"
-  | "frcsCnt"
-  | "newFrcsRgsCnt"
-  | "ctrtEndCnt"
-  | "ctrtCncltnCnt"
-  | "nmChgCnt"
-  | "avrgSlsAmt"
-  | "arUnitAvrgSlsAmt"
-> & {
-  // 창업비용 상세 (정보공개서 · 선택)
+// 내부 파생 계산용 shape. 단위: 가맹금/교육비/기타 = 천원, 평균매출 = 천원/년, 가맹점수 = 개.
+// PR030 hotfix 전엔 FTC OpenAPI BrandFrcsStat 에서 가져왔지만, 현재는 FrandoorOfficial (프랜도어 업로드)
+// → 이 shape 로 어댑팅하는 fromFrandoorOfficial() 이 주 입력.
+export type FtcFact = {
+  yr: string;
+  brandNm: string;
+  corpNm: string;
+  indutyLclasNm: string;
+  indutyMlsfcNm: string;
+  frcsCnt: number;
+  newFrcsRgsCnt: number;
+  ctrtEndCnt: number;
+  ctrtCncltnCnt: number;
+  nmChgCnt: number;
+  avrgSlsAmt: number;
+  arUnitAvrgSlsAmt: number;
+  // 창업비용 상세 (선택)
   jnggmAmt?: number;   // 가맹금 (천원)
   eduAmt?: number;     // 교육비 (천원)
   grntyAmt?: number;   // 보증금 (천원)
   etcAmt?: number;     // 기타 (천원)
 };
+
+/** FrandoorOfficial (v2 nested shape) → FtcFact (천원 단위) 어댑터.
+ * master + 최신 timeseries 합성. 만원→천원 변환 (×10).
+ */
+function fromFrandoorOfficial(o: FrandoorOfficial): FtcFact {
+  const toKW = (man: number | null | undefined): number => (man != null ? man * 10 : 0);
+  const m = o.master;
+  const latestTs = o.timeseries[0] ?? null;
+  const etcCandidate = m.other_cost != null
+    ? m.other_cost
+    : (m.cost_total != null && m.franchise_fee != null && m.education_fee != null && m.deposit != null
+        ? Math.max(0, m.cost_total - (m.franchise_fee + m.education_fee + m.deposit))
+        : undefined);
+  return {
+    yr: m.latest_year ?? m.source_year ?? "",
+    brandNm: m.brand_name ?? "",
+    corpNm: m.corp_name ?? "",
+    indutyLclasNm: m.industry_main ?? "",
+    indutyMlsfcNm: m.industry_sub ?? "",
+    frcsCnt: m.stores_total ?? latestTs?.stores_total ?? 0,
+    newFrcsRgsCnt: latestTs?.new_opens ?? 0,
+    ctrtEndCnt: latestTs?.contract_end ?? 0,
+    ctrtCncltnCnt: latestTs?.contract_terminate ?? 0,
+    nmChgCnt: latestTs?.name_change ?? 0,
+    avrgSlsAmt: toKW(m.latest_avg_annual_revenue ?? (m.avg_monthly_revenue != null ? m.avg_monthly_revenue * 12 : 0)),
+    arUnitAvrgSlsAmt: toKW(m.latest_avg_revenue_per_unit_area ?? 0),
+    jnggmAmt: toKW(m.franchise_fee),
+    eduAmt: toKW(m.education_fee),
+    grntyAmt: toKW(m.deposit),
+    etcAmt: etcCandidate != null ? etcCandidate * 10 : undefined,
+  };
+}
+
+/** FrandoorOfficial 기반 파생지표 전체 계산. 기존 computeAll() 과 동일 결과 셋. */
+export function computeAllFromOfficial(
+  official: FrandoorOfficial,
+  kosis?: KosisIndustryAvg | null,
+): DerivedMetric[] {
+  if (!official) return [];
+  const f = fromFrandoorOfficial(official);
+  return computeAll(f, { industryAvg: kosis ?? null });
+}
 
 function finite(n: number | null | undefined): number | null {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
