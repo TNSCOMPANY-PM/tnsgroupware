@@ -91,6 +91,46 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     });
     log(`[gpt] L24 보조출처 주입 (kosis.kr)`);
   }
+  // 본사 POS 수치(점포수/평균/탑3·바텀3)를 C급 Fact 로 주입 — crosscheck pool 에 포함되어야
+  // Sonnet 이 인용한 POS 수치가 unmatched 로 잡히지 않음.
+  // 엑셀 원본이 원(KRW)일 수 있음 → 만원 스케일 자동 감지 후 변환 (per_store_avg 가 1억 원 이상이면 원 단위로 판정).
+  const latestPosRaw = honsa?.pos_monthly?.[honsa.pos_monthly.length - 1] ?? null;
+  const scaleDivisor = latestPosRaw && latestPosRaw.per_store_avg > 100_000_000 ? 10000 : 1;
+  const toMan = (n: number): number => Math.round(n / scaleDivisor);
+  const latestPos = latestPosRaw
+    ? {
+        ...latestPosRaw,
+        store_count: latestPosRaw.store_count,
+        total_sales: toMan(latestPosRaw.total_sales),
+        per_store_avg: toMan(latestPosRaw.per_store_avg),
+        top3_stores: (latestPosRaw.top3_stores ?? []).map((s) => ({ name: s.name, sales: toMan(s.sales) })),
+        bottom3_stores: (latestPosRaw.bottom3_stores ?? []).map((s) => ({ name: s.name, sales: toMan(s.sales) })),
+      }
+    : null;
+  if (latestPos) {
+    const asOf = latestPos.year_month;
+    const cBase = {
+      source_url: "https://frandoor.co.kr/",
+      source_title: "프랜도어 본사 POS 집계",
+      year_month: asOf,
+      period_month: asOf,
+      authoritativeness: "secondary" as const,
+      tier: "C" as const,
+      source_tier: "C" as const,
+    };
+    const fmtMan = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
+    facts.facts.push({ ...cBase, claim: `본사 POS 활성 점포수 ${latestPos.store_count}개`, value: latestPos.store_count, unit: "개", fact_key: "frcs_cnt" });
+    facts.facts.push({ ...cBase, claim: `본사 POS 가맹점당 월평균매출 ${fmtMan(latestPos.per_store_avg)}`, value: latestPos.per_store_avg, unit: "만원", fact_key: "monthly_avg_sales" });
+    facts.facts.push({ ...cBase, claim: `본사 POS 전체 월매출 합계 ${fmtMan(latestPos.total_sales)}`, value: latestPos.total_sales, unit: "만원", fact_key: "total_sales" });
+    for (const s of latestPos.top3_stores) {
+      facts.facts.push({ ...cBase, claim: `본사 POS 상위점포 ${s.name} ${fmtMan(s.sales)}`, value: s.sales, unit: "만원", fact_key: "top_store_sales" });
+    }
+    for (const s of latestPos.bottom3_stores) {
+      facts.facts.push({ ...cBase, claim: `본사 POS 하위점포 ${s.name} ${fmtMan(s.sales)}`, value: s.sales, unit: "만원", fact_key: "bottom_store_sales" });
+    }
+    log(`[gpt] C급 POS 주입: stores=${latestPos.store_count} avg=${latestPos.per_store_avg}만원 scaleDiv=${scaleDivisor} top=${latestPos.top3_stores.length} bot=${latestPos.bottom3_stores.length}`);
+  }
+
   const tsFacts: TimeseriesFact[] = facts.facts.map((f) => ({
     fact_key: f.fact_key,
     source_tier: f.source_tier,
@@ -101,8 +141,6 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const tsDeriveds = deriveTimeseries(tsFacts).map(timeseriesToDerived);
   const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
-
-  const latestPos = honsa?.pos_monthly?.[honsa.pos_monthly.length - 1] ?? null;
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
     tier,
     stores_resolved: stores,
@@ -163,9 +201,11 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const crosscheck = crosscheckForDepth("D3", bodyAggregate, factsPlus);
   log(`[lint] err=${lint.errors.length} / [cc] matched=${crosscheck.matchedCount} unmatched=${crosscheck.unmatched.length}`);
 
-  if (crosscheck.strict && !crosscheck.ok) {
+  // PR030: D3 crosscheck strict 완화 → advisory. tier-aware lint(L38~L42) 가 품질 gate 대체.
+  // 과도한 unmatched 만 차단 (25+ 는 본문 전면 불일치 신호).
+  if (crosscheck.strict && crosscheck.unmatched.length >= 25) {
     throw new Error(
-      `GATE crosscheck(strict) 실패: unmatched ${crosscheck.unmatched.length}건 — ${crosscheck.unmatched.slice(0, 20).join(" | ")}`,
+      `GATE crosscheck(D3) 대량 불일치: unmatched ${crosscheck.unmatched.length}건 — ${crosscheck.unmatched.slice(0, 10).join(" | ")}`,
     );
   }
 

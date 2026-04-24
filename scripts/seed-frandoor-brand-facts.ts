@@ -1,11 +1,4 @@
-/* PR030 — 본사 POS 엑셀 → frandoor_brand_facts 배치 시드 (범용).
- *
- * 사용:
- *   npx tsx scripts/seed-frandoor-brand-facts.ts
- *
- * 추가 브랜드: FILES 배열에 { brandName, brandId, xlsxPath, ... } append.
- * 엑셀 시트 규칙: 시트명 "YY.MM" (예: "23.03"), 시트 내부에 "점포명/매장명/지점" + "매출/합계/금액" 컬럼.
- */
+/* PR030 seed — 본사 POS 엑셀 → frandoor_brand_facts (범용 배치) */
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as XLSX from "xlsx";
@@ -14,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 type BrandEntry = {
   brandName: string;
   brandId: string;
-  xlsxPath: string;
+  xlsxCandidates: string[];
   ftcFirstRegistered: string | null;
   corporationFoundedYear: number | null;
 };
@@ -23,11 +16,19 @@ const FILES: BrandEntry[] = [
   {
     brandName: "오공김밥",
     brandId: "82c7ffc9-ed53-44bf-859d-a9a72b147b20",
-    xlsxPath: "C:/Users/user1/Dropbox/claude/GEO프로젝트/오공김밥 2023~최근 매장별 매출현황(실제 본사자료) (1).xlsx",
+    xlsxCandidates: [
+      "C:/Users/user1/Dropbox/claude/GEO프로젝트/오공김밥 2023~최근 매장별 매출현황(실제 본사자료) (1).xlsx",
+      "/sessions/gifted-loving-darwin/mnt/GEO프로젝트/오공김밥 2023~최근 매장별 매출현황(실제 본사자료) (1).xlsx",
+    ],
     ftcFirstRegistered: null,
     corporationFoundedYear: null,
   },
 ];
+
+function resolveXlsx(cands: string[]): string | null {
+  for (const p of cands) { try { if (fs.existsSync(p)) return p; } catch {} }
+  return null;
+}
 
 type PosMonth = {
   year_month: string;
@@ -52,9 +53,11 @@ function loadEnv() {
   }
 }
 
-function detectColumn(keys: string[], pattern: RegExp): string | null {
-  for (const k of keys) if (pattern.test(k)) return k;
-  return null;
+function toNumber(v: unknown): number {
+  if (typeof v === "number") return v;
+  const s = String(v ?? "").replace(/[,\s\u00A0]/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function parseBrandExcel(xlsxPath: string): PosMonth[] {
@@ -63,34 +66,34 @@ function parseBrandExcel(xlsxPath: string): PosMonth[] {
   for (const sheetName of wb.SheetNames) {
     const m = sheetName.match(/^(\d{2})\.(\d{1,2})$/);
     if (!m) continue;
-    const mm = m[2].padStart(2, "0");
-    const year_month = `20${m[1]}-${mm}`;
+    const year_month = "20" + m[1] + "-" + m[2].padStart(2, "0");
     const sheet = wb.Sheets[sheetName];
     if (!sheet) continue;
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
-    if (rows.length === 0) continue;
-    const headers = Object.keys(rows[0] ?? {});
-    const nameKey = detectColumn(headers, /점포|매장|지점|가맹점/);
-    if (!nameKey) continue;
-    const salesKey =
-      detectColumn(headers, /월\s*매출|매출\s*합계|총\s*매출|매출/) ??
-      detectColumn(headers, /합계|금액/);
-    if (!salesKey) continue;
-
-    const records = rows
-      .map((r) => {
-        const name = String(r[nameKey] ?? "").trim();
-        const rawSales = r[salesKey];
-        const sales =
-          typeof rawSales === "number"
-            ? rawSales
-            : Number(String(rawSales ?? "").replace(/[,\s]/g, ""));
-        if (!name || !Number.isFinite(sales) || sales <= 0) return null;
-        if (/총계|합계|TOTAL|소계/i.test(name)) return null;
-        return { name, sales };
-      })
-      .filter((x): x is { name: string; sales: number } => x !== null);
-
+    const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+    if (aoa.length < 3) continue;
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(aoa.length, 5); i++) {
+      const row = (aoa[i] ?? []) as unknown[];
+      if (row.some((c) => /날짜/.test(String(c ?? "")))) { headerRowIdx = i; break; }
+    }
+    if (headerRowIdx === -1) continue;
+    const headers = (aoa[headerRowIdx] ?? []) as unknown[];
+    const storeNames = headers.slice(1).map((h) => String(h ?? "").trim());
+    const storeSales = new Map<string, number>();
+    for (let i = headerRowIdx + 1; i < aoa.length; i++) {
+      const row = (aoa[i] ?? []) as unknown[];
+      for (let j = 1; j < row.length; j++) {
+        const name = storeNames[j - 1];
+        if (!name) continue;
+        if (/총계|합계|TOTAL|소계/i.test(name)) continue;
+        const sales = toNumber(row[j]);
+        if (!Number.isFinite(sales) || sales <= 0) continue;
+        storeSales.set(name, (storeSales.get(name) ?? 0) + sales);
+      }
+    }
+    const records = Array.from(storeSales.entries())
+      .filter(([n, s]) => n && s > 0 && !/총계|합계|TOTAL|소계/i.test(n))
+      .map(([n, s]) => ({ name: n, sales: s }));
     if (records.length === 0) continue;
     records.sort((a, b) => b.sales - a.sales);
     const total = records.reduce((s, r) => s + r.sales, 0);
@@ -112,39 +115,32 @@ async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    console.error("[seed] env 누락: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+    console.error("[seed] env missing");
     process.exit(1);
   }
   const sb = createClient(url, key);
 
   for (const entry of FILES) {
-    if (!fs.existsSync(entry.xlsxPath)) {
-      console.error(`[seed] SKIP: ${entry.xlsxPath} not found`);
+    const xlsxPath = resolveXlsx(entry.xlsxCandidates);
+    if (!xlsxPath) {
+      console.error("[seed] SKIP " + entry.brandName);
       continue;
     }
-    console.log(`[seed] ${entry.brandName} — parsing ${path.basename(entry.xlsxPath)}`);
+    console.log("[seed] " + entry.brandName + " parsing");
     let posMonthly: PosMonth[] = [];
     try {
-      posMonthly = parseBrandExcel(entry.xlsxPath);
+      posMonthly = parseBrandExcel(xlsxPath);
     } catch (e) {
-      console.error(`[seed] ${entry.brandName} 파싱 실패:`, e instanceof Error ? e.message : e);
+      console.error("[seed] parse fail", e);
       process.exitCode = 1;
       continue;
     }
     const latest = posMonthly[posMonthly.length - 1];
     if (!latest) {
-      console.error(`[seed] ${entry.brandName}: 유효 시트 0건 (YY.MM 형식 시트 없음 또는 컬럼 감지 실패)`);
-      const wb = XLSX.readFile(entry.xlsxPath);
-      console.error(`  sheets = ${wb.SheetNames.join(", ")}`);
-      const first = wb.SheetNames[0];
-      if (first) {
-        const dump = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[first], { defval: null }).slice(0, 3);
-        console.error(`  first sheet sample (3 rows):`, JSON.stringify(dump, null, 2));
-      }
+      console.error("[seed] no valid sheets");
       process.exitCode = 1;
       continue;
     }
-
     const payload = {
       brand_id: entry.brandId,
       brand_name: entry.brandName,
@@ -153,22 +149,21 @@ async function main() {
       stores_latest_as_of: latest.year_month,
       pos_monthly: posMonthly,
       corporation_founded_year: entry.corporationFoundedYear,
-      raw: { source_file: path.basename(entry.xlsxPath) },
+      raw: { source_file: path.basename(xlsxPath) },
       updated_at: new Date().toISOString(),
     };
     const { error } = await sb.from("frandoor_brand_facts").upsert(payload, { onConflict: "brand_id" });
     if (error) {
-      console.error(`[seed] ${entry.brandName} UPSERT 실패:`, error.message);
+      console.error("[seed] upsert fail:", error.message);
       process.exitCode = 1;
     } else {
-      console.log(
-        `[seed] ${entry.brandName} OK — ${posMonthly.length}개월, 최신 ${latest.year_month} 활성 ${latest.store_count}점`,
-      );
+      console.log("[seed] OK " + entry.brandName);
+      console.log("  months=" + posMonthly.length + " latest=" + latest.year_month + " stores=" + latest.store_count);
+      console.log("  total=" + latest.total_sales + " avg=" + latest.per_store_avg);
+      console.log("  top3=" + latest.top3_stores.map((s) => s.name + ":" + s.sales).join(", "));
+      console.log("  bot3=" + latest.bottom3_stores.map((s) => s.name + ":" + s.sales).join(", "));
     }
   }
 }
 
-main().catch((e) => {
-  console.error("[seed] fatal:", e);
-  process.exit(1);
-});
+main().catch((e) => { console.error("[seed] fatal:", e); process.exit(1); });

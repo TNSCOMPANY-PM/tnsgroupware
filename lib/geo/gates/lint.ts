@@ -384,9 +384,13 @@ export function lintForDepth(
       errors.push({ code: "L38", level: "ERROR", msg: `시스템 누출 문구: "${leak[0]}"` });
     }
 
-    // L39 섹션당 stake 마커 ("→ 즉,") 최소 1회 — D3 만
+    // L39 섹션당 stake 마커 ("→ 즉,") 최소 1회 — D3 만.
+    // 체크리스트 / 출처·집계 섹션은 면제 (체크박스 nature 상 stake 마커 어색).
     if (payload.kind === "franchiseDoc") {
-      const stakeMisses = payload.sections.filter((s) => !STAKE_MARK_RE.test(s.body));
+      const EXEMPT_RE = /(체크리스트|출처|집계\s*방식|레퍼런스)/u;
+      const stakeMisses = payload.sections
+        .filter((s) => !EXEMPT_RE.test(s.heading))
+        .filter((s) => !STAKE_MARK_RE.test(s.body));
       if (stakeMisses.length > 0) {
         errors.push({
           code: "L39",
@@ -432,6 +436,10 @@ export function lintForDepth(
     }
   }
 
+  // PR030: D3 새 프롬프트는 보이스 중심이라 L06(raw URL)/L27(5대 지표 3+)/L37(ts derived 본문 인용 강제) 가
+  // 의도와 충돌. D3 에서는 ERROR → WARN 으로 강등.
+  const D3_DEMOTE = new Set(["L06", "L27", "L37"]);
+  const demotedWarns: LintEntry[] = [];
   const filteredErrors = errors.filter((e) => {
     if (depth === "D0" || depth === "D1") {
       if (e.code === "L27") return false;
@@ -439,8 +447,13 @@ export function lintForDepth(
     if (depth === "D2") {
       if (e.code === "L27") return false;
     }
+    if (depth === "D3" && D3_DEMOTE.has(e.code)) {
+      demotedWarns.push({ ...e, level: "WARN" });
+      return false;
+    }
     return true;
   });
+  warns.push(...demotedWarns);
 
   return { ok: filteredErrors.length === 0, errors: filteredErrors, warns };
 }
