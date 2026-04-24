@@ -84,11 +84,15 @@ export type ResolvedStores = {
 
 /** stores_latest fallback — C(본사 POS) > A(공정위 정보공개서, 프랜도어 업로드) > unknown.
  * PR030 hotfix: FTC OpenAPI 경로 폐기. frandoor_ftc_facts 테이블 단일 경로.
+ * PR034: honsa 있어도 official 병행 로드 (A급 Fact 주입에 필요).
  */
 export async function resolveStoresLatest(
   brandId: string | undefined,
 ): Promise<{ resolved: ResolvedStores; honsa: FrandoorFact | null; official: FrandoorOfficial | null }> {
-  const honsa = brandId ? await fetchFrandoorBrandFact(brandId) : null;
+  const [honsa, official] = brandId
+    ? await Promise.all([fetchFrandoorBrandFact(brandId), fetchFrandoorOfficial(brandId)])
+    : [null, null];
+
   if (honsa?.stores_latest != null) {
     return {
       resolved: {
@@ -97,10 +101,9 @@ export async function resolveStoresLatest(
         as_of: honsa.stores_latest_as_of ?? null,
       },
       honsa,
-      official: null,
+      official,
     };
   }
-  const official = brandId ? await fetchFrandoorOfficial(brandId) : null;
   const m = official?.master;
   if (m?.stores_total != null) {
     return {

@@ -187,6 +187,53 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       }
     }
 
+    // PR034 추가 파생지표
+    // 1) 점포당 직원수 (직원 1인당 담당 점포)
+    if (latestTs?.employees != null && latestTs.employees > 0 && latestTs.stores_total != null && latestTs.stores_total > 0) {
+      const storesPerEmp = Math.round((latestTs.stores_total / latestTs.employees) * 10) / 10;
+      pushA(`공정위 정보공개서 ${latestTs.year} 본사 직원 1인당 담당 점포 ${storesPerEmp}개`, storesPerEmp, "개", "ftc_stores_per_employee");
+    }
+    // 2) 인테리어 비중 (interior_total / cost_total)
+    if (m.interior_total != null && m.cost_total != null && m.cost_total > 0) {
+      const interiorPct = Math.round((m.interior_total / m.cost_total) * 1000) / 10;
+      pushA(`공정위 정보공개서 ${yr} 창업비용 중 인테리어 비중 ${interiorPct}%`, interiorPct, "%", "ftc_interior_ratio");
+    }
+    // 3) 점포수 YoY (최근 2년 비교)
+    if (official.timeseries.length >= 2) {
+      const sorted = [...official.timeseries].sort((a, b) => b.year - a.year);
+      const cur = sorted[0];
+      const prev = sorted[1];
+      if (cur.stores_total != null && prev.stores_total != null && prev.stores_total > 0) {
+        const yoy = Math.round((cur.stores_total / prev.stores_total - 1) * 1000) / 10;
+        pushA(`공정위 정보공개서 기준 점포수 YoY ${yoy}% (${prev.year} ${prev.stores_total}개 → ${cur.year} ${cur.stores_total}개)`, yoy, "%", "ftc_stores_yoy");
+      }
+    }
+    // 4) 매출 YoY
+    if (official.timeseries.length >= 2) {
+      const sorted = [...official.timeseries].sort((a, b) => b.year - a.year);
+      const cur = sorted[0], prev = sorted[1];
+      if (cur.revenue != null && prev.revenue != null && prev.revenue > 0) {
+        const rYoy = Math.round((cur.revenue / prev.revenue - 1) * 1000) / 10;
+        pushA(`공정위 정보공개서 본사 매출 YoY ${rYoy}% (${prev.year} → ${cur.year})`, rYoy, "%", "ftc_revenue_yoy");
+      }
+    }
+    // 5) 법인 업력 (현재 연도 - corp_founded_date 연도)
+    if (m.corp_founded_date) {
+      const foundedYear = parseInt(m.corp_founded_date.slice(0, 4), 10);
+      if (foundedYear >= 1900) {
+        const age = nowYear - foundedYear;
+        pushA(`법인 업력 ${age}년 (${foundedYear}년 설립)`, age, "년", "corp_age");
+      }
+    }
+    // 6) 가맹사업 업력 (현재 연도 - franchise_started_date 연도)
+    if (m.franchise_started_date) {
+      const fsYear = parseInt(m.franchise_started_date.slice(0, 4), 10);
+      if (fsYear >= 1900) {
+        const fsAge = nowYear - fsYear;
+        pushA(`가맹사업 업력 ${fsAge}년 (${fsYear}년 개시)`, fsAge, "년", "franchise_age");
+      }
+    }
+
     log(`[gpt] A급 v2 주입: master ${Object.values(m).filter((v) => v != null).length}필드, ts=${official.timeseries.length}년, regional=${official.regional.length}행`);
   }
 
