@@ -38,7 +38,6 @@ async function main() {
     const p = out.payload;
     console.log("[pilot] kind:", p?.kind);
     console.log("[pilot] stance:", p?.meta?.stance);
-    console.log("[pilot] tier:", p?.meta?.tier);
     console.log("[pilot] title:", p?.meta?.title);
     console.log("[pilot] sections:", p?.sections?.length, "FAQ:", p?.faq25?.length);
     const chars = (p?.sections ?? []).reduce((s:number,x:any)=>s+(x.body?.length??0),0);
@@ -50,11 +49,11 @@ async function main() {
       "\n\n## Closure (headline only; html 은 DB meta.closure_html 에 저장)\n\n" + (p?.closure?.headline ?? "") +
       "\n\n## FAQ\n\n" + (p?.faq25 ?? []).map((f:any)=>`**Q: ${f.q}**\n\nA: ${f.a}`).join("\n\n");
     const tags = Array.isArray(p?.meta?.tags) ? p.meta.tags.join(", ") : "(미지정)";
-    fs.writeFileSync(mdPath, `# ${p?.meta?.title ?? "오공김밥 D3"}\n\n**stance:** ${p?.meta?.stance ?? "(미지정)"} / **tier:** ${p?.meta?.tier ?? "(미지정)"} / **tags:** ${tags}\n\n${md}\n`, "utf8");
+    fs.writeFileSync(mdPath, `# ${p?.meta?.title ?? "오공김밥 D3"}\n\n**stance:** ${p?.meta?.stance ?? "(미지정)"} / **tags:** ${tags}\n\n${md}\n`, "utf8");
     console.log("[pilot] saved markdown:", mdPath);
   } catch (e: any) {
     console.error("[pilot] FAIL", e?.code ?? "", e?.message ?? e);
-    if (e?.tierInput) console.error("[pilot] tierInput:", e.tierInput);
+    if (e?.stats) console.error("[pilot] stats:", e.stats);
     process.exit(1);
   }
 }

@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import { GeoInputSchema } from "@/lib/geo/schema";
 import { generate } from "@/lib/geo";
-import { NotImplementedError, type GeoOutput } from "@/lib/geo/types";
-import { D3T4BlockedError } from "@/lib/geo/depth/tier";
+import { NotImplementedError, InsufficientDataError, type GeoOutput } from "@/lib/geo/types";
 import { createAdminClient } from "@/utils/supabase/admin";
 
 export const runtime = "nodejs";
@@ -44,7 +43,6 @@ function serializeDraft(out: GeoOutput): {
       closureHtml: p.closure?.bodyHtml ?? null,
       meta: {
         stance: p.meta?.stance ?? null,
-        tier: p.meta?.tier ?? null,
         tags: p.meta?.tags ?? [],
         description: p.meta?.description ?? null,
         period: p.meta?.period ?? null,
@@ -124,9 +122,9 @@ export async function POST(req: Request) {
     if (e instanceof NotImplementedError) {
       return NextResponse.json({ error: "NOT_IMPLEMENTED", message: e.message }, { status: 501 });
     }
-    if (e instanceof D3T4BlockedError) {
+    if (e instanceof InsufficientDataError) {
       return NextResponse.json(
-        { error: e.code, message: e.message, tierInput: e.tierInput },
+        { error: e.code, message: e.message, stats: e.stats },
         { status: 400 },
       );
     }

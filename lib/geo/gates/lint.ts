@@ -63,8 +63,8 @@ const FACT_KEY_TIMESERIES_DERIVED = new Set<string>([
 const C_TIER_FOOTER_RE = /(본사\s*집계|POS\s*집계|본사\s*공지)/u;
 // L38 — 시스템 누출 문구 차단 (Sonnet 이 facts 부재를 그대로 본문에 누출하는 패턴)
 const SYSTEM_LEAK_RE = /(데이터\s*부재|산출\s*불가|현재\s*입력\s*JSON|제공되지\s*않|포함되어\s*있지\s*않)/u;
-// L39 — 섹션 끝 stake 문구
-const STAKE_MARK_RE = /→\s*즉[,\s]/u;
+// L39 — 섹션 끝 stake 문구. PR036: 리드젤랩 톤 도입 이후 존대체 연결어도 허용.
+const STAKE_MARK_RE = /→\s*즉[,\s]|이는\s*곧\s*.+를?\s*의미합니다|한편\s.+도\s*함께\s*봐야|하지만\s*그\s*전에|이\s*점은\s*곧/u;
 // L42 — 실점포명은 pos_monthly_summary.top3_stores / bottom3_stores 에서 lintForDepth opts 로 공급받음.
 
 function str(v: unknown): string { return v == null ? "" : String(v); }
@@ -206,7 +206,6 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
 
 // V2 ─ depth별 lint 확장 (L25~L30, D3: L33~L42)
 export type D3LintContext = {
-  tier?: "T1" | "T2" | "T3";
   stance?: string;
   availableStoreNames?: string[];
 };
@@ -249,19 +248,18 @@ export function lintForDepth(
   const v2Match = body.match(FORBIDDEN_V2);
   if (v2Match) errors.push({ code: "L25", level: "ERROR", msg: `V2 금지어 발견: ${v2Match[0]}`, where: "body" });
 
-  // L26 최소 분량 — D3 는 tier 에 따라 가변 (T1=3000, T2=1800, T3=600)
-  const minLen = (() => {
-    if (depth === "D2") return 2000;
-    if (depth === "D3") {
-      const t = opts.d3?.tier;
-      if (t === "T1") return 3000;
-      if (t === "T2") return 1800;
-      if (t === "T3") return 600;
+  // L26 분량 — D3 는 1,500~3,000 WARN (ERROR 없음, PR036). 타 depth 는 최소 1,500.
+  if (depth === "D3") {
+    if (body.length < 1500) {
+      warns.push({ code: "L26", level: "WARN", msg: `본문 ${body.length}자 < 권장 하한 1,500자` });
+    } else if (body.length > 3000) {
+      warns.push({ code: "L26", level: "WARN", msg: `본문 ${body.length}자 > 권장 상한 3,000자` });
     }
-    return 1500;
-  })();
-  if (body.length < minLen) {
-    errors.push({ code: "L26", level: "ERROR", msg: `본문 ${body.length}자 < 최소 ${minLen}자 (depth=${depth}${opts.d3?.tier ? `/${opts.d3.tier}` : ""})` });
+  } else {
+    const minLen = depth === "D2" ? 2000 : 1500;
+    if (body.length < minLen) {
+      errors.push({ code: "L26", level: "ERROR", msg: `본문 ${body.length}자 < 최소 ${minLen}자 (depth=${depth})` });
+    }
   }
 
   // L27 5대 지표 (D3만)
@@ -394,10 +392,10 @@ export function lintForDepth(
         .filter((s) => !EXEMPT_RE.test(s.heading))
         .filter((s) => !STAKE_MARK_RE.test(s.body));
       if (stakeMisses.length > 0) {
-        errors.push({
+        warns.push({
           code: "L39",
-          level: "ERROR",
-          msg: `섹션 ${stakeMisses.length}개에 "→ 즉," stake 마커 누락 (예: "${stakeMisses[0].heading}")`,
+          level: "WARN",
+          msg: `섹션 ${stakeMisses.length}개에 stake 마커 누락 ("→ 즉," 또는 리드젤랩 톤 연결어, 예: "${stakeMisses[0].heading}")`,
         });
       }
     }
