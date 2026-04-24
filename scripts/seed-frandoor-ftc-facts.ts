@@ -239,12 +239,18 @@ async function main() {
       process.exitCode = 1;
       continue;
     }
+    // v2 스키마: master 1행 + timeseries N행 + regional N행.
+    // 기존 파서는 master 필드만 추출. timeseries/regional 은 HTML 추가 파싱 완료 전까지 빈 배열.
     const payload = {
       brand_id: e.brandId,
       brand_name: e.brandName,
+      corp_name: p.corp_name,
       source_year: p.source_year,
       source_registered_at: p.source_registered_at,
       source_first_registered_at: p.source_first_registered_at,
+      ftc_first_registered_date: p.source_first_registered_at,
+      ftc_latest_registered_date: p.source_registered_at,
+      latest_year: p.source_year,
       stores_total: p.stores_total,
       new_stores: p.new_stores,
       closed_stores: p.closed_stores,
@@ -258,8 +264,7 @@ async function main() {
       closure_rate: p.closure_rate,
       industry_avg_revenue: p.industry_avg_revenue,
       violations_total: p.violations_total,
-      contract_years: p.contract_years,
-      corp_name: p.corp_name,
+      contract_initial_years: p.contract_years,
       source_ingest_method: "html_parse_mvp",
       sources: p.sources,
       raw: { source_file: path.basename(src) },
@@ -267,15 +272,35 @@ async function main() {
     };
     const { error } = await sb.from("frandoor_ftc_facts").upsert(payload, { onConflict: "brand_id" });
     if (error) {
-      console.error("[ftc-seed] upsert fail:", error.message);
+      console.error("[ftc-seed] master upsert fail:", error.message);
       process.exitCode = 1;
-    } else {
-      console.log("[ftc-seed] " + e.brandName + " OK");
-      console.log("  stores_total=" + p.stores_total + " source_year=" + p.source_year);
-      console.log("  avg_monthly_revenue=" + p.avg_monthly_revenue + " manwon");
-      console.log("  cost_total=" + p.cost_total + " franchise_fee=" + p.franchise_fee);
-      console.log("  violations=" + p.violations_total + " closure_rate=" + p.closure_rate);
+      continue;
     }
+
+    // timeseries 한 줄이라도 생성 (latest year 기준, 가능한 값만)
+    const yr = p.source_year ? parseInt(p.source_year, 10) : null;
+    if (yr && (p.new_stores != null || p.closed_stores != null || p.stores_total != null)) {
+      const tsRow = {
+        brand_id: e.brandId,
+        year: yr,
+        stores_total: p.stores_total,
+        new_opens: p.new_stores,
+        contract_end: p.closed_stores,
+        contract_terminate: p.terminated_stores,
+        avg_annual_revenue: p.avg_monthly_revenue != null ? p.avg_monthly_revenue * 12 : null,
+        avg_revenue_per_unit_area: p.area_unit_revenue,
+        raw: {},
+      };
+      const { error: tsErr } = await sb.from("frandoor_ftc_timeseries").upsert(tsRow, { onConflict: "brand_id,year" });
+      if (tsErr) console.warn("[ftc-seed] timeseries upsert 경고:", tsErr.message);
+    }
+
+    console.log("[ftc-seed] " + e.brandName + " OK");
+    console.log("  master: stores_total=" + p.stores_total + " source_year=" + p.source_year);
+    console.log("  master: avg_monthly_revenue=" + p.avg_monthly_revenue + "만원 cost_total=" + p.cost_total);
+    console.log("  master: violations=" + p.violations_total + " closure_rate=" + p.closure_rate);
+    console.log("  timeseries: " + (yr ? "1 row (" + yr + ")" : "skipped (no year)"));
+    console.log("  regional: 0 row (HTML 추가 파싱 필요)");
   }
 }
 
