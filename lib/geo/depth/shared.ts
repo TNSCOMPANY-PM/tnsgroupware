@@ -48,7 +48,7 @@ export async function runPrefetch(input: GeoInput): Promise<{
   block: string;
   sources: string[];
   deriveds: DerivedMetric[];
-  ftcFact: FtcFact | null;
+  ftcFact: (FtcFact & { isFirstYear?: boolean }) | null;
 }> {
   const pre = await prefetchOfficial({
     brand: input.depth === "D3" ? input.brand : undefined,
@@ -63,7 +63,7 @@ export async function runPrefetch(input: GeoInput): Promise<{
 
   // Tier D 파생지표는 FTC 브랜드 fact 가 확보된 D3 에서만 실제 계산
   let deriveds: DerivedMetric[] = [];
-  let ftcFact: FtcFact | null = null;
+  let ftcFact: (FtcFact & { isFirstYear?: boolean }) | null = null;
   if (input.depth === "D3" && pre.raw.ftc?.ok && pre.raw.ftc.raw) {
     const raw = pre.raw.ftc.raw as Record<string, unknown>;
     ftcFact = {
@@ -79,6 +79,7 @@ export async function runPrefetch(input: GeoInput): Promise<{
       nmChgCnt: Number(raw.nmChgCnt ?? 0),
       avrgSlsAmt: Number(raw.avrgSlsAmt ?? 0),
       arUnitAvrgSlsAmt: Number(raw.arUnitAvrgSlsAmt ?? 0),
+      isFirstYear: raw.isFirstYear === true,
     };
     deriveds = computeAll(ftcFact, { industryAvg: pre.raw.kosis ?? null });
   }
@@ -88,14 +89,36 @@ export async function runPrefetch(input: GeoInput): Promise<{
 
 export type ResolvedStores = {
   count: number | null;
-  source: "C_honsa_pos" | "A_ftc" | "unknown";
+  source: "C_honsa_pos" | "B_frandoor_docx" | "A_ftc" | "A_ftc_first_year" | "unknown";
   as_of: string | null;
+  note?: string;
 };
 
-/** stores_latest fallback — C(본사 POS) > A(공정위) > unknown. */
+/** geo_brands.fact_data 배열에서 __official_data__.stores_total 추출 (docx 수작업 누적). */
+function readDocxStoresTotal(factData: unknown): { count: number; yr: string | null } | null {
+  if (!Array.isArray(factData)) return null;
+  const entry = factData.find(
+    (x): x is { label?: unknown; keyword?: unknown } =>
+      typeof x === "object" && x !== null && (x as Record<string, unknown>).label === "__official_data__",
+  );
+  const raw = entry?.keyword;
+  if (typeof raw !== "string") return null;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const c = typeof obj.stores_total === "number" ? obj.stores_total : null;
+    const yr = typeof obj.source_year === "string" ? obj.source_year : null;
+    if (c == null || c <= 0) return null;
+    return { count: c, yr };
+  } catch {
+    return null;
+  }
+}
+
+/** stores_latest fallback — C(본사 POS) > B(frandoor docx 수작업) > A(공정위) > unknown. */
 export async function resolveStoresLatest(
   brandId: string | undefined,
-  ftcFact: FtcFact | null,
+  ftcFact: (FtcFact & { isFirstYear?: boolean }) | null,
+  brandRow?: { fact_data?: unknown } | null,
 ): Promise<{ resolved: ResolvedStores; honsa: FrandoorFact | null }> {
   const honsa = brandId ? await fetchFrandoorBrandFact(brandId) : null;
   if (honsa?.stores_latest != null) {
@@ -108,12 +131,28 @@ export async function resolveStoresLatest(
       honsa,
     };
   }
+  // B (사실상 A급 수작업 추출, 공정위 원문 기반): docx/fact_data 내 __official_data__.stores_total
+  const docxStores = readDocxStoresTotal(brandRow?.fact_data);
+  if (docxStores) {
+    return {
+      resolved: {
+        count: docxStores.count,
+        source: "B_frandoor_docx",
+        as_of: docxStores.yr ? `${docxStores.yr}-12` : null,
+        note: "docx 수작업 추출",
+      },
+      honsa,
+    };
+  }
+  // A: FTC OpenAPI. 최초 등록 해는 별도 플래그 (현 운영수 아님 주의).
   if (ftcFact?.frcsCnt != null && ftcFact.frcsCnt > 0) {
+    const isFirst = ftcFact.isFirstYear === true;
     return {
       resolved: {
         count: ftcFact.frcsCnt,
-        source: "A_ftc",
+        source: isFirst ? "A_ftc_first_year" : "A_ftc",
         as_of: ftcFact.yr ? `${ftcFact.yr}-12` : null,
+        note: isFirst ? "최초등록 시점, 현 운영수 아님" : undefined,
       },
       honsa,
     };

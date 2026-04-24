@@ -16,6 +16,7 @@ import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
 import { classifyTier, D3T4BlockedError } from "./tier";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -55,15 +56,31 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const pre = await runPrefetch(input);
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
-  // T3 stores resolve + T4 tier classify + T4 차단 — Sonnet 호출 전에 수행
-  const { resolved: stores, honsa } = await resolveStoresLatest(input.brandId, pre.ftcFact);
-  log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}`);
+  // T3 stores resolve + T4 tier classify + T4 차단 — Sonnet 호출 전에 수행.
+  // brandRow.fact_data 에서 docx 수작업 __official_data__.stores_total 을 B급 fallback 으로 사용.
+  let brandRow: { fact_data?: unknown } | null = null;
+  if (input.brandId) {
+    try {
+      const supa = createAdminClient();
+      const { data } = await supa.from("geo_brands").select("fact_data").eq("id", input.brandId).maybeSingle();
+      brandRow = data ?? null;
+    } catch { brandRow = null; }
+  }
+  const { resolved: stores, honsa } = await resolveStoresLatest(input.brandId, pre.ftcFact, brandRow);
+  log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}${stores.note ? ` note=${stores.note}` : ""}`);
 
-  const ftcFirstYear = parseInt(honsa?.ftc_first_registered?.slice(0, 4) ?? "0", 10);
+  // ftcYears: honsa.ftc_first_registered → FTC OpenAPI yr → 최후수단 "ftcFact 존재 시 최소 1"
+  const honsaFirstYear = parseInt(honsa?.ftc_first_registered?.slice(0, 4) ?? "0", 10);
+  const ftcApiYear = parseInt(pre.ftcFact?.yr ?? "0", 10);
   const nowYear = new Date().getFullYear();
+  const ftcYears = honsaFirstYear
+    ? nowYear - honsaFirstYear
+    : ftcApiYear
+    ? Math.max(0, nowYear - ftcApiYear - (pre.ftcFact?.isFirstYear ? 0 : 0))
+    : 0;
   const tierInput = {
     stores: stores.count,
-    ftcYears: ftcFirstYear ? nowYear - ftcFirstYear : (pre.ftcFact ? 1 : 0),
+    ftcYears,
     posMonths: honsa?.pos_monthly?.length ?? 0,
   };
   const tier = classifyTier(tierInput);
