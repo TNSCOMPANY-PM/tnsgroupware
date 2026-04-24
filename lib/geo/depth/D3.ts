@@ -411,13 +411,11 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     buildFoodEstablishment({ brand: input.brand, canonicalUrl, description, category }),
   ];
 
-  const stance =
-    raw.meta && typeof raw.meta.stance === "string" ? (raw.meta.stance as string) : undefined;
   const availableStoreNames = [
     ...(latestPos?.top3_stores ?? []),
     ...(latestPos?.bottom3_stores ?? []),
   ].map((s) => s.name).filter((n): n is string => Boolean(n));
-  const d3Ctx = { stance, availableStoreNames };
+  const d3Ctx = { availableStoreNames };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [
     ...payload.sections.map((s) => s.body),

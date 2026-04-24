@@ -206,7 +206,6 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
 
 // V2 ─ depth별 lint 확장 (L25~L30, D3: L33~L42)
 export type D3LintContext = {
-  stance?: string;
   availableStoreNames?: string[];
 };
 
@@ -408,10 +407,25 @@ export function lintForDepth(
       }
     }
 
-    // L41 stance 필드 필수 — payload.meta.stance 또는 opts.d3.stance
-    const metaStance = opts.d3?.stance;
-    if (!metaStance || !["진입 가능", "조건부 가능", "판단 유보", "비권장"].includes(metaStance)) {
-      errors.push({ code: "L41", level: "ERROR", msg: `stance 누락 또는 비허용값: "${metaStance ?? "(없음)"}"` });
+    // L44 판단·평가·지시 어구 본문 등장 금지 (PR038 팩트·비교 콘텐츠 전환).
+    const BANNED_JUDGMENT = [
+      "진입 가능", "조건부 가능", "판단 유보", "비권장",
+      "권장합니다", "권장드립니다", "권장하지 않습니다",
+      "추천합니다", "추천드립니다",
+      "위험합니다", "안전합니다", "안정적입니다", "불안정합니다",
+      "유의해야", "조심하셔야",
+      "해야 합니다", "하셔야 합니다", "필수입니다", "선행되어야",
+      "구간입니다", "판정입니다", "분류됩니다",
+      "손실이 예상", "수익이 기대",
+    ];
+    const judgmentHits = BANNED_JUDGMENT.filter((w) => body.includes(w));
+    if (judgmentHits.length > 0) {
+      errors.push({
+        code: "L44",
+        level: "ERROR",
+        msg: `판단·평가·지시 어구 ${judgmentHits.length}건 본문 등장: ${judgmentHits.slice(0, 5).join(", ")}`,
+        where: "body",
+      });
     }
 
     // L42 실점포명 본문 등장 금지 (PR031 hotfix). opts.d3.availableStoreNames 는 원본 점포명 세트.

@@ -101,7 +101,6 @@ export type GeoPayloadFranchise = {
     brand?: string;
     brandId?: string;
     period?: string;
-    stance?: string;
     tags?: string[];
   };
 };

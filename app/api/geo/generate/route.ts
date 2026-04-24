@@ -42,7 +42,6 @@ function serializeDraft(out: GeoOutput): {
       faq: p.faq25 ?? [],
       closureHtml: p.closure?.bodyHtml ?? null,
       meta: {
-        stance: p.meta?.stance ?? null,
         tags: p.meta?.tags ?? [],
         description: p.meta?.description ?? null,
         period: p.meta?.period ?? null,
