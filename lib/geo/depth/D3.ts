@@ -59,12 +59,13 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const { resolved: stores, honsa, official } = await resolveStoresLatest(input.brandId);
   log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}${stores.note ? ` note=${stores.note}` : ""}`);
 
-  // ftcYears: honsa.ftc_first_registered > official.source_first_registered_at > official.source_year
+  // ftcYears: honsa.ftc_first_registered > official.master.ftc_first_registered_date > official.master.source_year
   const nowYear = new Date().getFullYear();
   const firstRegSrc =
     honsa?.ftc_first_registered ??
-    official?.source_first_registered_at ??
-    (official?.source_year ? `${official.source_year}-12-31` : null);
+    official?.master.ftc_first_registered_date ??
+    official?.master.source_first_registered_at ??
+    (official?.master.source_year ? `${official.master.source_year}-12-31` : null);
   const firstRegYear = firstRegSrc ? parseInt(firstRegSrc.slice(0, 4), 10) : 0;
   const ftcYears = firstRegYear ? Math.max(0, nowYear - firstRegYear) : 0;
   const tierInput = {
@@ -98,10 +99,12 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     log(`[gpt] L24 보조출처 주입 (kosis.kr)`);
   }
 
-  // A급 Fact 주입 — frandoor_ftc_facts (공정위 정보공개서 프랜도어 업로드)
+  // A급 Fact 주입 — frandoor_ftc_facts v2 (master + timeseries + regional)
   if (official) {
-    const sourceLabel = `${input.brand} 공정위 정보공개서 (${official.source_registered_at ?? official.source_year ?? "등록일 미상"})`;
-    const ym = official.source_year ? `${official.source_year}-12` : (official.source_registered_at ?? "").slice(0, 7);
+    const m = official.master;
+    const yr = m.latest_year ?? m.source_year ?? "";
+    const sourceLabel = `${input.brand} 공정위 정보공개서 (${m.source_registered_at ?? yr ?? "등록일 미상"})`;
+    const ym = yr ? `${yr}-12` : (m.source_registered_at ?? "").slice(0, 7);
     const aBase = {
       source_url: "https://franchise.ftc.go.kr/",
       source_title: sourceLabel,
@@ -111,22 +114,80 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       tier: "A" as const,
       source_tier: "A" as const,
     };
-    if (official.stores_total != null) {
-      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 연말 누적 가맹점 ${official.stores_total.toLocaleString()}개`, value: official.stores_total, unit: "개", fact_key: "ftc_stores_total" });
+    const pushA = (claim: string, value: number, unit: string, fact_key: string) =>
+      facts.facts.push({ ...aBase, claim, value, unit, fact_key });
+    const fmtMan = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
+
+    // 마스터 핵심
+    if (m.stores_total != null) pushA(`공정위 정보공개서 ${yr} 연말 누적 가맹점 ${m.stores_total.toLocaleString()}개`, m.stores_total, "개", "ftc_stores_total");
+    if (m.avg_monthly_revenue != null) pushA(`공정위 정보공개서 ${yr} 기준 가맹점당 월평균매출 ${fmtMan(m.avg_monthly_revenue)}`, m.avg_monthly_revenue, "만원", "ftc_avg_monthly_revenue");
+    if (m.latest_avg_annual_revenue != null) pushA(`공정위 정보공개서 ${yr} 기준 가맹점당 연평균매출 ${fmtMan(m.latest_avg_annual_revenue)}`, m.latest_avg_annual_revenue, "만원", "ftc_avg_annual_revenue");
+    if (m.latest_avg_revenue_per_unit_area != null) pushA(`공정위 정보공개서 ${yr} 기준 면적당(3.3㎡) 연매출 ${fmtMan(m.latest_avg_revenue_per_unit_area)}`, m.latest_avg_revenue_per_unit_area, "만원", "ftc_avg_revenue_per_unit_area");
+    if (m.cost_total != null) pushA(`공정위 정보공개서 ${yr} 창업비용 총액 ${fmtMan(m.cost_total)}`, m.cost_total, "만원", "ftc_cost_total");
+    if (m.franchise_fee != null) pushA(`공정위 정보공개서 ${yr} 가맹비 ${fmtMan(m.franchise_fee)}`, m.franchise_fee, "만원", "ftc_franchise_fee");
+    if (m.education_fee != null) pushA(`공정위 정보공개서 ${yr} 교육비 ${fmtMan(m.education_fee)}`, m.education_fee, "만원", "ftc_education_fee");
+    if (m.deposit != null) pushA(`공정위 정보공개서 ${yr} 보증금 ${fmtMan(m.deposit)}`, m.deposit, "만원", "ftc_deposit");
+    if (m.other_cost != null) pushA(`공정위 정보공개서 ${yr} 기타비용 ${fmtMan(m.other_cost)}`, m.other_cost, "만원", "ftc_other_cost");
+    if (m.interior_total != null) pushA(`공정위 정보공개서 ${yr} 인테리어 총액 ${fmtMan(m.interior_total)}`, m.interior_total, "만원", "ftc_interior_total");
+    if (m.interior_per_unit_area != null) pushA(`공정위 정보공개서 ${yr} 평당 인테리어 ${fmtMan(m.interior_per_unit_area)}`, m.interior_per_unit_area, "만원", "ftc_interior_per_unit_area");
+    if (m.reference_area != null) pushA(`공정위 정보공개서 ${yr} 기준 점포 면적 ${m.reference_area}㎡`, m.reference_area, "㎡", "ftc_reference_area");
+    if (m.contract_initial_years != null) pushA(`공정위 정보공개서 ${yr} 최초 계약기간 ${m.contract_initial_years}년`, m.contract_initial_years, "년", "ftc_contract_initial_years");
+    if (m.contract_extension_years != null) pushA(`공정위 정보공개서 ${yr} 연장 계약기간 ${m.contract_extension_years}년`, m.contract_extension_years, "년", "ftc_contract_extension_years");
+    if (m.closure_rate != null) pushA(`공정위 정보공개서 ${yr} 폐점률 ${m.closure_rate}%`, m.closure_rate, "%", "ftc_closure_rate");
+    if (m.industry_avg_revenue != null) pushA(`공정위 정보공개서 ${yr} 업종 평균 월매출 ${fmtMan(m.industry_avg_revenue)}`, m.industry_avg_revenue, "만원", "ftc_industry_avg_revenue");
+    if (m.violations_total != null) pushA(`공정위 정보공개서 ${yr} 법위반 합계 ${m.violations_total}건`, m.violations_total, "건", "ftc_violations_total");
+    if (m.violations_ftc != null) pushA(`공정위 시정조치 ${m.violations_ftc}건`, m.violations_ftc, "건", "ftc_violations_ftc");
+    if (m.brand_count != null) pushA(`본사 운영 브랜드 수 ${m.brand_count}개`, m.brand_count, "개", "ftc_brand_count");
+    if (m.affiliate_count != null) pushA(`본사 계열사 수 ${m.affiliate_count}개`, m.affiliate_count, "개", "ftc_affiliate_count");
+
+    // 최신 연도 timeseries (재무·임직원·광고)
+    const latestTs = official.timeseries[0] ?? null;
+    if (latestTs) {
+      const tYr = String(latestTs.year);
+      if (latestTs.revenue != null) pushA(`공정위 정보공개서 ${tYr} 본사 매출 ${fmtMan(latestTs.revenue)}`, latestTs.revenue, "만원", "ftc_ts_revenue");
+      if (latestTs.operating_profit != null) pushA(`공정위 정보공개서 ${tYr} 본사 영업이익 ${fmtMan(latestTs.operating_profit)}`, latestTs.operating_profit, "만원", "ftc_ts_operating_profit");
+      if (latestTs.net_profit != null) pushA(`공정위 정보공개서 ${tYr} 본사 당기순이익 ${fmtMan(latestTs.net_profit)}`, latestTs.net_profit, "만원", "ftc_ts_net_profit");
+      if (latestTs.assets != null) pushA(`공정위 정보공개서 ${tYr} 본사 자산 ${fmtMan(latestTs.assets)}`, latestTs.assets, "만원", "ftc_ts_assets");
+      if (latestTs.liabilities != null) pushA(`공정위 정보공개서 ${tYr} 본사 부채 ${fmtMan(latestTs.liabilities)}`, latestTs.liabilities, "만원", "ftc_ts_liabilities");
+      if (latestTs.equity != null) pushA(`공정위 정보공개서 ${tYr} 본사 자본 ${fmtMan(latestTs.equity)}`, latestTs.equity, "만원", "ftc_ts_equity");
+      if (latestTs.employees != null) pushA(`공정위 정보공개서 ${tYr} 본사 직원수 ${latestTs.employees}명`, latestTs.employees, "명", "ftc_ts_employees");
+      if (latestTs.advertising != null) pushA(`공정위 정보공개서 ${tYr} 광고비 ${fmtMan(latestTs.advertising)}`, latestTs.advertising, "만원", "ftc_ts_advertising");
+      if (latestTs.promotion != null) pushA(`공정위 정보공개서 ${tYr} 판촉비 ${fmtMan(latestTs.promotion)}`, latestTs.promotion, "만원", "ftc_ts_promotion");
+
+      // 파생 (fact 로 pre-compute)
+      if (latestTs.liabilities != null && latestTs.equity && latestTs.equity > 0) {
+        const debtRatio = Math.round((latestTs.liabilities / latestTs.equity) * 1000) / 10;
+        pushA(`공정위 정보공개서 ${tYr} 부채비율 ${debtRatio}%`, debtRatio, "%", "ftc_debt_ratio");
+      }
+      if (latestTs.operating_profit != null && latestTs.revenue && latestTs.revenue > 0) {
+        const opMargin = Math.round((latestTs.operating_profit / latestTs.revenue) * 1000) / 10;
+        pushA(`공정위 정보공개서 ${tYr} 영업이익률 ${opMargin}%`, opMargin, "%", "ftc_operating_margin");
+      }
+      if (latestTs.advertising != null && latestTs.stores_total && latestTs.stores_total > 0) {
+        const adPerStore = Math.round(latestTs.advertising / latestTs.stores_total);
+        pushA(`공정위 정보공개서 ${tYr} 점포당 광고비 ${fmtMan(adPerStore)}`, adPerStore, "만원", "ftc_ad_per_store");
+      }
+      if (latestTs.new_opens != null) pushA(`공정위 정보공개서 ${tYr} 신규개점 ${latestTs.new_opens}개`, latestTs.new_opens, "개", "ftc_ts_new_opens");
+      if (latestTs.contract_end != null) pushA(`공정위 정보공개서 ${tYr} 계약종료 ${latestTs.contract_end}건`, latestTs.contract_end, "건", "ftc_ts_contract_end");
+      if (latestTs.contract_terminate != null) pushA(`공정위 정보공개서 ${tYr} 계약해지 ${latestTs.contract_terminate}건`, latestTs.contract_terminate, "건", "ftc_ts_contract_terminate");
+      if (latestTs.stores_total != null) pushA(`공정위 정보공개서 ${tYr} 전체 점포수 ${latestTs.stores_total}개`, latestTs.stores_total, "개", "ftc_ts_stores_total");
+      if (latestTs.stores_direct != null) pushA(`공정위 정보공개서 ${tYr} 직영점 ${latestTs.stores_direct}개`, latestTs.stores_direct, "개", "ftc_ts_stores_direct");
     }
-    if (official.avg_monthly_revenue != null) {
-      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 기준 가맹점 월평균매출 ${official.avg_monthly_revenue.toLocaleString()}만원`, value: official.avg_monthly_revenue, unit: "만원", fact_key: "ftc_avg_monthly_revenue" });
+
+    // 지역 편중도 — 최신 연도 regional
+    const latestRegYear = official.regional.length > 0 ? Math.max(...official.regional.map((r) => r.year)) : 0;
+    const latestReg = official.regional.filter((r) => r.year === latestRegYear);
+    if (latestReg.length > 0) {
+      const totalFr = latestReg.reduce((s, r) => s + (r.stores_franchise ?? 0), 0);
+      if (totalFr > 0) {
+        const sorted = [...latestReg].sort((a, b) => (b.stores_franchise ?? 0) - (a.stores_franchise ?? 0));
+        const topReg = sorted[0];
+        const share = Math.round(((topReg.stores_franchise ?? 0) / totalFr) * 1000) / 10;
+        pushA(`공정위 정보공개서 ${latestRegYear} 최다 분포 지역 ${topReg.region} 점유율 ${share}%`, share, "%", "ftc_region_top_share");
+      }
     }
-    if (official.cost_total != null) {
-      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 기준 창업비용 총액 ${official.cost_total.toLocaleString()}만원`, value: official.cost_total, unit: "만원", fact_key: "ftc_cost_total" });
-    }
-    if (official.closure_rate != null) {
-      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 기준 폐점률 ${official.closure_rate}%`, value: official.closure_rate, unit: "%", fact_key: "ftc_closure_rate" });
-    }
-    if (official.industry_avg_revenue != null) {
-      facts.facts.push({ ...aBase, claim: `공정위 정보공개서 ${official.source_year ?? ""} 업종 평균 월매출 ${official.industry_avg_revenue.toLocaleString()}만원`, value: official.industry_avg_revenue, unit: "만원", fact_key: "ftc_industry_avg_revenue" });
-    }
-    log(`[gpt] A급 주입(${official.source_ingest_method ?? "n/a"}): stores=${official.stores_total} rev=${official.avg_monthly_revenue} cost=${official.cost_total} closure=${official.closure_rate}`);
+
+    log(`[gpt] A급 v2 주입: master ${Object.values(m).filter((v) => v != null).length}필드, ts=${official.timeseries.length}년, regional=${official.regional.length}행`);
   }
 
   // 본사 POS 수치(점포수/평균/탑3·바텀3)를 C급 Fact 로 주입 — crosscheck pool 에 포함되어야
@@ -195,6 +256,28 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       facts.facts.push({ ...cBase, claim: `본사 POS 최하위 점포 월매출 평균 대비 ${botVsAvg}%`, value: botVsAvg, unit: "%", fact_key: "pos_bottom_vs_avg_pct" });
     }
     log(`[gpt] C급 POS 주입(익명집계): stores=${latestPos.store_count} avg=${latestPos.per_store_avg}만원 scaleDiv=${scaleDivisor} top3avg bot3avg maxMin share botVsAvg`);
+
+    // PR033 — 파생지표 + 점포 등급 분포
+    const fmtManC = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
+    const pushC = (claim: string, value: number, unit: string, fact_key: string) =>
+      facts.facts.push({ ...cBase, claim, value, unit, fact_key });
+    if (honsa?.seasonal_ratio != null) pushC(`본사 POS 계절 변동 배수 ${honsa.seasonal_ratio}배 (성수기 ${honsa.seasonal_peak_month ?? "?"} / 비수기 ${honsa.seasonal_trough_month ?? "?"})`, honsa.seasonal_ratio, "배", "pos_season_amplitude");
+    if (honsa?.yoy_growth != null) pushC(`본사 POS YoY 성장률 ${honsa.yoy_growth}%`, honsa.yoy_growth, "%", "pos_yoy_growth");
+    if (honsa?.qoq_growth != null) pushC(`본사 POS QoQ 성장률 ${honsa.qoq_growth}%`, honsa.qoq_growth, "%", "pos_qoq_growth");
+    if (honsa?.survival_rate_12m != null) pushC(`본사 POS 1년차 생존율 ${honsa.survival_rate_12m}%`, honsa.survival_rate_12m, "%", "pos_survival_12m");
+    if (honsa?.survival_rate_24m != null) pushC(`본사 POS 2년차 생존율 ${honsa.survival_rate_24m}%`, honsa.survival_rate_24m, "%", "pos_survival_24m");
+    if (honsa?.multi_store_owner_pct != null) pushC(`본사 POS 다점포 점주 비율 ${honsa.multi_store_owner_pct}%`, honsa.multi_store_owner_pct, "%", "pos_multi_store_owner_pct");
+    // 점포 등급 분포
+    if (honsa && honsa.stores.length > 0) {
+      const aCount = honsa.stores.filter((s) => s.revenue_tier === "A").length;
+      const bCount = honsa.stores.filter((s) => s.revenue_tier === "B").length;
+      const cCount = honsa.stores.filter((s) => s.revenue_tier === "C").length;
+      if (aCount > 0) pushC(`본사 POS A급(상위 25%) 점포 ${aCount}개`, aCount, "개", "pos_tier_a_count");
+      if (bCount > 0) pushC(`본사 POS B급(중위 50%) 점포 ${bCount}개`, bCount, "개", "pos_tier_b_count");
+      if (cCount > 0) pushC(`본사 POS C급(하위 25%) 점포 ${cCount}개`, cCount, "개", "pos_tier_c_count");
+      // unused avoid warning
+      void fmtManC;
+    }
   }
 
   const tsFacts: TimeseriesFact[] = facts.facts.map((f) => ({

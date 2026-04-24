@@ -427,6 +427,63 @@ export function lintForDepth(
         errors.push({ code: "L42", level: "ERROR", msg: `실점포명 본문 등장 금지: "${name}"`, where: "body" });
       }
     }
+
+    // L43 body number pool check (PR033) — 본문 숫자가 facts pool 또는 허용 상수에 있어야 함.
+    // 허용 예외: 0~10, 12, 24, 100 (시간·일반 상수), 연도(4자리 1900~2099), YYYY-MM 조각.
+    const ALLOW_TRIVIAL = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 24, 100]);
+    const poolNums = new Set<number>();
+    const addToPool = (v: unknown) => {
+      const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[,\s]/g, ""));
+      if (Number.isFinite(n)) poolNums.add(n);
+    };
+    for (const f of facts.facts as Fact[]) addToPool(f.value);
+    for (const d of facts.deriveds ?? []) addToPool(d.value);
+    // facts.value 의 입력 숫자 (inputs) 도 허용
+    for (const d of facts.deriveds ?? []) {
+      for (const v of Object.values(d.inputs ?? {})) addToPool(v);
+    }
+    const isDerivable = (n: number): boolean => {
+      const arr = Array.from(poolNums);
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = 0; j < arr.length; j++) {
+          if (i === j) continue;
+          const a = arr[i], b = arr[j];
+          if (b !== 0) {
+            if (Math.abs(a / b - n) < 0.05) return true;
+            if (Math.abs((a / b) * 100 - n) < 0.5) return true;
+            if (Math.abs(((a - b) / b) * 100 - n) < 0.5) return true;
+          }
+          if (Math.abs(a - b - n) < 0.5) return true;
+          if (Math.abs(a + b - n) < 0.5) return true;
+        }
+      }
+      return false;
+    };
+    const numMatches = [...body.matchAll(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?|\b\d+(?:\.\d+)?\b/g)];
+    const bodyNumsRaw = numMatches.map((m) => parseFloat(m[0].replace(/,/g, ""))).filter((n) => Number.isFinite(n));
+    const unmatched: number[] = [];
+    for (const n of bodyNumsRaw) {
+      if (ALLOW_TRIVIAL.has(n)) continue;
+      if (n >= 1900 && n <= 2099 && Number.isInteger(n)) continue; // 연도
+      if (poolNums.has(n)) continue;
+      if (isDerivable(n)) continue;
+      unmatched.push(n);
+    }
+    if (unmatched.length > 5) {
+      errors.push({
+        code: "L43",
+        level: "ERROR",
+        msg: `facts 풀 외 수치 ${unmatched.length}건 (상위 5: ${[...new Set(unmatched)].slice(0, 5).join(", ")})`,
+        where: "body",
+      });
+    } else if (unmatched.length > 0) {
+      warns.push({
+        code: "L43",
+        level: "WARN",
+        msg: `facts 풀 외 수치 ${unmatched.length}건 (${[...new Set(unmatched)].slice(0, 3).join(", ")})`,
+        where: "body",
+      });
+    }
   }
 
   if (depth !== "D3") {
