@@ -1,9 +1,13 @@
 import "server-only";
 import { fetchKosisIndustryAvg, fetchKosisIndustryRevenue } from "@/utils/kosis";
-import { fetchFtcIndustryStat, FTC_COVERAGE_FRANCHISE } from "@/utils/ftcIndustryStats";
 import { searchHygieneByBizName } from "@/utils/foodSafety";
 
-/** 주제 키워드 → B급 API 호출 매핑. 620개 브랜드·15개 외식 업종 전반 범용. */
+/** 주제 키워드 → B급 API 호출 매핑. 620개 브랜드·15개 외식 업종 전반 범용.
+ *
+ * PR041: 공정위 OpenAPI B급 경로 롤백.
+ * closure_rate · industry_revenue 의 공정위 호출부 제거.
+ * 5/4 공정위 정보공개청구 엑셀 수령 후 A급 frandoor_ftc_facts 기반 업종 집계로 대체 예정 (PR042+).
+ */
 export type TopicFact = {
   claim: string;
   value: number | string;
@@ -25,39 +29,16 @@ export type TopicRoute = {
   fetcher: (args: { industry: string; brand: string; topic: string }) => Promise<TopicFact[]>;
 };
 
-function isFranchiseTopic(topic: string): boolean {
-  return /프랜차이즈|가맹/u.test(topic);
-}
-
 const FOODSAFETY_LABEL = "식약처 식품안전나라 I0490";
 
 export const TOPIC_ROUTES: TopicRoute[] = [
   {
     id: "closure_rate",
     keyword: /폐점률|폐업률|폐점\s*(률|율)|종료율|계약\s*종료/u,
-    fetcher: async ({ industry, topic }) => {
-      const franchise = isFranchiseTopic(topic);
-      if (franchise) {
-        const stat = await fetchFtcIndustryStat({ industryKor: industry });
-        if (!stat) return [];
-        return [
-          {
-            claim: `${stat.industry_kor} 프랜차이즈 업종 평균 폐점률 ${stat.avg_closure_rate}% (공정위 ${stat.year} 업종 집계, N=${stat.brand_count}개 브랜드)`,
-            value: stat.avg_closure_rate,
-            unit: "%",
-            source_tier: "B",
-            tier: "B",
-            source_url: "https://franchise.ftc.go.kr/",
-            source_title: `공정위 정보공개서 업종 집계 ${stat.year} (${FTC_COVERAGE_FRANCHISE})`,
-            year_month: `${stat.year}-12`,
-            period_month: `${stat.year}-12`,
-            authoritativeness: "primary",
-            fact_key: "industry_franchise_closure_rate",
-            coverage: stat.coverage,
-          },
-        ];
-      }
-      // 외식업 전체 (자영업 포함) — KOSIS 서비스업생산지수 YoY 를 보조 참고.
+    fetcher: async ({ industry }) => {
+      // PR041 롤백: 공정위 B급 호출 제거. KOSIS 에 업종별 폐점률 직접 데이터 없음 → 현재 빈 배열.
+      // 5/4 이후 A급 frandoor_ftc_facts 집계로 대체 예정.
+      // 외식업 전체 추세 참고만 필요한 경우 KOSIS 서비스업생산지수 YoY 를 선택적으로 노출.
       const kosis = await fetchKosisIndustryAvg(industry);
       if (!kosis?.growth_rate_yoy) return [];
       return [
@@ -81,29 +62,8 @@ export const TOPIC_ROUTES: TopicRoute[] = [
   {
     id: "industry_revenue",
     keyword: /업종\s*평균\s*매출|업종\s*매출|평균\s*매출액|업계\s*매출/u,
-    fetcher: async ({ industry, topic }) => {
-      const franchise = isFranchiseTopic(topic);
-      if (franchise) {
-        const stat = await fetchFtcIndustryStat({ industryKor: industry });
-        if (stat?.avg_monthly_revenue) {
-          return [
-            {
-              claim: `${stat.industry_kor} 프랜차이즈 업종 평균 월매출 ${stat.avg_monthly_revenue.toLocaleString("ko-KR")}만원 (공정위 ${stat.year} 집계, N=${stat.brand_count}개 브랜드)`,
-              value: stat.avg_monthly_revenue,
-              unit: "만원",
-              source_tier: "B",
-              tier: "B",
-              source_url: "https://franchise.ftc.go.kr/",
-              source_title: `공정위 정보공개서 업종 집계 ${stat.year} (${FTC_COVERAGE_FRANCHISE})`,
-              year_month: `${stat.year}-12`,
-              period_month: `${stat.year}-12`,
-              authoritativeness: "primary",
-              fact_key: "industry_franchise_avg_revenue",
-              coverage: stat.coverage,
-            },
-          ];
-        }
-      }
+    fetcher: async ({ industry }) => {
+      // PR041 롤백: 공정위 B급 호출 제거. KOSIS 외식업 전체 (자영업 포함) 로만 응답.
       const kosis = await fetchKosisIndustryRevenue({ industryKor: industry });
       if (!kosis) return [];
       return [
