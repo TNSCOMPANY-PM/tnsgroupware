@@ -407,6 +407,30 @@ export function lintForDepth(
       }
     }
 
+    // L47 메타 투명성 문장 반복 차단 (PR044): 포스트당 1회 한정.
+    const META_RE = /(원본\s*수치와[^.\n]{0,40}공개|가리지\s*않[^.\n]{0,40}공개|(?:모두|나란히|양쪽\s*수치(?:를)?)\s*(?:함께\s*)?공개|투명[^.\n]{0,20}공개|공개[^.\n]{0,20}투명)/gu;
+    const metaMatches = Array.from(body.matchAll(META_RE));
+    if (metaMatches.length >= 2) {
+      errors.push({
+        code: "L47",
+        level: "ERROR",
+        msg: `메타 투명성 문장은 포스트당 1회 한정. ${metaMatches.length}회 등장: "${metaMatches.slice(0, 2).map((m) => m[0]).join(" | ")}"`,
+        where: "body",
+      });
+    }
+
+    // L48 A·C 갭 주변 원인 추측 단어 차단 (PR044).
+    const CAUSE_GUESS = /(경기\s*(?:악화|침체|불황)|가격\s*인상\s*때문|브랜드\s*노후화|코로나|팬데믹\s*영향|업황\s*악화)/gu;
+    const causeHits = Array.from(body.matchAll(CAUSE_GUESS));
+    if (causeHits.length > 0) {
+      errors.push({
+        code: "L48",
+        level: "ERROR",
+        msg: `A·C 갭 원인 추측 금지: "${causeHits.slice(0, 3).map((m) => m[0]).join(", ")}" — 대체: "원인은 공개 수치로 특정 불가"`,
+        where: "body",
+      });
+    }
+
     // L44 판단·평가·지시 어구 본문 등장 금지 (PR038 팩트·비교 콘텐츠 전환).
     const BANNED_JUDGMENT = [
       "진입 가능", "조건부 가능", "판단 유보", "비권장",
