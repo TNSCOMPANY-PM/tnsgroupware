@@ -428,6 +428,30 @@ export function lintForDepth(
       });
     }
 
+    // L46 내부 ABC 등급 라벨 본문 등장 금지 (PR042).
+    const BANNED_INTERNAL_LABELS: Array<{ re: RegExp; desc: string }> = [
+      { re: /\*\*A급\*\*\s*=/, desc: "**A급** = ..." },
+      { re: /\*\*B급\*\*\s*=/, desc: "**B급** = ..." },
+      { re: /\*\*C급\*\*\s*=/, desc: "**C급** = ..." },
+      { re: /^\s*-\s*A급\s*[=:]/m, desc: "- A급 = ..." },
+      { re: /^\s*-\s*B급\s*[=:]/m, desc: "- B급 = ..." },
+      { re: /^\s*-\s*C급\s*[=:]/m, desc: "- C급 = ..." },
+      { re: /^\s*-\s*frandoor\s*산출\s*=/m, desc: "- frandoor 산출 = ..." },
+      { re: /^\s*-\s*파생\s*지표\s*[=:]/m, desc: "- 파생 지표 = ..." },
+      { re: /출처\s*등급\s*안내/, desc: "출처 등급 안내" },
+      { re: /source_tier/, desc: "source_tier" },
+      { re: /coverage\s*=/, desc: "coverage = ..." },
+    ];
+    const labelHits = BANNED_INTERNAL_LABELS.filter(({ re }) => re.test(body));
+    if (labelHits.length > 0) {
+      errors.push({
+        code: "L46",
+        level: "ERROR",
+        msg: `내부 ABC 등급 라벨 본문 등장: ${labelHits.map((h) => h.desc).slice(0, 3).join(" | ")}`,
+        where: "body",
+      });
+    }
+
     // L45 가상 출처 라벨 차단 (PR039): facts 풀에 없는 출처 라벨 본문 금지.
     // facts 풀의 source_title 에서 출처 루트("KOSIS", "식약처 ...") 를 추출해 허용 집합을 만든다.
     // 본문에서 "KOSIS ..." 또는 "식약처 ..." 로 시작하는 짧은 라벨을 감지하고,
