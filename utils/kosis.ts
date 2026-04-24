@@ -238,6 +238,40 @@ export async function fetchKosisMonthly(input: {
   }
 }
 
+/**
+ * 외식업 전체 (자영업 + 프랜차이즈 통합) 사업체 당 월평균 매출액 (만원).
+ * PR039: topicRouter industry_revenue fallback 용.
+ * KOSIS 서비스업조사 DT_1SE002 등 연간/분기 사업체조사 기반. 실 통계표 ID 는 사이트 검색 후 매핑.
+ * 현재 구현은 서비스업생산지수(DT_1KI1009) growth 값을 활용한 보조 서술용으로만 쓰고, 실 매출액 통계는 미연결.
+ * 향후 정밀화 (PR040 이후).
+ */
+export async function fetchKosisIndustryRevenue(opts: {
+  industryKor: string;
+}): Promise<{ value: number; year: string; coverage: string } | null> {
+  const mapped = mapIndustryCode(opts.industryKor);
+  if (!mapped) return null;
+  try {
+    const rows = await fetchStatisticsData({
+      orgId: INDUSTRY_ORG,
+      tblId: INDUSTRY_TBL,
+      prdSe: "M",
+      newEstPrdCnt: 1,
+    });
+    if (rows.length === 0) return null;
+    const latest = rows[rows.length - 1];
+    const val = parseFloat(latest.DT);
+    if (!Number.isFinite(val)) return null;
+    return {
+      value: Math.round(val * 10) / 10,
+      year: `${latest.PRD_DE.slice(0, 4)}-${latest.PRD_DE.slice(4, 6)}`,
+      coverage: "외식업 전체 (자영업 + 프랜차이즈 통합, KOSIS 서비스업생산지수)",
+    };
+  } catch (e) {
+    console.warn(`[kosis] fetchKosisIndustryRevenue 실패 (${opts.industryKor}):`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 export async function fetchKosisIndustryAvg(
   industryText: string,
 ): Promise<KosisIndustryAvg | null> {

@@ -228,7 +228,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       official?.master?.industry_main ??
       facts.industry ??
       "외식";
-    const topicRoute = await routeTopicToFacts(topic, { industry, brand: input.brand });
+    const topicRoute = await routeTopicToFacts(topic, { industry, brand: input.brand }, log);
     for (const f of topicRoute.facts) {
       facts.facts.push({
         claim: f.claim,
@@ -245,7 +245,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       });
     }
     log(
-      `[topic] "${topic}" → matched=[${topicRoute.matched_routes.join(",")}] filled=[${topicRoute.filled_routes.join(",")}] facts 추가=${topicRoute.facts.length}`,
+      `[topic] summary: matched=[${topicRoute.matched_routes.join(",")}] filled=[${topicRoute.filled_routes.join(",")}] total facts 추가=${topicRoute.facts.length}`,
     );
   }
 

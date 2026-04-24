@@ -428,6 +428,36 @@ export function lintForDepth(
       });
     }
 
+    // L45 가상 출처 라벨 차단 (PR039): facts 풀에 없는 출처 라벨 본문 금지.
+    // facts 풀의 source_title 에서 출처 루트("KOSIS", "식약처 ...") 를 추출해 허용 집합을 만든다.
+    // 본문에서 "KOSIS ..." 또는 "식약처 ..." 로 시작하는 짧은 라벨을 감지하고,
+    // 허용 집합에 속하지 않으면 가상 출처로 간주. "공정위 정보공개서" 는 본문 전반에 많이 등장하므로 검사 대상 제외.
+    const allowKosis = facts.facts.some((f) => (f.source_title ?? "").includes("KOSIS"));
+    const allowFoodsafety = facts.facts.some((f) => (f.source_title ?? "").includes("식약처"));
+    const orphanTokens: string[] = [];
+    if (!allowKosis && /KOSIS/.test(body)) orphanTokens.push("KOSIS (facts 풀에 미등장)");
+    if (!allowFoodsafety && /식약처/.test(body)) orphanTokens.push("식약처 (facts 풀에 미등장)");
+    // 임의 "{기관명} 통계" 조작 탐지.
+    const fabrRe = /([가-힣A-Z]{2,8})\s*통계(?:에|을|를|가|는|\s)/gu;
+    const seen = new Set<string>();
+    for (const m of body.matchAll(fabrRe)) {
+      const label = m[1];
+      if (seen.has(label)) continue;
+      seen.add(label);
+      const matched = facts.facts.some((f) => (f.source_title ?? "").includes(label));
+      if (!matched && !["공정위", "본사", "프랜도어"].includes(label)) {
+        orphanTokens.push(`${label} 통계 (facts 풀에 미등장)`);
+      }
+    }
+    if (orphanTokens.length > 0) {
+      errors.push({
+        code: "L45",
+        level: "ERROR",
+        msg: `facts 풀에 없는 출처 라벨 본문 등장 ${orphanTokens.length}건: ${orphanTokens.slice(0, 3).join(" | ")}`,
+        where: "body",
+      });
+    }
+
     // L42 실점포명 본문 등장 금지 (PR031 hotfix). opts.d3.availableStoreNames 는 원본 점포명 세트.
     // 1회라도 본문에 매칭되면 ERROR. 2음절 미만은 오탐 많음 → 스킵.
     const storeNames = opts.d3?.availableStoreNames ?? [];
