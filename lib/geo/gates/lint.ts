@@ -40,7 +40,9 @@ export interface GeoLintOutput {
   warns: LintEntry[];
 }
 
-// "약" 은 "계약/약관/약정/약속" 같은 복합어를 오탐하지 않도록, 앞이 Hangul 이 아니고 뒤에 공백+숫자 또는 바로 숫자가 오는 "근사치" 용례만 포착.
+// "약" 근사치 감지 — "계약/약관/약정/약속" 같은 복합어 오탐 회피.
+// PR031: 프롬프트에서 "약·대략·정도·쯤" 전부 금지시켰으므로 린터는 여전히 "약 {숫자}" 패턴만 잡지만,
+// "약 2년", "약 10개월" 같은 자연스러운 기간 표현도 근사치에 해당하므로 ERROR 유지. 프롬프트가 1차 방어, 린터가 2차 재시도 트리거.
 const FORBIDDEN_YAK = /(?:^|[^가-힣])약\s*\d/u;
 const FORBIDDEN = /(대략|정도|쯤|아마도|업계\s*관계자|많은\s*전문가들?)/u;
 const FORBIDDEN_V2 = /(수령확인서|1\s*위|최고|추천|업계\s*1위)/u;
@@ -229,12 +231,12 @@ export function lintForDepth(
       category: "브랜드 상세",
       faq: payload.faq25,
       sources: [],
-      title: payload.sections[0]?.heading ?? "",
-      description: payload.sections[0]?.body?.slice(0, 120) ?? "",
+      title: payload.meta?.title ?? payload.sections[0]?.heading ?? "",
+      description: payload.meta?.description ?? payload.sections[0]?.body?.slice(0, 120) ?? "",
       thumbnail: "",
       author: "프랜도어 편집팀",
       dateModified: new Date().toISOString().slice(0, 10),
-      tags: [],
+      tags: payload.meta?.tags ?? [],
     };
     body = payload.sections.map((s) => `## ${s.heading}\n\n${s.body}`).join("\n\n");
   }
@@ -414,17 +416,15 @@ export function lintForDepth(
       errors.push({ code: "L41", level: "ERROR", msg: `stance 누락 또는 비허용값: "${metaStance ?? "(없음)"}"` });
     }
 
-    // L42 실점포명 최소 3개 — T1/T2 만 (T3 면제), availableStoreNames 공급된 경우만
-    const names = opts.d3?.availableStoreNames ?? [];
-    const tierForL42 = opts.d3?.tier;
-    if (names.length > 0 && (tierForL42 === "T1" || tierForL42 === "T2")) {
-      const cited = names.filter((n) => body.includes(n));
-      if (cited.length < 3) {
-        errors.push({
-          code: "L42",
-          level: "ERROR",
-          msg: `실점포명 ${cited.length}개 인용 (T1/T2 최소 3개). 후보: ${names.slice(0, 6).join(", ")}`,
-        });
+    // L42 실점포명 본문 등장 금지 (PR031 hotfix). opts.d3.availableStoreNames 는 원본 점포명 세트.
+    // 1회라도 본문에 매칭되면 ERROR. 2음절 미만은 오탐 많음 → 스킵.
+    const storeNames = opts.d3?.availableStoreNames ?? [];
+    for (const name of storeNames) {
+      if (!name || name.length < 2) continue;
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(?<![가-힣])${escaped}(?![가-힣])`, "u");
+      if (re.test(body)) {
+        errors.push({ code: "L42", level: "ERROR", msg: `실점포명 본문 등장 금지: "${name}"`, where: "body" });
       }
     }
   }

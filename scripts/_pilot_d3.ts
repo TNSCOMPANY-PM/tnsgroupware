@@ -47,9 +47,10 @@ async function main() {
     console.log("[pilot] cc.unmatched:", JSON.stringify(out.crosscheck?.unmatched ?? null));
     const mdPath = path.resolve(process.cwd(), "pilot_result.md");
     const md = (p?.sections ?? []).map((s:any)=>`## ${s.heading}\n\n${s.body}`).join("\n\n") +
-      "\n\n## Closure\n\n" + (p?.closure?.headline ?? "") + "\n\n" + (p?.closure?.bodyHtml ?? "") +
+      "\n\n## Closure (headline only; html 은 DB meta.closure_html 에 저장)\n\n" + (p?.closure?.headline ?? "") +
       "\n\n## FAQ\n\n" + (p?.faq25 ?? []).map((f:any)=>`**Q: ${f.q}**\n\nA: ${f.a}`).join("\n\n");
-    fs.writeFileSync(mdPath, `# ${p?.meta?.title ?? "오공김밥 D3"}\n\n**stance:** ${p?.meta?.stance ?? "(미지정)"} / **tier:** ${p?.meta?.tier ?? "(미지정)"}\n\n${md}\n`, "utf8");
+    const tags = Array.isArray(p?.meta?.tags) ? p.meta.tags.join(", ") : "(미지정)";
+    fs.writeFileSync(mdPath, `# ${p?.meta?.title ?? "오공김밥 D3"}\n\n**stance:** ${p?.meta?.stance ?? "(미지정)"} / **tier:** ${p?.meta?.tier ?? "(미지정)"} / **tags:** ${tags}\n\n${md}\n`, "utf8");
     console.log("[pilot] saved markdown:", mdPath);
   } catch (e: any) {
     console.error("[pilot] FAIL", e?.code ?? "", e?.message ?? e);

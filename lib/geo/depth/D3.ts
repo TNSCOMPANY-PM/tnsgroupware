@@ -145,6 +145,8 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
         bottom3_stores: (latestPosRaw.bottom3_stores ?? []).map((s) => ({ name: s.name, sales: toMan(s.sales) })),
       }
     : null;
+  // 개별 점포명은 facts 에 넣지 않음 — 점주 개인정보·입지 기밀 (PR031 hotfix).
+  // 대신 top3/bot3 집계값(평균·최대-최소 배수·상위3 점유율·최하위 대비율) 을 익명 파생치로 주입.
   if (latestPos) {
     const asOf = latestPos.year_month;
     const cBase = {
@@ -160,13 +162,39 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     facts.facts.push({ ...cBase, claim: `본사 POS 활성 점포수 ${latestPos.store_count}개`, value: latestPos.store_count, unit: "개", fact_key: "frcs_cnt" });
     facts.facts.push({ ...cBase, claim: `본사 POS 가맹점당 월평균매출 ${fmtMan(latestPos.per_store_avg)}`, value: latestPos.per_store_avg, unit: "만원", fact_key: "monthly_avg_sales" });
     facts.facts.push({ ...cBase, claim: `본사 POS 전체 월매출 합계 ${fmtMan(latestPos.total_sales)}`, value: latestPos.total_sales, unit: "만원", fact_key: "total_sales" });
-    for (const s of latestPos.top3_stores) {
-      facts.facts.push({ ...cBase, claim: `본사 POS 상위점포 ${s.name} ${fmtMan(s.sales)}`, value: s.sales, unit: "만원", fact_key: "top_store_sales" });
+
+    const top = latestPos.top3_stores ?? [];
+    const bot = latestPos.bottom3_stores ?? [];
+    if (top.length > 0) {
+      const topAvg = Math.round(top.reduce((s, x) => s + x.sales, 0) / top.length);
+      facts.facts.push({ ...cBase, claim: `본사 POS 상위 3점포 월매출 평균 ${fmtMan(topAvg)}`, value: topAvg, unit: "만원", fact_key: "pos_top3_avg" });
     }
-    for (const s of latestPos.bottom3_stores) {
-      facts.facts.push({ ...cBase, claim: `본사 POS 하위점포 ${s.name} ${fmtMan(s.sales)}`, value: s.sales, unit: "만원", fact_key: "bottom_store_sales" });
+    if (bot.length > 0) {
+      const botAvg = Math.round(bot.reduce((s, x) => s + x.sales, 0) / bot.length);
+      facts.facts.push({ ...cBase, claim: `본사 POS 하위 3점포 월매출 평균 ${fmtMan(botAvg)}`, value: botAvg, unit: "만원", fact_key: "pos_bot3_avg" });
     }
-    log(`[gpt] C급 POS 주입: stores=${latestPos.store_count} avg=${latestPos.per_store_avg}만원 scaleDiv=${scaleDivisor} top=${latestPos.top3_stores.length} bot=${latestPos.bottom3_stores.length}`);
+    const topMax = top.length > 0 ? Math.max(...top.map((s) => s.sales)) : 0;
+    const botMin = bot.length > 0 ? Math.min(...bot.map((s) => s.sales)) : 0;
+    if (topMax > 0) {
+      facts.facts.push({ ...cBase, claim: `본사 POS ${asOf} 최상위 점포 월매출 ${fmtMan(topMax)}`, value: topMax, unit: "만원", fact_key: "pos_top_max" });
+    }
+    if (botMin > 0) {
+      facts.facts.push({ ...cBase, claim: `본사 POS ${asOf} 최하위 점포 월매출 ${fmtMan(botMin)}`, value: botMin, unit: "만원", fact_key: "pos_bottom_min" });
+    }
+    if (topMax > 0 && botMin > 0) {
+      const maxMinRatio = Math.round((topMax / botMin) * 10) / 10;
+      facts.facts.push({ ...cBase, claim: `본사 POS ${asOf} 최상위·최하위 점포 매출 ${maxMinRatio}배 격차`, value: maxMinRatio, unit: "배", fact_key: "pos_maxmin_ratio" });
+    }
+    if (top.length > 0 && latestPos.total_sales > 0) {
+      const top3Sum = top.reduce((s, x) => s + x.sales, 0);
+      const sharePct = Math.round((top3Sum / latestPos.total_sales) * 1000) / 10;
+      facts.facts.push({ ...cBase, claim: `본사 POS 상위 3점포 전체 매출 점유율 ${sharePct}%`, value: sharePct, unit: "%", fact_key: "pos_top3_share_pct" });
+    }
+    if (botMin > 0 && latestPos.per_store_avg > 0) {
+      const botVsAvg = Math.round((botMin / latestPos.per_store_avg) * 1000) / 10;
+      facts.facts.push({ ...cBase, claim: `본사 POS 최하위 점포 월매출 평균 대비 ${botVsAvg}%`, value: botVsAvg, unit: "%", fact_key: "pos_bottom_vs_avg_pct" });
+    }
+    log(`[gpt] C급 POS 주입(익명집계): stores=${latestPos.store_count} avg=${latestPos.per_store_avg}만원 scaleDiv=${scaleDivisor} top3avg bot3avg maxMin share botVsAvg`);
   }
 
   const tsFacts: TimeseriesFact[] = facts.facts.map((f) => ({
@@ -184,15 +212,22 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     stores_resolved: stores,
     corporation_founded_year: honsa?.corporation_founded_year ?? null,
     ftc_first_registered: honsa?.ftc_first_registered ?? null,
-    pos_monthly_summary: honsa
+    pos_monthly_summary: honsa && latestPos
       ? {
           months: honsa.pos_monthly.length,
           from: honsa.pos_monthly[0]?.year_month ?? null,
-          to: latestPos?.year_month ?? null,
-          latest_store_count: latestPos?.store_count ?? null,
-          latest_per_store_avg: latestPos?.per_store_avg ?? null,
-          top3_stores: latestPos?.top3_stores ?? [],
-          bottom3_stores: latestPos?.bottom3_stores ?? [],
+          to: latestPos.year_month,
+          latest_store_count: latestPos.store_count,
+          latest_per_store_avg: latestPos.per_store_avg,
+          // PR031 hotfix: 실점포명 주입 금지. 집계값만 전달.
+          top3_avg: latestPos.top3_stores.length > 0
+            ? Math.round(latestPos.top3_stores.reduce((s, x) => s + x.sales, 0) / latestPos.top3_stores.length)
+            : null,
+          bottom3_avg: latestPos.bottom3_stores.length > 0
+            ? Math.round(latestPos.bottom3_stores.reduce((s, x) => s + x.sales, 0) / latestPos.bottom3_stores.length)
+            : null,
+          top_max: latestPos.top3_stores.length > 0 ? Math.max(...latestPos.top3_stores.map((s) => s.sales)) : null,
+          bottom_min: latestPos.bottom3_stores.length > 0 ? Math.min(...latestPos.bottom3_stores.map((s) => s.sales)) : null,
         }
       : null,
   });

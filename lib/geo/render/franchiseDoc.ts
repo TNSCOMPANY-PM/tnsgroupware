@@ -31,6 +31,8 @@ export function assembleFranchiseDoc(raw: unknown, faqs: FaqItem[], deriveds: De
   const closure = sanitizeClosure(obj.closure, deriveds);
   const rawMeta = (obj.meta as Record<string, unknown>) ?? {};
   const asStr = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const tagsRaw = Array.isArray(rawMeta.tags) ? (rawMeta.tags as unknown[]) : [];
+  const tags = tagsRaw.map(asStr).filter((x): x is string => Boolean(x));
   const meta = {
     title: asStr(rawMeta.title),
     description: asStr(rawMeta.description),
@@ -39,6 +41,7 @@ export function assembleFranchiseDoc(raw: unknown, faqs: FaqItem[], deriveds: De
     period: asStr(rawMeta.period),
     stance: asStr(rawMeta.stance),
     tier: asStr(rawMeta.tier),
+    tags,
   };
   return { kind: "franchiseDoc", sections, closure, faq25: faqs, meta };
 }

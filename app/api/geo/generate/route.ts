@@ -16,23 +16,44 @@ const DEPTH_TO_CONTENT_TYPE: Record<string, string> = {
   D3: "brand",
 };
 
-function serializeDraft(out: GeoOutput): { title: string; content: string; faq: unknown[] } {
+function serializeDraft(out: GeoOutput): {
+  title: string;
+  content: string;
+  faq: unknown[];
+  closureHtml: string | null;
+  meta: Record<string, unknown>;
+} {
   const p = out.payload;
   if (p.kind === "markdown") {
     const title = typeof p.frontmatter?.title === "string" ? p.frontmatter.title : "";
-    return { title, content: p.body ?? "", faq: [] };
+    return { title, content: p.body ?? "", faq: [], closureHtml: null, meta: {} };
   }
   if (p.kind === "industryDoc") {
     const body = (p.sections ?? []).map(s => `## ${s.heading}\n\n${s.body}`).join("\n\n");
     const title = p.sections?.[0]?.heading ?? "";
-    return { title, content: body, faq: [] };
+    return { title, content: body, faq: [], closureHtml: null, meta: {} };
   }
   if (p.kind === "franchiseDoc") {
+    // PR031: closure.bodyHtml 는 본문 md 에서 분리 — 별도 meta.closure_html 로 저장.
     const body = (p.sections ?? []).map(s => `## ${s.heading}\n\n${s.body}`).join("\n\n");
-    const title = p.closure?.headline ?? p.sections?.[0]?.heading ?? "";
-    return { title, content: body, faq: p.faq25 ?? [] };
+    const title = p.meta?.title ?? p.closure?.headline ?? p.sections?.[0]?.heading ?? "";
+    return {
+      title,
+      content: body,
+      faq: p.faq25 ?? [],
+      closureHtml: p.closure?.bodyHtml ?? null,
+      meta: {
+        stance: p.meta?.stance ?? null,
+        tier: p.meta?.tier ?? null,
+        tags: p.meta?.tags ?? [],
+        description: p.meta?.description ?? null,
+        period: p.meta?.period ?? null,
+        closure_headline: p.closure?.headline ?? null,
+        closure_html: p.closure?.bodyHtml ?? null,
+      },
+    };
   }
-  return { title: "", content: JSON.stringify(out.payload, null, 2), faq: [] };
+  return { title: "", content: JSON.stringify(out.payload, null, 2), faq: [], closureHtml: null, meta: {} };
 }
 
 export async function POST(req: Request) {
@@ -82,6 +103,7 @@ export async function POST(req: Request) {
           title: serialized.title,
           content: serialized.content,
           faq: serialized.faq,
+          meta: serialized.meta,
           content_type: DEPTH_TO_CONTENT_TYPE[depth] ?? "external",
           status: "draft",
           target_date: new Date().toISOString().slice(0, 10),

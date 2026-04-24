@@ -103,6 +103,7 @@ export type GeoPayloadFranchise = {
     period?: string;
     stance?: string;
     tier?: string;
+    tags?: string[];
   };
 };
 
