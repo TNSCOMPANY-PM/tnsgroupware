@@ -15,7 +15,7 @@ import { lintForDepth } from "@/lib/geo/gates/lint";
 import { crosscheckForDepth } from "@/lib/geo/gates/crosscheck";
 import { upsertCanonical } from "@/lib/geo/canonicalStore";
 import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@/lib/geo/metrics/derived";
-import { classifyTier, D3T4BlockedError } from "./tier";
+import { InsufficientDataError } from "@/lib/geo/types";
 import { routeTopicToFacts } from "@/lib/geo/prefetch/topicRouter";
 
 const TIMESERIES_META: Record<
@@ -56,29 +56,11 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const pre = await runPrefetch(input);
   log(`[prefetch] deriveds=${pre.deriveds.length}`);
 
-  // T3 stores resolve (C 본사 POS > A frandoor_ftc_facts > unknown) + T4 tier classify + T4 차단.
+  // stores resolve (C 본사 POS > A frandoor_ftc_facts > unknown).
   const { resolved: stores, honsa, official } = await resolveStoresLatest(input.brandId);
   log(`[stores] ${input.brand}: count=${stores.count} source=${stores.source} as_of=${stores.as_of}${stores.note ? ` note=${stores.note}` : ""}`);
 
-  // ftcYears: honsa.ftc_first_registered > official.master.ftc_first_registered_date > official.master.source_year
   const nowYear = new Date().getFullYear();
-  const firstRegSrc =
-    honsa?.ftc_first_registered ??
-    official?.master.ftc_first_registered_date ??
-    official?.master.source_first_registered_at ??
-    (official?.master.source_year ? `${official.master.source_year}-12-31` : null);
-  const firstRegYear = firstRegSrc ? parseInt(firstRegSrc.slice(0, 4), 10) : 0;
-  const ftcYears = firstRegYear ? Math.max(0, nowYear - firstRegYear) : 0;
-  const tierInput = {
-    stores: stores.count,
-    ftcYears,
-    posMonths: honsa?.pos_monthly?.length ?? 0,
-  };
-  const tier = classifyTier(tierInput);
-  log(`[tier] ${input.brand} = ${tier}`);
-  if (tier === "T4") {
-    throw new D3T4BlockedError(input.brand, tierInput);
-  }
 
   const { facts } = await callGpt(input, pre.block);
   // L24 안전망: GPT 가 단일 도메인만 반환하면 KOSIS 참조 fact 를 1 건 주입해 도메인 다양성 확보
@@ -357,6 +339,18 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     }
   }
 
+  // PR036 — facts 기반 데이터 충분성 게이트 (tier 분류 대체).
+  const aFactsCount = facts.facts.filter((f) => f.source_tier === "A").length;
+  const cFactsCount = facts.facts.filter((f) => f.source_tier === "C").length;
+  const totalFactsCount = facts.facts.length;
+  log(`[facts] total=${totalFactsCount} A=${aFactsCount} C=${cFactsCount}`);
+  if (totalFactsCount < 10 || aFactsCount < 3) {
+    throw new InsufficientDataError(
+      `D3 생성 불가: facts=${totalFactsCount} (A=${aFactsCount}, C=${cFactsCount}). 공정위 정보공개서 또는 본사 POS 데이터 적재 후 재시도.`,
+      { total: totalFactsCount, a: aFactsCount, c: cFactsCount },
+    );
+  }
+
   const tsFacts: TimeseriesFact[] = facts.facts.map((f) => ({
     fact_key: f.fact_key,
     source_tier: f.source_tier,
@@ -368,7 +362,6 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
-    tier,
     stores_resolved: stores,
     corporation_founded_year: honsa?.corporation_founded_year ?? null,
     ftc_first_registered: honsa?.ftc_first_registered ?? null,
@@ -424,7 +417,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     ...(latestPos?.top3_stores ?? []),
     ...(latestPos?.bottom3_stores ?? []),
   ].map((s) => s.name).filter((n): n is string => Boolean(n));
-  const d3Ctx = { tier: tier as "T1" | "T2" | "T3", stance, availableStoreNames };
+  const d3Ctx = { stance, availableStoreNames };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [
     ...payload.sections.map((s) => s.body),
@@ -434,8 +427,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const crosscheck = crosscheckForDepth("D3", bodyAggregate, factsPlus);
   log(`[lint] err=${lint.errors.length} / [cc] matched=${crosscheck.matchedCount} unmatched=${crosscheck.unmatched.length}`);
 
-  // PR030: D3 crosscheck strict 완화 → advisory. tier-aware lint(L38~L42) 가 품질 gate 대체.
-  // 과도한 unmatched 만 차단 (25+ 는 본문 전면 불일치 신호).
+  // PR030: D3 crosscheck strict 완화 → advisory. 과도한 unmatched 만 차단 (25+ 는 본문 전면 불일치 신호).
   if (crosscheck.strict && crosscheck.unmatched.length >= 25) {
     throw new Error(
       `GATE crosscheck(D3) 대량 불일치: unmatched ${crosscheck.unmatched.length}건 — ${crosscheck.unmatched.slice(0, 10).join(" | ")}`,

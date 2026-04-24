@@ -40,7 +40,6 @@ export function assembleFranchiseDoc(raw: unknown, faqs: FaqItem[], deriveds: De
     brandId: asStr(rawMeta.brandId),
     period: asStr(rawMeta.period),
     stance: asStr(rawMeta.stance),
-    tier: asStr(rawMeta.tier),
     tags,
   };
   return { kind: "franchiseDoc", sections, closure, faq25: faqs, meta };

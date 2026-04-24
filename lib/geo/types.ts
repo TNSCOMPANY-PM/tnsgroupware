@@ -102,7 +102,6 @@ export type GeoPayloadFranchise = {
     brandId?: string;
     period?: string;
     stance?: string;
-    tier?: string;
     tags?: string[];
   };
 };
@@ -124,5 +123,15 @@ export class NotImplementedError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "NotImplementedError";
+  }
+}
+
+export class InsufficientDataError extends Error {
+  code = "INSUFFICIENT_DATA";
+  stats: { total: number; a: number; c: number };
+  constructor(message: string, stats: { total: number; a: number; c: number }) {
+    super(message);
+    this.name = "InsufficientDataError";
+    this.stats = stats;
   }
 }
