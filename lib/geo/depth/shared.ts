@@ -2,7 +2,6 @@ import "server-only";
 import type { GeoInput, DerivedMetric } from "@/lib/geo/types";
 import { prefetchOfficial } from "@/lib/geo/prefetch/official";
 import { matrixCheck } from "@/lib/geo/gates/matrix";
-import { fetchFrandoorBrandFact, type FrandoorFact } from "@/lib/geo/prefetch/frandoorDb";
 import { fetchFrandoorOfficial, type FrandoorOfficial } from "@/lib/geo/prefetch/frandoorOfficial";
 import { computeAllFromOfficial } from "@/lib/geo/metrics/derived";
 
@@ -77,33 +76,20 @@ export async function runPrefetch(input: GeoInput): Promise<{
 
 export type ResolvedStores = {
   count: number | null;
-  source: "C_honsa_pos" | "A_frandoor_ftc" | "unknown";
+  source: "A_frandoor_ftc" | "unknown";
   as_of: string | null;
   note?: string;
 };
 
-/** stores_latest fallback — C(본사 POS) > A(공정위 정보공개서, 프랜도어 업로드) > unknown.
- * PR030 hotfix: FTC OpenAPI 경로 폐기. frandoor_ftc_facts 테이블 단일 경로.
- * PR034: honsa 있어도 official 병행 로드 (A급 Fact 주입에 필요).
+/** stores_latest 해결 — A(공정위 정보공개서, 프랜도어 업로드) > unknown.
+ * PR030 hotfix: FTC OpenAPI 경로 폐기.
+ * PR043: xlsx 기반 C_honsa_pos 분기 제거. 본사 POS 경로 폐기, docx/홈페이지 기반으로 대체.
  */
 export async function resolveStoresLatest(
   brandId: string | undefined,
-): Promise<{ resolved: ResolvedStores; honsa: FrandoorFact | null; official: FrandoorOfficial | null }> {
-  const [honsa, official] = brandId
-    ? await Promise.all([fetchFrandoorBrandFact(brandId), fetchFrandoorOfficial(brandId)])
-    : [null, null];
+): Promise<{ resolved: ResolvedStores; official: FrandoorOfficial | null }> {
+  const official = brandId ? await fetchFrandoorOfficial(brandId) : null;
 
-  if (honsa?.stores_latest != null) {
-    return {
-      resolved: {
-        count: honsa.stores_latest,
-        source: "C_honsa_pos",
-        as_of: honsa.stores_latest_as_of ?? null,
-      },
-      honsa,
-      official,
-    };
-  }
   const m = official?.master;
   if (m?.stores_total != null) {
     return {
@@ -113,9 +99,8 @@ export async function resolveStoresLatest(
         as_of: m.latest_year ? `${m.latest_year}-12` : (m.source_year ? `${m.source_year}-12` : null),
         note: "공정위 정보공개서 (프랜도어 업로드)",
       },
-      honsa,
       official,
     };
   }
-  return { resolved: { count: null, source: "unknown", as_of: null }, honsa, official };
+  return { resolved: { count: null, source: "unknown", as_of: null }, official };
 }

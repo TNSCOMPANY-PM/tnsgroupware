@@ -60,7 +60,7 @@ const FACT_KEY_TIMESERIES_DERIVED = new Set<string>([
   "annualized_pos_sales",
   "avg_sales_dilution",
 ]);
-const C_TIER_FOOTER_RE = /(본사\s*집계|POS\s*집계|본사\s*공지)/u;
+const C_TIER_FOOTER_RE = /(본사\s*집계|POS\s*집계|본사\s*공지|본사\s*홈페이지|본사\s*공개\s*자료|본사\s*자료|홈페이지에\s*발표|홈페이지에는)/u;
 // L38 — 시스템 누출 문구 차단 (Sonnet 이 facts 부재를 그대로 본문에 누출하는 패턴)
 const SYSTEM_LEAK_RE = /(데이터\s*부재|산출\s*불가|현재\s*입력\s*JSON|제공되지\s*않|포함되어\s*있지\s*않)/u;
 // L39 — 섹션 끝 stake 문구. PR036: 리드젤랩 톤 도입 이후 존대체 연결어도 허용.
@@ -345,7 +345,7 @@ export function lintForDepth(
 
     const hasCOnly = (facts.facts as Fact[]).some((f) => f.source_tier === "C");
     if (hasCOnly && !C_TIER_FOOTER_RE.test(body)) {
-      errors.push({ code: "L35", level: "ERROR", msg: "C급 수치 인용 시 '본사 집계/POS/공지' 꼬리표 누락" });
+      errors.push({ code: "L35", level: "ERROR", msg: "C급 수치 인용 시 '본사 홈페이지/공개 자료/집계' 꼬리표 누락" });
     }
 
     const pickMonth = (f: Fact): string | undefined => f.period_month ?? f.year_month;

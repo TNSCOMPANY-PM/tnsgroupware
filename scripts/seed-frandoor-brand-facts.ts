@@ -1,3 +1,9 @@
+/**
+ * @deprecated PR043 (2026-04-24) — xlsx 기반 C급 파이프라인 폐기.
+ * 매출 수치 2~3배 부풀림 버그 + xlsx 범용성 없음 (620 브랜드 확장 불가).
+ * D3 파이프라인은 이 경로를 호출하지 않음. 내부 분석용으로만 유지.
+ * 새 C급 경로: lib/geo/prefetch/frandoorDocx.ts (docx __official_data__ + __raw_text__).
+ */
 /* PR030 seed — 본사 POS 엑셀 → frandoor_brand_facts (범용 배치) */
 import * as fs from "node:fs";
 import * as path from "node:path";
