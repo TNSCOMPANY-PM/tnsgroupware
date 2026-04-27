@@ -207,6 +207,10 @@ export function geoLint(input: GeoLintInput): GeoLintOutput {
 // V2 ─ depth별 lint 확장 (L25~L30, D3: L33~L42)
 export type D3LintContext = {
   availableStoreNames?: string[];
+  /** PR053 — primary 영역 수 (영역 매칭·누락 검증). */
+  primaryAreaCount?: number;
+  /** PR053 — area_sections_md 조립 개수 (실제 본문에 들어간 영역 H2 수). */
+  areaSectionAssembled?: number;
 };
 
 export function lintForDepth(
@@ -614,6 +618,40 @@ export function lintForDepth(
     }
     if (!/→\s/.test(lead800)) {
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
+    }
+
+    // L67/L69 PR053 — primary 영역 매칭·누락 검증.
+    if (payload.kind === "franchiseDoc") {
+      const primaryCount = opts.d3?.primaryAreaCount ?? null;
+      const assembled = opts.d3?.areaSectionAssembled ?? null;
+      if (primaryCount !== null && assembled !== null) {
+        // 본문 H2 (lede·결론·산식·참고 자료 제외) 개수.
+        const headers = payload.sections.map((s) => s.heading);
+        const sectionCount = headers.length;
+        const reservedH2 = 4; // lede + 결론 + 산식 + 참고자료 (대략 sections[0]~[4] 안에 분배되므로 비교 기준 느슨)
+        if (primaryCount === 0 && assembled > 0) {
+          errors.push({
+            code: "L67",
+            level: "ERROR",
+            msg: `primary 영역 0개인데 area_sections ${assembled}개 조립됨 (모순)`,
+          });
+        }
+        if (assembled > 0 && sectionCount < assembled) {
+          warns.push({
+            code: "L67",
+            level: "WARN",
+            msg: `area_sections ${assembled}개 조립됐으나 sections ${sectionCount}개 (영역 H2 부족 가능)`,
+          });
+        }
+        if (assembled < primaryCount) {
+          warns.push({
+            code: "L69",
+            level: "WARN",
+            msg: `primary ${primaryCount}개 영역 중 ${assembled}개만 H2 조립 (비교표 보유분 한정 — ${primaryCount - assembled}개 영역 누락)`,
+          });
+        }
+        void reservedH2;
+      }
     }
 
     // L67/L68 PR052 — 비교표 비고 자연어 풀이 검증.
