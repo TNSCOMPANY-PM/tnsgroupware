@@ -18,6 +18,10 @@ import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@
 import { InsufficientDataError } from "@/lib/geo/types";
 import { routeTopicToFacts } from "@/lib/geo/prefetch/topicRouter";
 import { fetchFrandoorDocx, extractHomepageFacts } from "@/lib/geo/prefetch/frandoorDocx";
+import { answerBox, statRow, conclusionBox } from "@/lib/geo/write/blocks";
+import { buildOneLineAnswer, pickHeadlineStats, buildConclusionBody } from "@/lib/geo/write/lede";
+import { buildAvsCRows, renderMarkdownTable } from "@/lib/geo/write/compareTable";
+import { chooseTitle } from "@/lib/geo/write/titler";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -444,6 +448,32 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   }
   const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
+
+  // PR045 — 본문 박스·제목 휴리스틱 사전 조립.
+  const allDeriveds = [...pre.deriveds, ...tsDeriveds];
+  const lede = buildOneLineAnswer({ brand: input.brand, facts: facts.facts, deriveds: allDeriveds });
+  const headline = pickHeadlineStats({ facts: facts.facts, deriveds: allDeriveds });
+  const conclusionBody = buildConclusionBody({ brand: input.brand, facts: facts.facts, deriveds: allDeriveds });
+  const compareRows = buildAvsCRows(facts.facts);
+  const compareMd = renderMarkdownTable(compareRows);
+  const titleYear = official?.master.latest_year
+    ? String(official.master.latest_year)
+    : (docx?.official_data?.source_year ?? "2024");
+  const suggestedTitle = chooseTitle({
+    brand: input.brand,
+    facts: facts.facts,
+    deriveds: allDeriveds,
+    topic: (input as { topic?: string }).topic,
+    year: titleYear,
+  });
+
+  const boxAnswerMd = answerBox({ answer_text: lede.answer, detail: lede.detail });
+  const boxStatRowMd = headline.length > 0 ? statRow({ items: headline }) : "";
+  const boxConclusionMd = conclusionBox({ body: conclusionBody });
+  log(
+    `[blocks] answer=${boxAnswerMd.length}자 stat_items=${headline.length} compare_rows=${compareRows.length} title=${suggestedTitle?.pattern ?? "-"}`,
+  );
+
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
     stores_resolved: stores,
     corporation_founded_year: official?.master.corp_founded_date
@@ -453,6 +483,12 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       official?.master.ftc_first_registered_date ??
       official?.master.source_first_registered_at ??
       null,
+    box_answer_md: boxAnswerMd,
+    box_stat_row_md: boxStatRowMd,
+    box_compare_md: compareMd,
+    box_conclusion_md: boxConclusionMd,
+    suggested_title: suggestedTitle?.title ?? null,
+    suggested_title_pattern: suggestedTitle?.pattern ?? null,
   });
   const raw = sonnet.raw as {
     canonicalUrl?: unknown;

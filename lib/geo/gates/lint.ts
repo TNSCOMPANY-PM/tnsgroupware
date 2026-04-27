@@ -431,6 +431,123 @@ export function lintForDepth(
       });
     }
 
+    // L49 본문 진입 4요소 강제 (PR045): 본문 첫 600자 안에 answer-box·stat-row·메타·화살표.
+    const lead600 = body.slice(0, 600);
+    const ANSWER_RE = /(class\s*=\s*"[^"]*answer-box[^"]*"|결론부터)/u;
+    const STAT_RE = /(class\s*=\s*"[^"]*stat-row[^"]*"|<div\s+style\s*=\s*"[^"]*display\s*:\s*flex)/u;
+    const META_RE_LEAD = /(여기서\s*끝내도|계속\s*읽으시면|두\s*자료를\s*어떻게\s*읽어야)/u;
+    const ARROW_RE = /→\s/u;
+    if (!ANSWER_RE.test(lead600)) {
+      errors.push({ code: "L49", level: "ERROR", msg: "본문 진입 결론박스(answer-box / 결론부터) 누락" });
+    }
+    if (!STAT_RE.test(lead600)) {
+      errors.push({ code: "L49", level: "ERROR", msg: "본문 진입 stat-row 박스 누락" });
+    }
+    if (!META_RE_LEAD.test(lead600)) {
+      warns.push({ code: "L49", level: "WARN", msg: "본문 진입 메타 안내 문장 누락 ('여기서 끝내도' / '계속 읽으시면' / '두 자료를 어떻게 읽어야')" });
+    }
+    if (!ARROW_RE.test(lead600)) {
+      warns.push({ code: "L49", level: "WARN", msg: "본문 진입 화살표 안내 (→ ) 누락" });
+    }
+
+    // L50 섹션 헤더 질문/일상어 (PR045): 명사구 단독·격식 보고서 헤더 차단.
+    if (payload.kind === "franchiseDoc") {
+      const NOUN_HEADER_RE = /^(데이터\s*브리프|핵심\s*수치\s*요약|확장\s*추세\s*분석|재무\s*분석|관찰된\s*구조적\s*특징|수치\s*너머에서\s*읽히는\s*것들?|추가\s*확인\s*가능\s*항목|분석|브리프|정리|체크|리뷰)$/u;
+      const NATURAL_TAIL_RE = /[?!?]|이유$|수준$|가능$|되나요$|어떨까$|만한가요?$|보면$|볼까요?$|읽힐까요?$|봐야|살펴|짚어/u;
+      const headers = payload.sections.map((s) => s.heading.trim());
+      const nounHeaders = headers.filter((h) => NOUN_HEADER_RE.test(h) || h.length < 5);
+      const formalHeaders = headers.filter((h) => !NATURAL_TAIL_RE.test(h));
+      if (nounHeaders.length > 0) {
+        warns.push({
+          code: "L50",
+          level: "WARN",
+          msg: `명사구·격식 헤더 ${nounHeaders.length}개: ${nounHeaders.slice(0, 3).join(" | ")}`,
+        });
+      }
+      if (formalHeaders.length >= Math.ceil(headers.length / 2)) {
+        warns.push({
+          code: "L50",
+          level: "WARN",
+          msg: `H2 헤더 절반 이상 자연어 종결 누락 (질문형·관찰형 권장): ${formalHeaders.slice(0, 2).join(" | ")}`,
+        });
+      }
+      // 섹션 끝 화살표 — 마지막 섹션 제외, 각 섹션 마지막 줄에 → 시작 라인.
+      const sectionsExceptLast = payload.sections.slice(0, -1);
+      const missingArrow = sectionsExceptLast.filter((s) => {
+        const last = s.body.trim().split(/\n+/).pop()?.trim() ?? "";
+        return !/^→\s/.test(last);
+      });
+      if (missingArrow.length > 0) {
+        warns.push({
+          code: "L50",
+          level: "WARN",
+          msg: `섹션 끝 화살표(→ ) 누락 ${missingArrow.length}개`,
+        });
+      }
+    }
+
+    // L51 결론 박스 단어 차단 (PR045).
+    const CONCLUSION_RE = /<div\s+(?:[^>]*?(?:class\s*=\s*"[^"]*conclusion-box[^"]*"|style\s*=\s*"[^"]*background\s*:\s*#1a3a5c)[^>]*?)>([\s\S]*?)<\/div>/u;
+    const concMatch = body.match(CONCLUSION_RE);
+    if (concMatch) {
+      const concText = concMatch[0];
+      const SELF_PRAISE_IN_BOX = /(저희\s*프랜도어|프랜도어\s*데이터\s*기반|업계\s*최고\s*수준|독점\s*제공|본사\s*직접\s*연락)/u;
+      const FORBIDDEN_WORDS_IN_BOX = /(추천|유리|매력적|최저)/u;
+      if (SELF_PRAISE_IN_BOX.test(concText)) {
+        warns.push({ code: "L51", level: "WARN", msg: "결론 박스에 자기과시·CTA 표현 등장" });
+      }
+      if (FORBIDDEN_WORDS_IN_BOX.test(concText)) {
+        errors.push({ code: "L51", level: "ERROR", msg: "결론 박스에 우열·권유 단어 등장 (추천/유리/매력적/최저)" });
+      }
+    }
+
+    // L52 제목 패턴 (PR045).
+    const title = (payload.kind === "franchiseDoc" ? payload.meta?.title : undefined) ?? "";
+    if (title) {
+      if (/(데이터\s*브리프|한눈에\s*정리|총정리|가맹점\s*리뷰)/u.test(title)) {
+        errors.push({ code: "L52", level: "ERROR", msg: `제목 금지 키워드 등장: "${title}"` });
+      }
+      if (title.length > 50) warns.push({ code: "L52", level: "WARN", msg: `제목 ${title.length}자 (50자 초과)` });
+      if (title.length < 22) warns.push({ code: "L52", level: "WARN", msg: `제목 ${title.length}자 (22자 미만)` });
+      if (!/\d/.test(title)) warns.push({ code: "L52", level: "WARN", msg: "제목에 수치 없음" });
+      if (!/[—|]/.test(title)) warns.push({ code: "L52", level: "WARN", msg: "제목 구분자(— 또는 |) 없음" });
+    }
+
+    // L53 본문 5자리 만원 단독 차단 (PR045) — 박스/FAQ/표/참고자료 외 본문에서만.
+    if (payload.kind === "franchiseDoc") {
+      const FIVE_DIGIT_MANWON = /\b\d{1,3}(?:,\d{3}){2,}\s*만원\b/g;
+      let bodyExBoxes = "";
+      for (const s of payload.sections) {
+        if (/참고\s*자료|데이터\s*출처/.test(s.heading)) continue;
+        // 박스(<div ...>...</div>) 와 표(| ... |) 를 제거.
+        let cleaned = s.body.replace(/<div[\s\S]*?<\/div>/g, "");
+        cleaned = cleaned.replace(/^\|.*\|$/gm, "");
+        bodyExBoxes += "\n" + cleaned;
+      }
+      const fiveDigitHits = Array.from(bodyExBoxes.matchAll(FIVE_DIGIT_MANWON)).map((m) => m[0]);
+      if (fiveDigitHits.length > 0) {
+        errors.push({
+          code: "L53",
+          level: "ERROR",
+          msg: `본문 5자리 만원 단독 표기 ${fiveDigitHits.length}건 (1억 이상은 억원 표기): ${fiveDigitHits.slice(0, 3).join(", ")}`,
+        });
+      }
+    }
+
+    // L54 자기과시 어조 본문 차단 (PR045).
+    const SELF_PRAISE_BODY = /(저희\s*프랜도어|프랜도어\s*데이터\s*기반|업계\s*최고\s*수준|독점\s*제공)/u;
+    if (SELF_PRAISE_BODY.test(body)) {
+      const m = body.match(SELF_PRAISE_BODY)?.[0] ?? "";
+      errors.push({ code: "L54", level: "ERROR", msg: `자기과시 표현 본문 등장: "${m}"` });
+    }
+
+    // L55 1인칭 본사 톤 본문 차단 (PR045).
+    const FIRST_PERSON_FRANCHISE = /(저희\s*매장|우리\s*매장|저희\s*가맹점)/u;
+    if (FIRST_PERSON_FRANCHISE.test(body)) {
+      const m = body.match(FIRST_PERSON_FRANCHISE)?.[0] ?? "";
+      errors.push({ code: "L55", level: "ERROR", msg: `1인칭 본사 톤 본문 등장: "${m}"` });
+    }
+
     // L44 판단·평가·지시 어구 본문 등장 금지 (PR038 팩트·비교 콘텐츠 전환).
     const BANNED_JUDGMENT = [
       "진입 가능", "조건부 가능", "판단 유보", "비권장",
