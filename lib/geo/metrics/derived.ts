@@ -203,33 +203,9 @@ export function computeIndustryPosition(
   };
 }
 
-// 5. 실질폐점률 = (폐점 + 계약종료 + 명의변경) / 기초가맹점수 × 100
-// 공정위 BrandFrcsStat: ctrtEndCnt(계약종료) + ctrtCncltnCnt(계약해지) + nmChgCnt(명의변경)
-export function computeRealClosureRate(ftc: FtcFact): DerivedMetric | null {
-  const end = finite(ftc.ctrtEndCnt) ?? 0;
-  const cncltn = finite(ftc.ctrtCncltnCnt) ?? 0;
-  const nmChg = finite(ftc.nmChgCnt) ?? 0;
-  const frcs = finite(ftc.frcsCnt);
-  if (!frcs || frcs <= 0) return null;
-  const closures = end + cncltn + nmChg;
-  const pct = round((closures / frcs) * 100, 1);
-  return {
-    key: "real_closure_rate",
-    label: `${brandLabel(ftc)} 실질폐점률`,
-    value: pct,
-    unit: "%",
-    basis: `공정위 정보공개서 ${ftc.yr}년판: 가맹점수 ${frcs} / 계약종료 ${end} + 해지 ${cncltn} + 명의변경 ${nmChg}`,
-    formula: "실질폐점률(%) = (계약종료 + 계약해지 + 명의변경) / 기초가맹점수 × 100",
-    inputs: {
-      계약종료: end,
-      계약해지: cncltn,
-      명의변경: nmChg,
-      기초가맹점수: frcs,
-    },
-    period: ftc.yr,
-    confidence: "high",
-  };
-}
+// 5. (폐기) "실질폐점률" — PR050 에서 폐기.
+// 명의변경(양도양수)은 점포가 닫힌 게 아니라 운영자만 변경된 케이스이므로 폐점 카테고리에 합산할 수 없음.
+// 공정위 표준 공시 폐점률은 (계약종료 + 계약해지) / 기초가맹점수 × 100. 명의변경은 별도 평문 언급.
 
 // 6. 확장배수 = 신규개점 / 기초점포수
 export function computeExpansionRatio(ftc: FtcFact): DerivedMetric | null {
@@ -301,7 +277,7 @@ export function computeAll(
   if (opts.peerList && opts.peerList.length > 0) {
     pushIf(computeIndustryPosition(ftc, opts.peerList));
   }
-  pushIf(computeRealClosureRate(ftc));
+  // PR050: computeRealClosureRate 폐기 (명의변경 ≠ 폐점). 호출 제거.
   pushIf(computeExpansionRatio(ftc));
   pushIf(computeTransferRatio(ftc));
   pushIf(computeNetExpansion(ftc));
