@@ -29,6 +29,7 @@ import {
 import { buildAvsCRows, renderMarkdownTable } from "@/lib/geo/write/compareTable";
 import { chooseTitle } from "@/lib/geo/write/titler";
 import { buildFrontmatter, renderFrontmatterYaml } from "@/lib/geo/write/frontmatter";
+import { buildCategoryFunnelMarkdown } from "@/lib/geo/write/categorySlug";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -490,13 +491,19 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     metaPattern: metaSelection.pattern,
     metaPeriodGapMonths: metaSelection.period_gap_months,
   });
+  // PR051 — 카테고리 매핑은 더 구체적인 industry_sub 우선 (예: "분식"), fallback "외식".
+  const industryForCta =
+    official?.master.industry_sub ?? official?.master.industry_main ?? null;
   const conclusionMd = buildConclusionMarkdown({
     brand: input.brand,
     facts: facts.facts,
     deriveds: allDeriveds,
     cta,
+    industry: industryForCta,
   });
   const formulaMd = buildFormulaMarkdown(formulaItems);
+  // PR051 — 카테고리 회유 마크다운 링크 (매핑 부재 시 빈 문자열).
+  const categoryFunnelMd = buildCategoryFunnelMarkdown(industryForCta);
 
   log(
     `[md] lede=${ledeMd.length}자 compare_rows=${compareRows.length} formula=${formulaItems.length} meta=${metaSelection.pattern} title=${suggestedTitle?.pattern ?? "-"}`,
@@ -515,6 +522,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     compare_table_md: compareMd,
     conclusion_section_md: conclusionMd,
     formula_section_md: formulaMd,
+    category_funnel_md: categoryFunnelMd,
     suggested_title: suggestedTitle?.title ?? null,
     suggested_title_pattern: suggestedTitle?.pattern ?? null,
     meta_pattern: metaSelection.pattern,

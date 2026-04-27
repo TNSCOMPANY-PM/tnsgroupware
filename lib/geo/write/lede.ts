@@ -379,14 +379,23 @@ export function buildLedeMarkdown(opts: {
   return parts.join("\n");
 }
 
+/** PR051 — 결론 박스 5번째 share-line ("이타적 프레이밍"). */
+export function buildShareLine(opts: { industry?: string | null }): string {
+  const industry = (opts.industry ?? "").trim() || "프랜차이즈";
+  const phrase = /프랜차이즈$/.test(industry) ? industry : `${industry} 프랜차이즈`;
+  return `${phrase} 창업을 검토하는 지인이 있다면 이 글을 함께 보세요.`;
+}
+
 export function buildConclusionMarkdown(opts: {
   brand: string;
   facts: FactLite[];
   deriveds: DerivedMetric[];
   cta?: { label: string; href?: string; phone?: string } | null;
+  industry?: string | null;
 }): string {
   const body = buildConclusionBody({ brand: opts.brand, facts: opts.facts, deriveds: opts.deriveds });
-  const parts: string[] = ["## 결론", "", body];
+  const shareLine = buildShareLine({ industry: opts.industry });
+  const parts: string[] = ["## 결론", "", body, "", shareLine];
   if (opts.cta) {
     const linkPart = opts.cta.href ? `[${opts.cta.label}](${opts.cta.href})` : opts.cta.label;
     const phonePart = opts.cta.phone ? ` · ☎ ${opts.cta.phone}` : "";
