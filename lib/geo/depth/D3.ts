@@ -24,6 +24,7 @@ import {
   fetchFtcIndustryStats,
   computePercentile,
   fetchHqFinanceAvg,
+  fetchRegionalAvg,
 } from "@/lib/geo/prefetch/ftc2024";
 import {
   pickMetaPattern,
@@ -447,9 +448,12 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   }
 
   // PR056 — frandoor ftc_brands_2024 connector facts 주입.
+  // PR057 — ftcBrandMatched 추적 (L74 lint 입력).
+  let ftcBrandMatched: boolean | null = null;
   if (isFtc2024Configured()) {
     try {
       const ftcBrand = await fetchFtcBrand({ brand_nm: input.brand });
+      ftcBrandMatched = !!ftcBrand;
       const industryKor =
         (ftcBrand?.induty_mlsfc as string | undefined) ??
         official?.master?.industry_sub ??
@@ -550,6 +554,42 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
             formula_id: "hq_op_margin_vs_industry",
           });
         }
+        // PR057 — 지역별 평균 (revenue_detail 영역이 primary 일 때 1줄 인용에 사용)
+        try {
+          const regional = await fetchRegionalAvg(industryKor);
+          if (regional && regional.length > 0) {
+            const top = regional
+              .filter((r) => r.region !== "전체" && r.avg_monthly_revenue != null)
+              .sort((a, b) => (b.avg_monthly_revenue ?? 0) - (a.avg_monthly_revenue ?? 0))
+              .slice(0, 3);
+            if (top.length > 0) {
+              const parts = top.map(
+                (r) =>
+                  `${r.region} ${r.n}개 평균 ${(r.avg_monthly_revenue ?? 0).toLocaleString("ko-KR")}만원`,
+              );
+              facts.facts.push({
+                claim: `${industryKor} 프랜차이즈 중 ${parts.join(", ")} (공정위 정보공개서 2024)`,
+                value: top[0].avg_monthly_revenue ?? 0,
+                unit: "만원",
+                source_url: "https://franchise.ftc.go.kr/",
+                source_title: "공정위 정보공개서 2024 (frandoor 적재)",
+                year_month: "2024-12",
+                period_month: "2024-12",
+                authoritativeness: "primary",
+                tier: "B",
+                source_tier: "B",
+                fact_key: "ftc2024_regional_avg_revenue",
+                derived: false,
+              });
+              log(`[ftc2024] regional avg=${top.length}/${regional.length} 지역 (top3: ${parts.join(" / ")})`);
+            }
+          } else {
+            log(`[ftc2024] regional avg — 데이터 없음 (컬럼 미스매치 가능, COL_REVENUE_REGIONAL 점검 필요)`);
+          }
+        } catch (e) {
+          console.warn("[ftc2024] regional avg 실패:", e instanceof Error ? e.message : e);
+        }
+
         log(
           `[ftc2024] industry=${industryKor} stats=${istats ? `n=${istats.n}` : "none"} hq=${hq ? `n=${hq.n}` : "none"}`,
         );
@@ -631,6 +671,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     deriveds: allDeriveds,
     metaPattern: metaSelection.pattern,
     metaPeriodGapMonths: metaSelection.period_gap_months,
+    topic: (input as { topic?: string }).topic,
   });
   // PR051 — 카테고리 매핑은 더 구체적인 industry_sub 우선 (예: "분식"), fallback "외식".
   const industryForCta =
@@ -768,6 +809,8 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     availableStoreNames: [] as string[],
     primaryAreaCount: primaryAreas(lintAreaPlan).length,
     areaSectionAssembled: areaSectionsMd.length,
+    topic: topicForLint,
+    ftcBrandMatched,
   };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [

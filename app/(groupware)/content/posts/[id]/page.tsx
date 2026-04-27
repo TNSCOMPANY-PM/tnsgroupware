@@ -4,6 +4,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import DeleteDraftButton from "./DeleteDraftButton";
 import PostBodyMarkdown from "./PostBodyMarkdown";
 import DownloadMdButton from "./DownloadMdButton";
+import PublishFrandoorButton from "./PublishFrandoorButton";
 
 const TYPE_LABEL: Record<string, string> = {
   brand: "브랜드(D3)",
@@ -67,6 +68,9 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
         <div className="flex items-center gap-2">
           {draft.content && (
             <DownloadMdButton content={draft.content} fallbackName={draft.id.slice(0, 8)} />
+          )}
+          {draft.content && (
+            <PublishFrandoorButton postId={draft.id} content={draft.content} />
           )}
           <DeleteDraftButton id={draft.id} />
         </div>

@@ -34,6 +34,15 @@ export type IndustryPercentile = {
   percentile: number;
 };
 
+export type RegionalAvg = {
+  industry: string;
+  region: string;
+  n: number;
+  avg_monthly_revenue: number | null;
+  avg_unit_area_revenue: number | null;
+  source_year: "2024";
+};
+
 export type HqFinanceAvg = {
   industry: string;
   n: number;
@@ -80,6 +89,45 @@ const COL_FIN_OP = ["fin_2024_op_profit", "op_profit_2024", "operating_profit"];
 const COL_FIN_DEBT = ["fin_2024_total_debt", "total_debt_2024", "total_liabilities"];
 const COL_FIN_EQUITY = ["fin_2024_total_equity", "total_equity_2024", "equity"];
 
+/** PR057 — 17개 지역 + "전체". 컬럼명은 _check-frandoor-env.ts 결과 기반 정정 필요. */
+const REGIONS = [
+  "전체", "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+  "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
+] as const;
+type Region = typeof REGIONS[number];
+
+/** 지역별 월평균매출 컬럼 후보. frandoor 측 실제 컬럼명 확인 후 정정. */
+const COL_REVENUE_REGIONAL: Record<Region, string[]> = {
+  전체: ["avg_sales_2024_total", "avg_monthly_revenue", "avg_sales_total"],
+  서울: ["avg_sales_2024_seoul", "avg_sales_seoul_2024", "avg_sales_seoul"],
+  부산: ["avg_sales_2024_busan", "avg_sales_busan_2024", "avg_sales_busan"],
+  대구: ["avg_sales_2024_daegu", "avg_sales_daegu_2024", "avg_sales_daegu"],
+  인천: ["avg_sales_2024_incheon", "avg_sales_incheon_2024", "avg_sales_incheon"],
+  광주: ["avg_sales_2024_gwangju", "avg_sales_gwangju_2024", "avg_sales_gwangju"],
+  대전: ["avg_sales_2024_daejeon", "avg_sales_daejeon_2024", "avg_sales_daejeon"],
+  울산: ["avg_sales_2024_ulsan", "avg_sales_ulsan_2024", "avg_sales_ulsan"],
+  세종: ["avg_sales_2024_sejong", "avg_sales_sejong_2024", "avg_sales_sejong"],
+  경기: ["avg_sales_2024_gyeonggi", "avg_sales_gyeonggi_2024", "avg_sales_gyeonggi"],
+  강원: ["avg_sales_2024_gangwon", "avg_sales_gangwon_2024", "avg_sales_gangwon"],
+  충북: ["avg_sales_2024_chungbuk", "avg_sales_chungbuk_2024", "avg_sales_chungbuk"],
+  충남: ["avg_sales_2024_chungnam", "avg_sales_chungnam_2024", "avg_sales_chungnam"],
+  전북: ["avg_sales_2024_jeonbuk", "avg_sales_jeonbuk_2024", "avg_sales_jeonbuk"],
+  전남: ["avg_sales_2024_jeonnam", "avg_sales_jeonnam_2024", "avg_sales_jeonnam"],
+  경북: ["avg_sales_2024_gyeongbuk", "avg_sales_gyeongbuk_2024", "avg_sales_gyeongbuk"],
+  경남: ["avg_sales_2024_gyeongnam", "avg_sales_gyeongnam_2024", "avg_sales_gyeongnam"],
+  제주: ["avg_sales_2024_jeju", "avg_sales_jeju_2024", "avg_sales_jeju"],
+};
+
+const COL_UNIT_AREA_REGIONAL: Record<Region, string[]> = Object.fromEntries(
+  REGIONS.map((r) => [
+    r,
+    [
+      `avg_sales_per_area_${r === "전체" ? "total" : r}`,
+      `avg_unit_area_${r === "전체" ? "total" : r}_2024`,
+    ],
+  ]),
+) as Record<Region, string[]>;
+
 function pickFirstNumColumn(row: Record<string, unknown>, cols: string[]): number | null {
   for (const c of cols) {
     if (c in row) {
@@ -98,6 +146,8 @@ export async function fetchFtcBrand(input: {
   if (!isFrandoorConfigured()) return null;
   try {
     const sb = createFrandoorClient();
+
+    // 1차: exact match
     let q = sb.from("ftc_brands_2024").select("*").limit(1);
     if (input.reg_no) q = q.eq("reg_no", input.reg_no);
     else if (input.brand_nm) q = q.eq("brand_nm", input.brand_nm);
@@ -105,10 +155,44 @@ export async function fetchFtcBrand(input: {
     else return null;
     const { data, error } = await q.maybeSingle();
     if (error) {
-      console.warn("[ftc2024] fetchFtcBrand error:", error.message);
-      return null;
+      console.warn("[ftc2024] fetchFtcBrand exact error:", error.message);
     }
-    return data;
+    if (data) return data;
+
+    // 2차: fuzzy ilike (brand_nm 만 — 공백/대소문자 차이 허용)
+    if (input.brand_nm) {
+      const normalized = input.brand_nm.replace(/\s+/g, "").trim();
+      if (normalized.length >= 2) {
+        const { data: fuzzyRows, error: fuzzyErr } = await sb
+          .from("ftc_brands_2024")
+          .select("*")
+          .ilike("brand_nm", `%${normalized}%`)
+          .limit(5);
+        if (fuzzyErr) {
+          console.warn("[ftc2024] fetchFtcBrand fuzzy error:", fuzzyErr.message);
+        }
+        if (fuzzyRows && fuzzyRows.length === 1) return fuzzyRows[0];
+        if (fuzzyRows && fuzzyRows.length > 1) {
+          // 다중 매칭: corp_nm 또는 reg_no 교차 검증
+          if (input.corp_nm) {
+            const cross = fuzzyRows.find((r) => (r as Record<string, unknown>).corp_nm === input.corp_nm);
+            if (cross) return cross;
+          }
+          if (input.reg_no) {
+            const cross = fuzzyRows.find((r) => (r as Record<string, unknown>).reg_no === input.reg_no);
+            if (cross) return cross;
+          }
+          // 교차 검증 실패 — 공백제거 brand_nm 정확히 일치하는 것 우선
+          const exactNorm = fuzzyRows.find((r) => {
+            const v = (r as Record<string, unknown>).brand_nm;
+            return typeof v === "string" && v.replace(/\s+/g, "") === normalized;
+          });
+          if (exactNorm) return exactNorm;
+          console.warn(`[ftc2024] fetchFtcBrand fuzzy 다중 매칭 ${fuzzyRows.length}건 — 단일 식별 실패`);
+        }
+      }
+    }
+    return null;
   } catch (e) {
     console.warn("[ftc2024] fetchFtcBrand 실패:", e instanceof Error ? e.message : e);
     return null;
@@ -230,6 +314,54 @@ export async function fetchHqFinanceAvg(industryKor: string): Promise<HqFinanceA
     };
   } catch (e) {
     console.warn("[ftc2024] hq finance avg 실패:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * PR057 — 17개 지역(+전체) 월평균매출 / 단위면적당 매출 평균.
+ * region 미지정 → 18개 모두 반환. 지정 → 해당 지역 1건만.
+ * 컬럼이 모두 없으면 해당 region 결과는 null 반환 (호출자가 graceful skip).
+ */
+export async function fetchRegionalAvg(
+  industryKor: string,
+  region?: Region,
+): Promise<RegionalAvg[] | null> {
+  if (!isFrandoorConfigured() || !industryKor) return null;
+  try {
+    const sb = createFrandoorClient();
+    const { data, error } = await sb
+      .from("ftc_brands_2024")
+      .select("*")
+      .eq("induty_mlsfc", industryKor);
+    if (error || !data || data.length === 0) {
+      if (error) console.warn("[ftc2024] regional avg:", error.message);
+      return null;
+    }
+    const targets: readonly Region[] = region ? [region] : REGIONS;
+    const results: RegionalAvg[] = [];
+    for (const reg of targets) {
+      const revCols = COL_REVENUE_REGIONAL[reg] ?? [];
+      const areaCols = COL_UNIT_AREA_REGIONAL[reg] ?? [];
+      const revVals = data
+        .map((r) => pickFirstNumColumn(r as Record<string, unknown>, revCols))
+        .filter((x): x is number => x !== null);
+      const areaVals = data
+        .map((r) => pickFirstNumColumn(r as Record<string, unknown>, areaCols))
+        .filter((x): x is number => x !== null);
+      if (revVals.length === 0 && areaVals.length === 0) continue;
+      results.push({
+        industry: industryKor,
+        region: reg,
+        n: revVals.length || areaVals.length,
+        avg_monthly_revenue: avg(revVals),
+        avg_unit_area_revenue: avg(areaVals),
+        source_year: "2024",
+      });
+    }
+    return results.length > 0 ? results : null;
+  } catch (e) {
+    console.warn("[ftc2024] regional avg 실패:", e instanceof Error ? e.message : e);
     return null;
   }
 }

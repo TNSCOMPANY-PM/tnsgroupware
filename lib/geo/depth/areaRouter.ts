@@ -17,8 +17,8 @@ const PATTERNS: Record<AreaKey, { primary: RegExp; secondary: RegExp }> = {
     secondary: /창업|개업/u,
   },
   avg_revenue: {
-    primary: /월매출|월\s*평균\s*매출|연매출|평균\s*매출/u,
-    secondary: /수익|매출|마진|손익/u,
+    primary: /월매출|월\s*평균\s*매출|연매출|평균\s*매출|매출\s*비교|평균\s*비교/u,
+    secondary: /수익|매출|마진|손익|배수/u,
   },
   revenue_detail: {
     primary: /시간대|지역(별)?|점포별|채널|분포|상위|하위/u,
