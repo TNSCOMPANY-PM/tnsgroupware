@@ -24,6 +24,7 @@ import {
   buildLedeMarkdown,
   buildConclusionMarkdown,
   buildFormulaMarkdown,
+  detectUsedFormulas,
 } from "@/lib/geo/write/lede";
 import { buildAvsCRows, renderMarkdownTable } from "@/lib/geo/write/compareTable";
 import { chooseTitle } from "@/lib/geo/write/titler";
@@ -529,6 +530,31 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
   const faqs: FaqItem[] = normalizeFaqs("D3", raw.faq25);
   const payload = assembleFranchiseDoc(raw, faqs, pre.deriveds);
+
+  // PR049 — 본문 inline 인용 검사 후 산식 박스 항목 필터링.
+  // sonnet 이 모든 formulaItems 를 받아 body 에 박았으나, 본문에서 참조 안 한 항목은 박스에서 제외.
+  const allBodyMd = payload.sections.map((s) => `## ${s.heading}\n\n${s.body}`).join("\n\n");
+  const detected = detectUsedFormulas(allBodyMd, formulaItems);
+  const visibleFormulas = detected.filter((f) => f.used_in_body);
+  const filteredFormulaMd = visibleFormulas.length > 0 ? buildFormulaMarkdown(visibleFormulas) : "";
+  if (formulaMd && filteredFormulaMd !== formulaMd) {
+    // 본문에 이미 박힌 formula H2 섹션을 필터링된 버전으로 교체.
+    for (const s of payload.sections) {
+      const idx = s.body.search(/##\s*이\s*글에서\s*계산한\s*값들/m);
+      if (idx >= 0) {
+        const before = s.body.slice(0, idx);
+        const afterMatch = s.body.slice(idx).match(/##\s*이\s*글에서\s*계산한\s*값들[\s\S]*?(?=\n##\s|$)/);
+        const after = afterMatch ? s.body.slice(idx + afterMatch[0].length) : "";
+        s.body = `${before}${filteredFormulaMd}${after}`.replace(/\n{3,}/g, "\n\n");
+      }
+    }
+    log(
+      `[formula] post-filter: ${formulaItems.length} → ${visibleFormulas.length} 항목 (제외: ${detected
+        .filter((f) => !f.used_in_body)
+        .map((f) => f.metric)
+        .join(", ") || "-"})`,
+    );
+  }
 
   // PR047 — frontmatter 조립 후 payload.meta 에 부착.
   const fm = buildFrontmatter({
