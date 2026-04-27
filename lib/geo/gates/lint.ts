@@ -616,6 +616,121 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L60/L61/L62/L63 PR048 가독성·정확도.
+    if (payload.kind === "franchiseDoc") {
+      // 인용 블록·표·코드 블록·리스트 행 제거 후 평문만 분석.
+      const stripBlocks = (s: string): string => {
+        let t = s;
+        t = t.replace(/^```[\s\S]*?```$/gm, ""); // code fence
+        t = t.replace(/^>.*$/gm, ""); // blockquote 행
+        t = t.replace(/^\|.*\|$/gm, ""); // table 행
+        t = t.replace(/^\s*[-*]\s+.*$/gm, ""); // markdown list 행 (- / *)
+        t = t.replace(/^\s*\d+\.\s+.*$/gm, ""); // numbered list 행
+        return t;
+      };
+
+      const sentenceSplit = (s: string): string[] => {
+        // 숫자 안 마침표 (1.5배) 보존 — 마침표 다음에 공백/개행이어야 분리.
+        return s
+          .split(/(?<=[.!?])\s+|\n\n+/)
+          .map((x) => x.trim())
+          .filter((x) => x.length > 0 && /[가-힣A-Za-z]/.test(x));
+      };
+
+      // L60 한 문장 길이.
+      const allLong: string[] = [];
+      const allHuge: string[] = [];
+      for (const s of payload.sections) {
+        const text = stripBlocks(s.body);
+        for (const sent of sentenceSplit(text)) {
+          if (sent.length > 120) allHuge.push(sent.slice(0, 60));
+          else if (sent.length > 80) allLong.push(sent.slice(0, 60));
+        }
+      }
+      if (allHuge.length > 0) {
+        errors.push({
+          code: "L60",
+          level: "ERROR",
+          msg: `한 문장 120자 초과 ${allHuge.length}건: "${allHuge[0]}..."`,
+        });
+      } else if (allLong.length > 0) {
+        warns.push({
+          code: "L60",
+          level: "WARN",
+          msg: `한 문장 80자 초과 ${allLong.length}건: "${allLong[0]}..."`,
+        });
+      }
+
+      // L61 두괄식 — 첫 H2 (lede) 외 각 섹션 첫 문장에 수치 1개+.
+      const sections = payload.sections;
+      for (let i = 1; i < sections.length; i++) {
+        const text = stripBlocks(sections[i].body);
+        const sentences = sentenceSplit(text);
+        if (sentences.length === 0) continue;
+        const first = sentences[0];
+        const hasNumber = /\d/.test(first);
+        if (!hasNumber) {
+          warns.push({
+            code: "L61",
+            level: "WARN",
+            msg: `섹션 "${sections[i].heading}" 첫 문장에 수치 없음 (두괄식 권장): "${first.slice(0, 50)}..."`,
+          });
+        }
+        if (first.length > 80) {
+          warns.push({
+            code: "L61",
+            level: "WARN",
+            msg: `섹션 "${sections[i].heading}" 첫 문장 ${first.length}자 (두괄식 80자 이내 권장)`,
+          });
+        }
+      }
+
+      // L62 접속사 반복.
+      const CONJUNCTIONS = ["또한", "한편", "그러나", "다만", "또", "그리고"];
+      for (const s of sections) {
+        const text = stripBlocks(s.body);
+        for (const conj of CONJUNCTIONS) {
+          const re = new RegExp(`(?:^|[\\s.,])${conj}(?=[\\s,])`, "gu");
+          const count = (text.match(re) ?? []).length;
+          if (conj === "한편" && count >= 4) {
+            errors.push({
+              code: "L62",
+              level: "ERROR",
+              msg: `섹션 "${s.heading}" 안 "한편" ${count}회 등장 (4회 이상 ERROR)`,
+            });
+          } else if (count >= 3) {
+            warns.push({
+              code: "L62",
+              level: "WARN",
+              msg: `섹션 "${s.heading}" 안 "${conj}" ${count}회 등장 (3회 이상 WARN)`,
+            });
+          }
+        }
+      }
+
+      // L63 정량 수치 첫 등장 출처 검사 (lede 섹션 외).
+      const SOURCE_KW = /(공정위|본사|KOSIS|식약처|frandoor)/u;
+      const NUM_PAT = /\d+(?:,\d{3})*(?:\.\d+)?\s*(?:%|만원|억원|개월|호점|점포|배|건|개|평)/u;
+      for (let i = 1; i < sections.length; i++) {
+        const text = stripBlocks(sections[i].body);
+        const sentences = sentenceSplit(text);
+        // 첫 정량 수치 발견 시 해당 문장 또는 직전 1문장 안에 출처 키워드 검사.
+        for (let j = 0; j < sentences.length; j++) {
+          if (NUM_PAT.test(sentences[j])) {
+            const ctx = sentences.slice(Math.max(0, j - 1), j + 1).join(" ");
+            if (!SOURCE_KW.test(ctx)) {
+              warns.push({
+                code: "L63",
+                level: "WARN",
+                msg: `섹션 "${sections[i].heading}" 첫 정량 수치 등장 시 출처 키워드 누락: "${sentences[j].slice(0, 50)}..."`,
+              });
+            }
+            break;
+          }
+        }
+      }
+    }
+
     // L52 제목 패턴 (PR045).
     const title = (payload.kind === "franchiseDoc" ? payload.meta?.title : undefined) ?? "";
     if (title) {

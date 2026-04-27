@@ -342,10 +342,12 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
           const ratio = Math.round((od.avg_monthly_revenue / od.industry_avg_revenue) * 100) / 100;
           facts.facts.push({
             ...officialBase,
-            claim: `${input.brand} 월평균매출은 동 업종 평균의 ${ratio}배 수준 (공정위 정보공개서 ${sourceYearOfficial} + 업종 평균 비교)`,
+            claim: `${input.brand} 월평균매출은 동 업종 평균의 ${ratio}배 수준`,
             value: ratio,
             unit: "배",
             fact_key: "docx_industry_vs_brand_ratio",
+            derived: true,
+            formula_id: "industry_vs_brand_ratio",
           });
         }
       }

@@ -19,6 +19,10 @@ export type Fact = {
   fact_key?: string;
   source_tier?: "A" | "B" | "C";
   period_month?: string;
+  /** PR048 — frandoor 자체 산출(파생) fact 인지 표시. 본문 인용 시 "(frandoor 산출)" 라벨 금지. */
+  derived?: boolean;
+  /** PR048 — 산식 박스 항목 ID (real_closure_rate / expansion_ratio / industry_vs_brand_ratio 등). */
+  formula_id?: string | null;
 };
 
 export type DerivedMetric = {
