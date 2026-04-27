@@ -620,6 +620,59 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L71 PR055 — 본문 markdown 표 헤더/row 길이 mismatch 검사.
+    if (payload.kind === "franchiseDoc") {
+      const fullBody = payload.sections.map((s) => s.body).join("\n\n");
+      // markdown 표 블럭 찾기 (헤더 + separator + data rows).
+      const tableBlockRe = /(\|.+\|)\n\|\s*[-:| ]+\|\n((?:\|.+\|\n?)+)/g;
+      let tm: RegExpExecArray | null;
+      const mismatchCases: string[] = [];
+      while ((tm = tableBlockRe.exec(fullBody)) !== null) {
+        const headerCells = (tm[1].match(/\|/g) ?? []).length - 1;
+        const rowLines = tm[2].trim().split(/\n/);
+        for (const rl of rowLines) {
+          const cellCount = (rl.match(/\|/g) ?? []).length - 1;
+          if (cellCount !== headerCells) {
+            mismatchCases.push(`헤더 ${headerCells} vs row ${cellCount}: ${rl.slice(0, 50)}`);
+            break;
+          }
+        }
+      }
+      if (mismatchCases.length > 0) {
+        errors.push({
+          code: "L71",
+          level: "ERROR",
+          msg: `본문 표 헤더/row 길이 mismatch ${mismatchCases.length}건 (misalign 의심): ${mismatchCases[0]}`,
+          where: "body",
+        });
+      }
+
+      // L71b — 산문 단언 vs 표 셀 모순 휴리스틱 (단순 패턴, WARN 레벨).
+      const ZERO_ASSERT = /(계약종료|계약해지|법위반|시정조치)\s*(?:은|는|이|가)?\s*(?:모두\s*)?0\s*건/gu;
+      const zeroAssertions = new Set<string>();
+      for (const am of fullBody.matchAll(ZERO_ASSERT)) zeroAssertions.add(am[1]);
+      // 표 행에서 같은 metric 대응 셀이 0 이 아닌 양수면 모순 의심.
+      const tableRowRe = /^\|([^|]+)\|([^|]+)\|/gm;
+      const conflicts: string[] = [];
+      for (const tm2 of fullBody.matchAll(tableRowRe)) {
+        const metric = tm2[1].trim();
+        const value = tm2[2].trim();
+        if (!zeroAssertions.has(metric)) continue;
+        const num = parseInt(value.replace(/[^\d]/g, ""), 10);
+        if (Number.isFinite(num) && num > 0) {
+          conflicts.push(`산문 "${metric} 0건" vs 표 "${metric}=${value}"`);
+        }
+      }
+      if (conflicts.length > 0) {
+        warns.push({
+          code: "L71b",
+          level: "WARN",
+          msg: `산문-표 모순 의심 ${conflicts.length}건: ${conflicts.slice(0, 2).join(" | ")}`,
+          where: "body",
+        });
+      }
+    }
+
     // L70 PR054 — 영역 매핑 휴리스틱 부족 신호.
     // areaSectionAssembled === 0 && primaryAreaCount > 0 → docx 비교표가 모두 영역 매핑 실패했다는 신호.
     if (payload.kind === "franchiseDoc") {
