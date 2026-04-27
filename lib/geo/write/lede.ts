@@ -272,17 +272,8 @@ export function buildFormulaItems(opts: {
         formula_id: "avg_sales_dilution",
       });
     } else if (d.key === "real_closure_rate") {
-      const inputs = (d.inputs ?? {}) as Record<string, number | string>;
-      const end = Number(inputs["계약종료"] ?? 0);
-      const cncl = Number(inputs["계약해지"] ?? 0);
-      const nmChg = Number(inputs["명의변경"] ?? 0);
-      const base = Number(inputs["기초가맹점수"] ?? 0);
-      items.push({
-        metric: "실질폐점률",
-        result: fmtPercent(d.value, 1),
-        expression: `(계약종료 ${end} + 해지 ${cncl} + 명의변경 ${nmChg}) / 기초가맹점수 ${base} × 100`,
-        formula_id: "real_closure_rate",
-      });
+      // PR050: 실질폐점률 폐기. 명의변경은 폐점 아님 — 산식 박스에서 제외.
+      continue;
     } else if (d.key === "expansion_ratio") {
       const inputs = (d.inputs ?? {}) as Record<string, number | string>;
       const newCnt = Number(inputs["신규등록"] ?? 0);

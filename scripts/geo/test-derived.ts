@@ -8,7 +8,6 @@ import {
   computePaybackPeriod,
   computeNetMargin,
   computeIndustryPosition,
-  computeRealClosureRate,
   computeExpansionRatio,
   computeTransferRatio,
   computeNetExpansion,
@@ -124,14 +123,7 @@ test("computeIndustryPosition: peer 3개 미만이면 null", () => {
   assert.equal(computeIndustryPosition(bbqSample, [kyochonSample]), null);
 });
 
-// ── 5. real_closure_rate ──
-test("computeRealClosureRate: BBQ (40+60+120)/2200 = 10.0%", () => {
-  const m = computeRealClosureRate(bbqSample);
-  assert.ok(m);
-  assert.equal(m.key, "real_closure_rate");
-  assert.equal(m.unit, "%");
-  assert.equal(m.value, 10);
-});
+// ── 5. (PR050 폐기) real_closure_rate — 명의변경 ≠ 폐점, 자체 산출 misleading 으로 폐기.
 
 // ── 6. expansion_ratio ──
 test("computeExpansionRatio: BBQ 180/2200 ≈ 0.08배", () => {
@@ -161,13 +153,14 @@ test("computeNetExpansion: BBQ 180-(40+60) = 80개", () => {
 });
 
 // ── computeAll 통합 ──
-test("computeAll: BBQ + industryAvg + peer → 최소 7~8개 metric", () => {
+test("computeAll: BBQ + industryAvg + peer → 최소 6~7개 metric (PR050 real_closure_rate 폐기)", () => {
   const metrics = computeAll(bbqSample, { industryAvg, peerList: [bbqSample, kyochonSample, bhcSample, smallSample] });
-  assert.ok(metrics.length >= 7, `expected ≥7 metrics, got ${metrics.length}`);
+  assert.ok(metrics.length >= 6, `expected ≥6 metrics, got ${metrics.length}`);
   const keys = metrics.map((m) => m.key);
-  for (const k of ["real_invest", "payback", "real_closure_rate", "expansion_ratio", "transfer_ratio", "net_expansion"]) {
+  for (const k of ["real_invest", "payback", "expansion_ratio", "transfer_ratio", "net_expansion"]) {
     assert.ok(keys.includes(k as typeof metrics[number]["key"]), `missing ${k}`);
   }
+  assert.ok(!keys.includes("real_closure_rate" as typeof metrics[number]["key"]), "real_closure_rate should be deprecated");
 });
 
 // 실행

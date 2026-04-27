@@ -69,7 +69,7 @@ export function extractSubset(record: CanonicalRecord, angle: Angle): AngleSubse
       return {
         headline: `${record.slug ?? "프랜차이즈"} 폐점·확장 리스크`,
         bullets: [payload.closure?.headline ?? "폐점 지표"].filter(Boolean) as string[],
-        metrics: pickMetricsByKeys(["real_closure_rate", "net_expansion", "transfer_ratio"]),
+        metrics: pickMetricsByKeys(["net_expansion", "transfer_ratio"]), // PR050: real_closure_rate 폐기
         faqs: faqsAll.slice(0, 3),
       };
     case "compare-peer":
@@ -90,7 +90,7 @@ export function extractSubset(record: CanonicalRecord, angle: Angle): AngleSubse
       return {
         headline: `${record.slug ?? "프랜차이즈"} 최근 이슈`,
         bullets: (payload.sections ?? []).slice(0, 2).map((s) => s.heading),
-        metrics: pickMetricsByKeys(["real_closure_rate", "expansion_ratio"]),
+        metrics: pickMetricsByKeys(["expansion_ratio"]), // PR050: real_closure_rate 폐기
         faqs: faqsAll.slice(0, 2),
       };
     case "industry-overview":

@@ -21,7 +21,8 @@ function sanitizeClosure(raw: unknown, derivedsFallback: DerivedMetric[]): Closu
   const headline = String(c.headline ?? "실질 폐점률");
   const bodyHtml = String(c.bodyHtml ?? "");
   const metricsArr = Array.isArray(c.metrics) ? (c.metrics as DerivedMetric[]) : [];
-  const metrics = metricsArr.length > 0 ? metricsArr : derivedsFallback.filter((d) => d.key === "real_closure_rate" || d.key === "net_expansion");
+  // PR050: real_closure_rate 폐기. fallback 으로 net_expansion 만 사용.
+  const metrics = metricsArr.length > 0 ? metricsArr : derivedsFallback.filter((d) => d.key === "net_expansion");
   return { headline, bodyHtml, metrics };
 }
 

@@ -616,6 +616,19 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L65 PR050 — 실질폐점률·잘못된 산식·양도양수율 차단.
+    // 명의변경은 폐점 아님. 산식 박스 안에서도 등장 시 ERROR (예외 없음).
+    const FALSE_CLOSURE_TERMS = /실질\s*폐점률|계약종료\s*\+\s*(?:계약\s*)?해지\s*\+\s*명의변경|양도양수율/g;
+    const closureHits = Array.from(body.matchAll(FALSE_CLOSURE_TERMS)).map((m) => m[0]);
+    if (closureHits.length > 0) {
+      errors.push({
+        code: "L65",
+        level: "ERROR",
+        msg: `"실질폐점률" / "(계약종료 + 해지 + 명의변경)" / "양도양수율" 본문 사용 금지. 명의변경 ≠ 폐점 (PR050). 등장 ${closureHits.length}건: ${closureHits.slice(0, 3).join(", ")}`,
+        where: "body",
+      });
+    }
+
     // L64/L64a PR049 — 산식 박스 코드 표현 차단 + 결과값 누락.
     if (payload.kind === "franchiseDoc") {
       const formulaSection = body.match(/##\s*이\s*글에서\s*계산한\s*값들[\s\S]*?(?=\n##\s|$)/m);
