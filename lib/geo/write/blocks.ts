@@ -29,7 +29,14 @@ export type StatRowInput = {
 export type ConclusionBoxInput = {
   title?: string;
   body: string;
-  cta?: { label: string; href?: string } | null;
+  cta?: { label: string; href?: string; phone?: string } | null;
+  mode?: BlockMode;
+};
+
+export type FormulaItem = { metric: string; formula: string };
+export type FormulaBoxInput = {
+  title?: string;
+  items: FormulaItem[];
   mode?: BlockMode;
 };
 
@@ -116,7 +123,21 @@ export function warnBox(text: string, mode: BlockMode = "class"): string {
   return `<div ${wrap}>${escapeText(text.trim())}</div>`;
 }
 
-export function conclusionBox(input: ConclusionBoxInput): string {
+function isHomepageHrefAllowed(href: string, allowedDomains: string[]): boolean {
+  try {
+    const url = new URL(href);
+    return allowedDomains.some(
+      (d) => url.hostname === d || url.hostname.endsWith(`.${d}`),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function conclusionBox(
+  input: ConclusionBoxInput,
+  opts: { allowedDomains?: string[] } = {},
+): string {
   const mode = input.mode ?? "class";
   const title = input.title ?? "결론";
   const body = input.body.trim();
@@ -124,11 +145,33 @@ export function conclusionBox(input: ConclusionBoxInput): string {
   const t = classOrInline(mode, "title", STYLE.conclusion.title);
   const b = classOrInline(mode, "body", STYLE.conclusion.body);
   const c = classOrInline(mode, "cta", STYLE.conclusion.cta);
-  const ctaHtml =
-    input.cta && input.cta.label
-      ? `<div ${c}>${escapeText(input.cta.label)}${input.cta.href ? ` — ${escapeText(input.cta.href)}` : ""}</div>`
+  let ctaHtml = "";
+  if (input.cta && input.cta.label) {
+    const allowed = opts.allowedDomains ?? ["frandoor.co.kr"];
+    const safeHref =
+      input.cta.href && isHomepageHrefAllowed(input.cta.href, allowed) ? input.cta.href : null;
+    const linkHtml = safeHref
+      ? ` <a href="${escapeText(safeHref)}" rel="nofollow noopener" target="_blank">${escapeText(safeHref)}</a>`
       : "";
+    const phoneHtml = input.cta.phone ? ` · ☎ ${escapeText(input.cta.phone)}` : "";
+    ctaHtml = `<div ${c}>📌 ${escapeText(input.cta.label)} →${linkHtml}${phoneHtml}</div>`;
+  }
   return `<div ${wrap}><div ${t}>${escapeText(title)}</div><div ${b}>${escapeText(body)}</div>${ctaHtml}</div>`;
+}
+
+export function formulaBox(input: FormulaBoxInput): string {
+  const mode = input.mode ?? "class";
+  const title = input.title ?? "이 글에서 계산한 값들 (frandoor 산출)";
+  const items = input.items.filter((it) => it.metric && it.formula);
+  if (items.length === 0) return "";
+  const wrap =
+    mode === "inline"
+      ? `class="info-box formula-box" style="${STYLE.info.box}"`
+      : `class="info-box formula-box"`;
+  const list = items
+    .map((it) => `<li><strong>${escapeText(it.metric)}</strong> = ${escapeText(it.formula)}</li>`)
+    .join("");
+  return `<div ${wrap}><strong>${escapeText(title)}</strong><ul>${list}</ul></div>`;
 }
 
 /** 발행 단계에서 본문 최상단에 1회 주입할 og-wrap CSS. <style> 가 차단되지 않는 채널용. */

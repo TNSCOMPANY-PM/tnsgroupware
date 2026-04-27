@@ -486,9 +486,9 @@ export function lintForDepth(
       }
     }
 
-    // L51 결론 박스 단어 차단 (PR045).
-    const CONCLUSION_RE = /<div\s+(?:[^>]*?(?:class\s*=\s*"[^"]*conclusion-box[^"]*"|style\s*=\s*"[^"]*background\s*:\s*#1a3a5c)[^>]*?)>([\s\S]*?)<\/div>/u;
-    const concMatch = body.match(CONCLUSION_RE);
+    // L51 결론 박스 단어·CTA 외부 링크 차단 (PR045 + PR046).
+    const CONCLUSION_RE = /<div\s+(?:[^>]*?(?:class\s*=\s*"[^"]*conclusion-box[^"]*"|style\s*=\s*"[^"]*background\s*:\s*#1a3a5c)[^>]*?)>[\s\S]*?(?=<div\s+(?:[^>]*?class\s*=\s*"(?!cta)|[^>]*?style\s*=)|$)/u;
+    const concMatch = body.match(/<div[^>]*?(?:conclusion-box|background\s*:\s*#1a3a5c)[\s\S]*?(?=\n\n|<\/article>|<h2|$)/u);
     if (concMatch) {
       const concText = concMatch[0];
       const SELF_PRAISE_IN_BOX = /(저희\s*프랜도어|프랜도어\s*데이터\s*기반|업계\s*최고\s*수준|독점\s*제공|본사\s*직접\s*연락)/u;
@@ -499,6 +499,83 @@ export function lintForDepth(
       if (FORBIDDEN_WORDS_IN_BOX.test(concText)) {
         errors.push({ code: "L51", level: "ERROR", msg: "결론 박스에 우열·권유 단어 등장 (추천/유리/매력적/최저)" });
       }
+      // 외부 링크 검사 (PR046 T6.4)
+      const linkRe = /<a\s+[^>]*href\s*=\s*"([^"]+)"[^>]*>/gu;
+      for (const m of concText.matchAll(linkRe)) {
+        const href = m[1];
+        const tag = m[0];
+        try {
+          const u = new URL(href);
+          const hn = u.hostname.replace(/^www\./, "");
+          const allowed = hn === "frandoor.co.kr" || hn.endsWith(".frandoor.co.kr") || hn.length > 0;
+          if (!allowed) {
+            errors.push({ code: "L51", level: "ERROR", msg: `결론 박스 외부 링크 도메인 부적절: ${hn}` });
+          }
+          if (!/rel\s*=\s*"[^"]*nofollow/.test(tag) || !/rel\s*=\s*"[^"]*noopener/.test(tag)) {
+            warns.push({ code: "L51", level: "WARN", msg: `결론 박스 외부 링크 rel="nofollow noopener" 누락` });
+          }
+        } catch {
+          warns.push({ code: "L51", level: "WARN", msg: `결론 박스 외부 링크 URL 파싱 실패: ${href}` });
+        }
+      }
+    }
+    void CONCLUSION_RE;
+
+    // L52a 메타 안내 문장 본문 진입 누락 (PR046).
+    const lead600_for_meta = body.slice(0, 800);
+    const META_TEXT_RE = /(여기서\s*끝내도\s*됩니다|시차가\s*있습니다|두\s*자료를\s*어떻게\s*읽어야)/u;
+    if (!META_TEXT_RE.test(lead600_for_meta)) {
+      errors.push({
+        code: "L52a",
+        level: "ERROR",
+        msg: "본문 진입 메타 안내 문장 누락 ('여기서 끝내도 됩니다' / '시차가 있습니다' 패턴 중 1개 필수)",
+      });
+    }
+
+    // L56 시점 미스매치 차단 (PR046).
+    // 한 문장 안에서 "공정위/정보공개서/{A_year}년/공시" 와 "본사/홈페이지/{C_year}년/발표" 그룹이 동시에 등장 + 비례·비율·합산 어휘 동반 시 WARN.
+    // 단 "공개 자료로/특정 불가/기인할 가능성" 종결 어휘가 ±60자 안 동반되면 WARN 면제.
+    if (payload.kind === "franchiseDoc") {
+      const sentences = body.split(/(?<=[.?!])\s+|\n\n/);
+      const A_GROUP = /(공정위|정보공개서|2023년|2024년|공시)/u;
+      const C_GROUP = /(본사|홈페이지|2025년|2026년|발표)/u;
+      const COMPOSE_OPS = /(비례|비율|배수|합산|차감|기준으로|\/\s*\d|\d개\s*\/|당\s*담당)/u;
+      const ESCAPE_HATCH = /(공개\s*자료로|특정\s*불가|기인할\s*가능성|시점\s*차이를\s*감안)/u;
+      const mismatchHits: string[] = [];
+      for (const s of sentences) {
+        if (!A_GROUP.test(s) || !C_GROUP.test(s)) continue;
+        if (!COMPOSE_OPS.test(s)) continue;
+        if (ESCAPE_HATCH.test(s)) continue;
+        mismatchHits.push(s.trim().slice(0, 80));
+      }
+      if (mismatchHits.length > 0) {
+        warns.push({
+          code: "L56",
+          level: "WARN",
+          msg: `시점 다른 A·C 데이터 비례·합성 가능성 ${mismatchHits.length}건: "${mismatchHits[0]}..." — '공개 자료로 특정 불가' 종결 추가 권장`,
+        });
+      }
+    }
+
+    // L57 frandoor 산출 라벨 반복 차단 (PR046).
+    const FRANDOOR_LABEL = /\(\s*frandoor\s*산출\s*\)|frandoor\s*산출/giu;
+    const hasFormulaBox = /class\s*=\s*"[^"]*formula-box|이\s*글에서\s*계산한\s*값들/u.test(body);
+    // 박스 내부 라벨은 카운트 제외 — 박스 영역(class="formula-box") 본문 제거 후 카운트.
+    let bodyExFormula = body.replace(/<div[^>]*formula-box[\s\S]*?<\/div>/gu, "");
+    bodyExFormula = bodyExFormula.replace(/이\s*글에서\s*계산한\s*값들[\s\S]*?(?=\n\n|<\/div>)/gu, "");
+    const labelCount = Array.from(bodyExFormula.matchAll(FRANDOOR_LABEL)).length;
+    if (hasFormulaBox && labelCount > 1) {
+      warns.push({
+        code: "L57",
+        level: "WARN",
+        msg: `formula 박스 도입 후에도 본문에 "frandoor 산출" 라벨 ${labelCount}회 반복 (박스 외 0~1회 권장)`,
+      });
+    } else if (!hasFormulaBox && labelCount > 5) {
+      warns.push({
+        code: "L57",
+        level: "WARN",
+        msg: `본문 "frandoor 산출" 라벨 ${labelCount}회 (5회 초과) — formula-box 박스로 정의 권장`,
+      });
     }
 
     // L52 제목 패턴 (PR045).

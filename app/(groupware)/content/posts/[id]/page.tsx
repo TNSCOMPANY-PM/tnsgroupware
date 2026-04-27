@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/utils/supabase/admin";
 import DeleteDraftButton from "./DeleteDraftButton";
+import PostBodyMarkdown from "./PostBodyMarkdown";
 
 const TYPE_LABEL: Record<string, string> = {
   brand: "브랜드(D3)",
@@ -97,9 +98,7 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-xs font-semibold text-slate-500 mb-3">본문</h2>
         {draft.content ? (
-          <pre className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed font-sans">
-            {draft.content}
-          </pre>
+          <PostBodyMarkdown body={draft.content} />
         ) : (
           <p className="text-sm text-slate-400">본문 없음</p>
         )}
