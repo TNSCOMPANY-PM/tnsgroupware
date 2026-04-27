@@ -278,7 +278,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
           `공정위 정보공개서 ${sourceYearOfficial} 기준 가맹점수 ${od.stores_total.toLocaleString()}개`,
           od.stores_total,
           "개",
-          "docx_stores_total",
+          "frcs_cnt", // PR044 deriveTimeseries pair
         );
       if (od.avg_monthly_revenue != null)
         pushDocxOfficial(
@@ -357,7 +357,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
         claim: `본사 홈페이지 발표 ${hp.stores_count_self}호점 규모`,
         value: hp.stores_count_self,
         unit: "호점",
-        fact_key: "docx_hp_stores_count",
+        fact_key: "frcs_cnt", // PR044 deriveTimeseries pair
       });
     if (hp.avg_monthly_revenue_homepage != null)
       facts.facts.push({
@@ -365,7 +365,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
         claim: `본사 홈페이지 발표 평균 월매출 ${fmtManC(hp.avg_monthly_revenue_homepage)}`,
         value: hp.avg_monthly_revenue_homepage,
         unit: "만원",
-        fact_key: "docx_hp_avg_revenue",
+        fact_key: "monthly_avg_sales", // PR044 deriveTimeseries pair
       });
     if (hp.real_investment != null)
       facts.facts.push({
@@ -425,7 +425,23 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     period_month: f.period_month,
     year_month: f.year_month,
   }));
+  // PR044 — docx 월평균매출(A)을 ×12 해 avg_annual_sales 로 가상 tsFact 주입.
+  // 본문 facts 에는 미노출 (deriveTimeseries 전용), avg_sales_dilution 파생 근거.
+  if (docx?.official_data?.avg_monthly_revenue != null && docx.official_data.source_year) {
+    tsFacts.push({
+      fact_key: "avg_annual_sales",
+      source_tier: "A",
+      value: docx.official_data.avg_monthly_revenue * 12,
+      period_month: `${docx.official_data.source_year}-12`,
+      year_month: `${docx.official_data.source_year}-12`,
+    });
+  }
   const tsDeriveds = deriveTimeseries(tsFacts).map(timeseriesToDerived);
+  if (tsDeriveds.length > 0) {
+    log(`[deriveTimeseries] ${tsDeriveds.map((d) => `${d.key}=${d.value}${d.unit}`).join(" / ")}`);
+  } else {
+    log(`[deriveTimeseries] A·C pair 없음 (frcs_cnt / monthly_avg_sales / avg_annual_sales 중 매칭 실패)`);
+  }
   const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
