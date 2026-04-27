@@ -8,7 +8,17 @@ import { withJosa } from "@/lib/format/josa";
 import type { Fact, DerivedMetric } from "@/lib/geo/types";
 
 export type StatItem = { num: string; lbl: string };
-export type FormulaItem = { metric: string; formula: string };
+export type FormulaItem = {
+  metric: string;
+  /** PR049 — 결과값 (예: "9.5%", "0.81배", "+34개"). */
+  result: string;
+  /** PR049 — 사람 친화 풀어쓴 산식 (코드 표현 금지). */
+  expression: string;
+  /** PR049 — 산식 ID (real_closure_rate / expansion_ratio / frcs_growth / industry_vs_brand_ratio 등). */
+  formula_id: string;
+  /** PR049 — 본문 inline 인용 여부. detectUsedFormulas 가 결정. */
+  used_in_body?: boolean;
+};
 
 type FactLite = Pick<Fact, "fact_key" | "value" | "unit" | "source_tier" | "year_month" | "period_month">;
 
@@ -195,6 +205,21 @@ export function buildConclusionBody(opts: {
   return sentences.join(" ");
 }
 
+function fmtSigned(n: number, unit: string): string {
+  const r = Math.round(n * 10) / 10;
+  const sign = r > 0 ? "+" : "";
+  return `${sign}${r}${unit}`;
+}
+
+function fmtRatio(n: number): string {
+  return `${(Math.round(n * 100) / 100).toFixed(2)}배`;
+}
+
+function fmtPercent(n: number, digits = 1): string {
+  const r = Math.round(n * Math.pow(10, digits)) / Math.pow(10, digits);
+  return `${r}%`;
+}
+
 export function buildFormulaItems(opts: {
   facts: FactLite[];
   deriveds: DerivedMetric[];
@@ -202,33 +227,119 @@ export function buildFormulaItems(opts: {
   const { facts, deriveds } = opts;
   const items: FormulaItem[] = [];
 
+  // 시계열 파생 (frcs_growth / frcs_multiplier / annualized_pos_sales / avg_sales_dilution)
+  // — A·C 시점·출처 라벨 풀어 쓰기 위해 facts 에서 raw 값 lookup.
+  const aStores = pickByKey(facts, "frcs_cnt", "A");
+  const cStores = pickByKey(facts, "frcs_cnt", "C");
+  const aN = num(aStores?.value);
+  const cN = num(cStores?.value);
+
   for (const d of deriveds) {
-    if (d.key === "frcs_growth") {
-      items.push({ metric: "가맹점 증가수 (A→C)", formula: d.formula ?? "C급[frcs_cnt] − A급[frcs_cnt]" });
-    } else if (d.key === "frcs_multiplier") {
-      items.push({ metric: "가맹점 확장배수 (A→C)", formula: d.formula ?? "C급[frcs_cnt] / A급[frcs_cnt]" });
+    if (d.key === "frcs_growth" && aN != null && cN != null) {
+      items.push({
+        metric: "가맹점 증가수",
+        result: fmtSigned(d.value, "개"),
+        expression: `본사 발표 ${cN}호점 − 공정위 ${aN}개`,
+        formula_id: "frcs_growth",
+      });
+    } else if (d.key === "frcs_multiplier" && aN != null && cN != null) {
+      items.push({
+        metric: "가맹점 확장배수",
+        result: fmtRatio(d.value),
+        expression: `본사 발표 ${cN}호점 / 공정위 ${aN}개`,
+        formula_id: "frcs_multiplier",
+      });
     } else if (d.key === "annualized_pos_sales") {
-      items.push({ metric: "연환산 가맹점 평균매출", formula: d.formula ?? "본사[monthly_avg_sales] × 12" });
+      const cMonthly = num(pickByKey(facts, "monthly_avg_sales", "C")?.value);
+      items.push({
+        metric: "연환산 가맹점 평균매출",
+        result: `${Math.round(d.value).toLocaleString("ko-KR")}만원`,
+        expression: cMonthly != null ? `본사 발표 월매출 ${cMonthly.toLocaleString("ko-KR")}만원 × 12` : "본사 발표 월평균매출 × 12",
+        formula_id: "annualized_pos_sales",
+      });
     } else if (d.key === "avg_sales_dilution") {
-      items.push({ metric: "평균매출 희석률 (A→C)", formula: d.formula ?? "(A 연평균 − C 연환산) / A 연평균 × 100" });
+      const aRev = num(pickByKey(facts, "docx_avg_monthly_revenue", "A")?.value);
+      const cMonthly = num(pickByKey(facts, "monthly_avg_sales", "C")?.value);
+      const aAnnual = aRev != null ? aRev * 12 : null;
+      const cAnnual = cMonthly != null ? cMonthly * 12 : null;
+      items.push({
+        metric: "매출 희석률",
+        result: fmtPercent(d.value, 1),
+        expression:
+          aAnnual != null && cAnnual != null
+            ? `(공정위 연평균 ${aAnnual.toLocaleString("ko-KR")}만원 − 본사 연환산 ${cAnnual.toLocaleString("ko-KR")}만원) / 공정위 ${aAnnual.toLocaleString("ko-KR")}만원 × 100`
+            : "(공정위 연평균 − 본사 연환산) / 공정위 연평균 × 100",
+        formula_id: "avg_sales_dilution",
+      });
     } else if (d.key === "real_closure_rate") {
-      items.push({ metric: "실질폐점률", formula: "(계약종료 + 계약해지 + 명의변경) / 기초가맹점수 × 100" });
+      const inputs = (d.inputs ?? {}) as Record<string, number | string>;
+      const end = Number(inputs["계약종료"] ?? 0);
+      const cncl = Number(inputs["계약해지"] ?? 0);
+      const nmChg = Number(inputs["명의변경"] ?? 0);
+      const base = Number(inputs["기초가맹점수"] ?? 0);
+      items.push({
+        metric: "실질폐점률",
+        result: fmtPercent(d.value, 1),
+        expression: `(계약종료 ${end} + 해지 ${cncl} + 명의변경 ${nmChg}) / 기초가맹점수 ${base} × 100`,
+        formula_id: "real_closure_rate",
+      });
     } else if (d.key === "expansion_ratio") {
-      items.push({ metric: "확장배수", formula: "신규개점 / 기초가맹점수" });
+      const inputs = (d.inputs ?? {}) as Record<string, number | string>;
+      const newCnt = Number(inputs["신규등록"] ?? 0);
+      const base = Number(inputs["기초가맹점수"] ?? 0);
+      items.push({
+        metric: "확장배수",
+        result: fmtRatio(d.value),
+        expression: `신규개점 ${newCnt} / 기초가맹점수 ${base}`,
+        formula_id: "expansion_ratio",
+      });
     }
   }
 
-  if (pickByKey(facts, "docx_industry_vs_brand_ratio", "A")) {
-    items.push({
-      metric: "업종 평균 대비 배수",
-      formula: "본 브랜드 월평균매출 / 동 업종 프랜차이즈 평균 월매출",
-    });
+  // 업종 평균 대비 배수 (facts 풀에서 직접 산출)
+  const ratioFact = pickByKey(facts, "docx_industry_vs_brand_ratio", "A");
+  if (ratioFact) {
+    const ratioVal = num(ratioFact.value);
+    const brandRev = num(pickByKey(facts, "docx_avg_monthly_revenue", "A")?.value);
+    const indRev = num(pickByKey(facts, "docx_industry_avg_revenue")?.value);
+    if (ratioVal != null) {
+      items.push({
+        metric: "업종 평균 대비 배수",
+        result: fmtRatio(ratioVal),
+        expression:
+          brandRev != null && indRev != null
+            ? `브랜드 월평균매출 ${brandRev.toLocaleString("ko-KR")}만원 / 업종 평균 ${indRev.toLocaleString("ko-KR")}만원`
+            : "브랜드 월평균매출 / 동 업종 프랜차이즈 평균 월매출",
+        formula_id: "industry_vs_brand_ratio",
+      });
+    }
   }
+
+  // 중복 제거 (formula_id 기준)
   const seen = new Set<string>();
   return items.filter((it) => {
-    if (seen.has(it.metric)) return false;
-    seen.add(it.metric);
+    if (seen.has(it.formula_id)) return false;
+    seen.add(it.formula_id);
     return true;
+  });
+}
+
+/** PR049 — 본문 inline 인용 검사 후 used_in_body 마킹. */
+export function detectUsedFormulas(bodyMd: string, items: FormulaItem[]): FormulaItem[] {
+  // 산식 H2 섹션 본문 제거 (그 안 result/metric 등장은 무시).
+  // /m 사용 안 하고 \n## 명시 + 끝까지 매치는 [\s\S]*?(?=\n##|\Z) 대신 두 단계로 split.
+  const startIdx = bodyMd.search(/##\s*이\s*글에서\s*계산한\s*값들/);
+  let stripped = bodyMd;
+  if (startIdx >= 0) {
+    const after = bodyMd.slice(startIdx);
+    const nextH2 = after.search(/\n##\s/);
+    const sliceLen = nextH2 >= 0 ? nextH2 : after.length;
+    stripped = bodyMd.slice(0, startIdx) + bodyMd.slice(startIdx + sliceLen);
+  }
+  return items.map((item) => {
+    const hasResult = stripped.includes(item.result);
+    const hasMetric = stripped.includes(item.metric);
+    return { ...item, used_in_body: hasResult || hasMetric };
   });
 }
 
@@ -296,9 +407,12 @@ export function buildConclusionMarkdown(opts: {
 
 export function buildFormulaMarkdown(items: FormulaItem[]): string {
   if (items.length === 0) return "";
+  // PR049 — markdown 표 형식 ("| 지표 | 결과 | 산식 |"). result 굵게.
   const parts: string[] = ["## 이 글에서 계산한 값들 (frandoor 산출)", ""];
+  parts.push("| 지표 | 결과 | 산식 |");
+  parts.push("|------|------|------|");
   for (const it of items) {
-    parts.push(`> - **${it.metric}** = ${it.formula}`);
+    parts.push(`| ${it.metric} | **${it.result}** | ${it.expression} |`);
   }
   return parts.join("\n");
 }

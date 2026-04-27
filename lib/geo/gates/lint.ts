@@ -616,6 +616,35 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L64/L64a PR049 — 산식 박스 코드 표현 차단 + 결과값 누락.
+    if (payload.kind === "franchiseDoc") {
+      const formulaSection = body.match(/##\s*이\s*글에서\s*계산한\s*값들[\s\S]*?(?=\n##\s|$)/m);
+      if (formulaSection) {
+        const sec = formulaSection[0];
+        const FORMULA_CODE_LIKE = /(?:[ABC]급\s*\[|fact_key|frcs_cnt|source_tier|monthly_avg_sales|avg_annual_sales)/giu;
+        const codeHits = Array.from(sec.matchAll(FORMULA_CODE_LIKE)).map((m) => m[0]);
+        if (codeHits.length > 0) {
+          errors.push({
+            code: "L64",
+            level: "ERROR",
+            msg: `산식 박스에 코드 변수명 노출 ${codeHits.length}건: ${codeHits.slice(0, 3).join(", ")} — 사람 친화 라벨로 풀어쓸 것.`,
+          });
+        }
+        // L64a 결과값 누락 — 표 행마다 ** ** 굵게 결과값 1개 + "=" 또는 인라인 리스트 형태에서 동일.
+        const tableRows = sec
+          .split("\n")
+          .filter((l) => l.startsWith("| ") && !l.startsWith("| 지표") && !l.startsWith("|---"));
+        const missingResult = tableRows.filter((r) => !/\*\*[^*]+\*\*/.test(r));
+        if (tableRows.length > 0 && missingResult.length > 0) {
+          warns.push({
+            code: "L64a",
+            level: "WARN",
+            msg: `산식 박스 ${missingResult.length}행 결과값 누락 ('**결과** = 산식' 형태 권장)`,
+          });
+        }
+      }
+    }
+
     // L60/L61/L62/L63 PR048 가독성·정확도.
     if (payload.kind === "franchiseDoc") {
       // 인용 블록·표·코드 블록·리스트 행 제거 후 평문만 분석.

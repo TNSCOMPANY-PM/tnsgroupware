@@ -152,7 +152,7 @@ sections[0].body 안에 다음 마크다운 블럭을 그대로 삽입 (extraCon
 
 sections 배열은 정확히 5개입니다. 다음 두 H2 블럭(extraContext)은 **sections[4].body 끝에 그대로 이어 붙여**서 한 섹션 안에서 H2 두 개가 더 등장하도록 합니다 (sections[4].body 안에 "## 이 글에서 계산한 값들 (frandoor 산출)" 와 "## 결론" H2 포함).
 
-- **extraContext.formula_section_md** — "## 이 글에서 계산한 값들 (frandoor 산출)\n\n> - **{지표}** = {산식}\n> - …" 인용 블록 (formulaItems 가 있을 때만, 비어 있으면 생략).
+- **extraContext.formula_section_md** — "## 이 글에서 계산한 값들 (frandoor 산출)" + markdown 표 ("| 지표 | 결과 | 산식 |") 형태. 모든 행이 **굵은 결과값** 와 풀어쓴 산식 (코드 변수명 0). 변형 금지, 그대로 sections[4].body 끝에 삽입.
 - **extraContext.conclusion_section_md** — "## 결론\n\n{2~4문장}\n\n{cta_link 가용 시 한 줄}" 형식.
 
 위 두 마크다운 블럭은 변형 금지, 본 마크다운 그대로 sections[4].body 끝에 두 줄(빈 줄) 띄우고 이어 붙입니다. 본문에서 위 두 섹션을 별도로 풀어쓰지 마세요 (중복 금지).
