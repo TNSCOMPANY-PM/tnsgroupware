@@ -34,7 +34,10 @@ function serializeDraft(out: GeoOutput): {
   }
   if (p.kind === "franchiseDoc") {
     // PR031: closure.bodyHtml 는 본문 md 에서 분리 — 별도 meta.closure_html 로 저장.
-    const body = (p.sections ?? []).map(s => `## ${s.heading}\n\n${s.body}`).join("\n\n");
+    // PR047: 본문 markdown 앞에 frontmatter YAML prepend.
+    const sectionMd = (p.sections ?? []).map(s => `## ${s.heading}\n\n${s.body}`).join("\n\n");
+    const fm = p.meta?.frontmatterYaml ?? "";
+    const body = fm ? `${fm}\n${sectionMd}` : sectionMd;
     const title = p.meta?.title ?? p.closure?.headline ?? p.sections?.[0]?.heading ?? "";
     return {
       title,
@@ -47,6 +50,7 @@ function serializeDraft(out: GeoOutput): {
         period: p.meta?.period ?? null,
         closure_headline: p.closure?.headline ?? null,
         closure_html: p.closure?.bodyHtml ?? null,
+        frontmatter: p.meta?.frontmatter ?? null,
       },
     };
   }

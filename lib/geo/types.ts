@@ -102,6 +102,10 @@ export type GeoPayloadFranchise = {
     brandId?: string;
     period?: string;
     tags?: string[];
+    /** PR047 — 발행 가이드 frontmatter (YAML 직렬화 결과). */
+    frontmatterYaml?: string;
+    /** PR047 — frontmatter 객체 (UI 패널용 raw). */
+    frontmatter?: unknown;
   };
 };
 

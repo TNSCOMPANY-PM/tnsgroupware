@@ -2,54 +2,37 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import type { Schema } from "hast-util-sanitize";
-import { OG_WRAP_CSS } from "@/lib/geo/write/blocks";
 
-const ALLOWED_CLASS = [
-  "og-wrap",
-  "answer-box",
-  "stat-row",
-  "stat-box",
-  "info-box",
-  "warn",
-  "conclusion-box",
-  "formula-box",
-  "q",
-  "a",
-  "detail",
-  "num",
-  "lbl",
-  "title",
-  "body",
-  "cta",
-];
+/**
+ * PR047 — HTML 박스 폐기 후 순수 마크다운 렌더러.
+ * frontmatter (YAML) 가 본문 시작에 있으면 회색 박스로 표시 (가이드의 자동 처리 시뮬레이션).
+ */
 
-const customSchema: Schema = {
-  ...defaultSchema,
-  attributes: {
-    ...(defaultSchema.attributes ?? {}),
-    "*": [...(defaultSchema.attributes?.["*"] ?? []), ["className", ...ALLOWED_CLASS], "style"],
-    div: [...((defaultSchema.attributes?.div as unknown as string[]) ?? []), "className", "style"],
-    span: [...((defaultSchema.attributes?.span as unknown as string[]) ?? []), "className", "style"],
-    a: [
-      ...((defaultSchema.attributes?.a as unknown as string[]) ?? []),
-      "href",
-      "rel",
-      "target",
-    ],
-  },
-};
+function splitFrontmatter(raw: string): { fm: string | null; body: string } {
+  if (!raw.startsWith("---")) return { fm: null, body: raw };
+  const closeIdx = raw.indexOf("\n---", 3);
+  if (closeIdx < 0) return { fm: null, body: raw };
+  const fm = raw.slice(0, closeIdx + 4).trim();
+  let body = raw.slice(closeIdx + 4);
+  body = body.replace(/^[\r\n]+/, "");
+  return { fm, body };
+}
 
 export default function PostBodyMarkdown({ body }: { body: string }) {
+  const { fm, body: md } = splitFrontmatter(body);
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: OG_WRAP_CSS }} />
-      <div className="og-wrap geo-post-body text-sm leading-relaxed">
+    <div className="space-y-4">
+      {fm && (
+        <details className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs">
+          <summary className="cursor-pointer font-semibold text-slate-700">
+            발행 frontmatter (YAML)
+          </summary>
+          <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] text-slate-700">{fm}</pre>
+        </details>
+      )}
+      <div className="text-sm leading-relaxed">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema]]}
           components={{
             h2: ({ children, ...props }) => (
               <h2
@@ -68,6 +51,14 @@ export default function PostBodyMarkdown({ body }: { body: string }) {
               <p {...props} className="text-slate-700 my-3 leading-relaxed">
                 {children}
               </p>
+            ),
+            blockquote: ({ children, ...props }) => (
+              <blockquote
+                {...props}
+                className="border-l-4 border-slate-300 bg-slate-50 pl-4 py-2 my-3 text-slate-700"
+              >
+                {children}
+              </blockquote>
             ),
             table: ({ children, ...props }) => (
               <div className="overflow-x-auto my-4">
@@ -102,11 +93,22 @@ export default function PostBodyMarkdown({ body }: { body: string }) {
                 {children}
               </ol>
             ),
+            a: ({ children, href, ...props }) => (
+              <a
+                {...props}
+                href={href}
+                rel="nofollow noopener"
+                target="_blank"
+                className="text-blue-600 hover:underline"
+              >
+                {children}
+              </a>
+            ),
           }}
         >
-          {body}
+          {md}
         </ReactMarkdown>
       </div>
-    </>
+    </div>
   );
 }

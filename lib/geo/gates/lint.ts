@@ -431,23 +431,16 @@ export function lintForDepth(
       });
     }
 
-    // L49 본문 진입 4요소 강제 (PR045): 본문 첫 600자 안에 answer-box·stat-row·메타·화살표.
-    const lead600 = body.slice(0, 600);
-    const ANSWER_RE = /(class\s*=\s*"[^"]*answer-box[^"]*"|결론부터)/u;
-    const STAT_RE = /(class\s*=\s*"[^"]*stat-row[^"]*"|<div\s+style\s*=\s*"[^"]*display\s*:\s*flex)/u;
-    const META_RE_LEAD = /(여기서\s*끝내도|계속\s*읽으시면|두\s*자료를\s*어떻게\s*읽어야)/u;
-    const ARROW_RE = /→\s/u;
-    if (!ANSWER_RE.test(lead600)) {
-      errors.push({ code: "L49", level: "ERROR", msg: "본문 진입 결론박스(answer-box / 결론부터) 누락" });
-    }
-    if (!STAT_RE.test(lead600)) {
-      errors.push({ code: "L49", level: "ERROR", msg: "본문 진입 stat-row 박스 누락" });
-    }
-    if (!META_RE_LEAD.test(lead600)) {
-      warns.push({ code: "L49", level: "WARN", msg: "본문 진입 메타 안내 문장 누락 ('여기서 끝내도' / '계속 읽으시면' / '두 자료를 어떻게 읽어야')" });
-    }
-    if (!ARROW_RE.test(lead600)) {
-      warns.push({ code: "L49", level: "WARN", msg: "본문 진입 화살표 안내 (→ ) 누락" });
+    // L49 polarity 반전 (PR047): HTML 박스 클래스 본문 등장 금지.
+    const HTML_BOX_RE = /class\s*=\s*"[^"]*(?:og-wrap|answer-box|stat-row|stat-box|info-box|warn|conclusion-box|formula-box)[^"]*"/u;
+    const htmlBoxMatch = body.match(HTML_BOX_RE);
+    if (htmlBoxMatch) {
+      errors.push({
+        code: "L49",
+        level: "ERROR",
+        msg: `HTML 박스 클래스 본문 등장 금지 (마크다운 평문/표/인용으로 대체): "${htmlBoxMatch[0]}"`,
+        where: "body",
+      });
     }
 
     // L50 섹션 헤더 질문/일상어 (PR045): 명사구 단독·격식 보고서 헤더 차단.
@@ -521,16 +514,7 @@ export function lintForDepth(
     }
     void CONCLUSION_RE;
 
-    // L52a 메타 안내 문장 본문 진입 누락 (PR046).
-    const lead600_for_meta = body.slice(0, 800);
-    const META_TEXT_RE = /(여기서\s*끝내도\s*됩니다|시차가\s*있습니다|두\s*자료를\s*어떻게\s*읽어야)/u;
-    if (!META_TEXT_RE.test(lead600_for_meta)) {
-      errors.push({
-        code: "L52a",
-        level: "ERROR",
-        msg: "본문 진입 메타 안내 문장 누락 ('여기서 끝내도 됩니다' / '시차가 있습니다' 패턴 중 1개 필수)",
-      });
-    }
+    // L52a → L59 로 통합 (PR047).
 
     // L56 시점 미스매치 차단 (PR046).
     // 한 문장 안에서 "공정위/정보공개서/{A_year}년/공시" 와 "본사/홈페이지/{C_year}년/발표" 그룹이 동시에 등장 + 비례·비율·합산 어휘 동반 시 WARN.
@@ -557,25 +541,79 @@ export function lintForDepth(
       }
     }
 
-    // L57 frandoor 산출 라벨 반복 차단 (PR046).
+    // L57 frandoor 산출 라벨 반복 차단 (PR047 강화: 산식 H2 섹션 후 본문 0회 강제).
     const FRANDOOR_LABEL = /\(\s*frandoor\s*산출\s*\)|frandoor\s*산출/giu;
-    const hasFormulaBox = /class\s*=\s*"[^"]*formula-box|이\s*글에서\s*계산한\s*값들/u.test(body);
-    // 박스 내부 라벨은 카운트 제외 — 박스 영역(class="formula-box") 본문 제거 후 카운트.
-    let bodyExFormula = body.replace(/<div[^>]*formula-box[\s\S]*?<\/div>/gu, "");
-    bodyExFormula = bodyExFormula.replace(/이\s*글에서\s*계산한\s*값들[\s\S]*?(?=\n\n|<\/div>)/gu, "");
+    const FORMULA_H2 = /^##\s*이\s*글에서\s*계산한\s*값들/mu;
+    const hasFormulaSection = FORMULA_H2.test(body);
+    // 산식 H2 섹션 본문(블록 인용 다음 줄까지) 제거 후 라벨 카운트.
+    let bodyExFormula = body;
+    if (hasFormulaSection) {
+      bodyExFormula = body.replace(/##\s*이\s*글에서\s*계산한\s*값들[\s\S]*?(?=\n##\s|$)/u, "");
+    }
     const labelCount = Array.from(bodyExFormula.matchAll(FRANDOOR_LABEL)).length;
-    if (hasFormulaBox && labelCount > 1) {
+    if (hasFormulaSection && labelCount >= 1) {
+      errors.push({
+        code: "L57",
+        level: "ERROR",
+        msg: `산식 H2 섹션 도입 후 본문에 "frandoor 산출" 라벨 ${labelCount}회 등장 (PR047: 0회 강제)`,
+      });
+    } else if (!hasFormulaSection && labelCount > 5) {
       warns.push({
         code: "L57",
         level: "WARN",
-        msg: `formula 박스 도입 후에도 본문에 "frandoor 산출" 라벨 ${labelCount}회 반복 (박스 외 0~1회 권장)`,
+        msg: `본문 "frandoor 산출" 라벨 ${labelCount}회 (5회 초과) — "## 이 글에서 계산한 값들" H2 섹션으로 정의 권장`,
       });
-    } else if (!hasFormulaBox && labelCount > 5) {
-      warns.push({
-        code: "L57",
-        level: "WARN",
-        msg: `본문 "frandoor 산출" 라벨 ${labelCount}회 (5회 초과) — formula-box 박스로 정의 권장`,
+    }
+
+    // L58 frontmatter 누락·필드 검증 (PR047).
+    if (payload.kind === "franchiseDoc") {
+      const fmRaw = payload.meta?.frontmatterYaml ?? "";
+      if (!fmRaw || !fmRaw.startsWith("---")) {
+        errors.push({ code: "L58", level: "ERROR", msg: "frontmatter YAML 블록 누락 (--- 시작 안 함)" });
+      } else {
+        const need = ["title", "description", "slug", "category", "date", "faq"];
+        for (const k of need) {
+          const re = new RegExp(`^${k}:`, "m");
+          if (!re.test(fmRaw)) {
+            errors.push({ code: "L58", level: "ERROR", msg: `frontmatter 필수 필드 "${k}" 누락` });
+          }
+        }
+        const descMatch = fmRaw.match(/^description:\s*"?([^"\n]+)"?/m);
+        if (descMatch && descMatch[1].length > 100) {
+          warns.push({ code: "L58", level: "WARN", msg: `description ${descMatch[1].length}자 (100자 초과)` });
+        }
+        const slugMatch = fmRaw.match(/^slug:\s*"?([^"\n]+)"?/m);
+        if (slugMatch && !/^[a-z0-9-]+$/.test(slugMatch[1])) {
+          errors.push({ code: "L58", level: "ERROR", msg: `slug url-safe 아님: "${slugMatch[1]}"` });
+        }
+        const tags = (fmRaw.match(/^tags:\s*\n((?:\s+-\s+.*\n)+)/m)?.[1] ?? "")
+          .split("\n")
+          .filter((l) => l.trim().startsWith("- "));
+        if (tags.length === 0) {
+          warns.push({ code: "L58", level: "WARN", msg: "tags 0개" });
+        }
+        const faqCount = payload.faq25.length;
+        if (faqCount === 0) errors.push({ code: "L58", level: "ERROR", msg: "faq 0개" });
+        else if (faqCount < 3) warns.push({ code: "L58", level: "WARN", msg: `faq ${faqCount}개 (3~5 권장)` });
+        else if (faqCount > 5) warns.push({ code: "L58", level: "WARN", msg: `faq ${faqCount}개 (5 초과)` });
+      }
+    }
+
+    // L59 본문 진입 메타 안내·H2·화살표 (PR047).
+    const lead800 = body.replace(/^---[\s\S]*?\n---\n?/, "").slice(0, 800);
+    const META_LEAD_RE = /(여기서\s*끝내도\s*됩니다|시차가\s*있습니다|두\s*자료를\s*어떻게\s*읽어야)/u;
+    if (!META_LEAD_RE.test(lead800)) {
+      errors.push({
+        code: "L59",
+        level: "ERROR",
+        msg: "본문 진입 메타 안내 문장 누락 ('여기서 끝내도 됩니다' / '시차가 있습니다' 패턴 중 1개 필수)",
       });
+    }
+    if (!/^##\s/.test(lead800.split("\n")[0] ?? "") && !/\n##\s/.test(lead800)) {
+      errors.push({ code: "L59", level: "ERROR", msg: "본문 진입 첫 200자 안 H2 헤더 누락" });
+    }
+    if (!/→\s/.test(lead800)) {
+      warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
     // L52 제목 패턴 (PR045).

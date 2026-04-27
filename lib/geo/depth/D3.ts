@@ -18,16 +18,16 @@ import { deriveTimeseries, type TimeseriesDerived, type TimeseriesFact } from "@
 import { InsufficientDataError } from "@/lib/geo/types";
 import { routeTopicToFacts } from "@/lib/geo/prefetch/topicRouter";
 import { fetchFrandoorDocx, extractHomepageFacts } from "@/lib/geo/prefetch/frandoorDocx";
-import { answerBox, statRow, conclusionBox, formulaBox } from "@/lib/geo/write/blocks";
 import {
-  buildOneLineAnswer,
-  pickHeadlineStats,
-  buildConclusionBody,
   pickMetaPattern,
   buildFormulaItems,
+  buildLedeMarkdown,
+  buildConclusionMarkdown,
+  buildFormulaMarkdown,
 } from "@/lib/geo/write/lede";
 import { buildAvsCRows, renderMarkdownTable } from "@/lib/geo/write/compareTable";
 import { chooseTitle } from "@/lib/geo/write/titler";
+import { buildFrontmatter, renderFrontmatterYaml } from "@/lib/geo/write/frontmatter";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -455,11 +455,8 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const factsPlus = { ...facts, deriveds: [...pre.deriveds, ...tsDeriveds] };
   log(`[gpt] facts=${facts.facts.length} ts_deriveds=${tsDeriveds.length}`);
 
-  // PR045/PR046 — 본문 박스·제목 휴리스틱 사전 조립.
+  // PR047 — 마크다운 lede / 결론 / 산식 사전 조립 + frontmatter.
   const allDeriveds = [...pre.deriveds, ...tsDeriveds];
-  const lede = buildOneLineAnswer({ brand: input.brand, facts: facts.facts, deriveds: allDeriveds });
-  const headline = pickHeadlineStats({ facts: facts.facts, deriveds: allDeriveds });
-  const conclusionBody = buildConclusionBody({ brand: input.brand, facts: facts.facts, deriveds: allDeriveds });
   const compareRows = buildAvsCRows(facts.facts);
   const compareMd = renderMarkdownTable(compareRows);
   const titleYear = official?.master.latest_year
@@ -472,15 +469,10 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     topic: (input as { topic?: string }).topic,
     year: titleYear,
   });
-
-  // PR046 T3 — meta pattern (A 우선)
   const metaSelection = pickMetaPattern({ facts: facts.facts, deriveds: allDeriveds });
-
-  // PR046 T5 — formula box (frandoor 산출 항목 일괄 정의)
   const formulaItems = buildFormulaItems({ facts: facts.facts, deriveds: allDeriveds });
-  const boxFormulaMd = formulaItems.length > 0 ? formulaBox({ items: formulaItems }) : "";
 
-  // PR046 T6 — CTA (외부 링크 화이트리스트 통과 시만, 현재는 인프라만)
+  // CTA (외부 링크 — master 가용 시만)
   const masterAny = official?.master as Record<string, unknown> | undefined;
   const ctaHrefRaw = (masterAny?.homepage_url as string | undefined) ?? null;
   const ctaPhone = (masterAny?.contact_phone as string | undefined) ?? null;
@@ -488,20 +480,23 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     ? { label: `${input.brand} 가맹문의`, href: ctaHrefRaw ?? undefined, phone: ctaPhone ?? undefined }
     : null;
 
-  const boxAnswerMd = answerBox({ answer_text: lede.answer, detail: lede.detail });
-  const boxStatRowMd = headline.length > 0 ? statRow({ items: headline }) : "";
-  const allowedDomains = ["frandoor.co.kr"];
-  if (ctaHrefRaw) {
-    try {
-      const u = new URL(ctaHrefRaw);
-      allowedDomains.push(u.hostname.replace(/^www\./, ""));
-    } catch {
-      /* invalid url, ignore */
-    }
-  }
-  const boxConclusionMd = conclusionBox({ body: conclusionBody, cta }, { allowedDomains });
+  const ledeMd = buildLedeMarkdown({
+    brand: input.brand,
+    facts: facts.facts,
+    deriveds: allDeriveds,
+    metaPattern: metaSelection.pattern,
+    metaPeriodGapMonths: metaSelection.period_gap_months,
+  });
+  const conclusionMd = buildConclusionMarkdown({
+    brand: input.brand,
+    facts: facts.facts,
+    deriveds: allDeriveds,
+    cta,
+  });
+  const formulaMd = buildFormulaMarkdown(formulaItems);
+
   log(
-    `[blocks] answer=${boxAnswerMd.length}자 stat_items=${headline.length} compare_rows=${compareRows.length} formula=${formulaItems.length} meta=${metaSelection.pattern} title=${suggestedTitle?.pattern ?? "-"}`,
+    `[md] lede=${ledeMd.length}자 compare_rows=${compareRows.length} formula=${formulaItems.length} meta=${metaSelection.pattern} title=${suggestedTitle?.pattern ?? "-"}`,
   );
 
   const sonnet = await callSonnet(input, factsPlus, pre.deriveds, {
@@ -513,11 +508,10 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       official?.master.ftc_first_registered_date ??
       official?.master.source_first_registered_at ??
       null,
-    box_answer_md: boxAnswerMd,
-    box_stat_row_md: boxStatRowMd,
-    box_compare_md: compareMd,
-    box_conclusion_md: boxConclusionMd,
-    box_formula_md: boxFormulaMd,
+    lede_section_md: ledeMd,
+    compare_table_md: compareMd,
+    conclusion_section_md: conclusionMd,
+    formula_section_md: formulaMd,
     suggested_title: suggestedTitle?.title ?? null,
     suggested_title_pattern: suggestedTitle?.pattern ?? null,
     meta_pattern: metaSelection.pattern,
@@ -533,6 +527,26 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
   const faqs: FaqItem[] = normalizeFaqs("D3", raw.faq25);
   const payload = assembleFranchiseDoc(raw, faqs, pre.deriveds);
+
+  // PR047 — frontmatter 조립 후 payload.meta 에 부착.
+  const fm = buildFrontmatter({
+    brand: input.brand,
+    brandId: input.brandId,
+    topic: (input as { topic?: string }).topic ?? null,
+    facts: facts.facts,
+    deriveds: allDeriveds,
+    faqs,
+    industry: official?.master.industry_main ?? official?.master.industry_sub ?? null,
+    suggestedTitle: suggestedTitle?.title ?? null,
+    suggestedTitlePattern: suggestedTitle?.pattern ?? null,
+    year: titleYear,
+  });
+  const frontmatterYaml = renderFrontmatterYaml(fm);
+  if (payload.meta) {
+    (payload.meta as Record<string, unknown>).frontmatterYaml = frontmatterYaml;
+    (payload.meta as Record<string, unknown>).frontmatter = fm;
+  }
+  log(`[frontmatter] slug=${fm.slug} category=${fm.category} tags=[${fm.tags.join(",")}] faq=${fm.faq.length}`);
 
   const canonicalUrl =
     typeof raw.canonicalUrl === "string" && raw.canonicalUrl.startsWith("/")

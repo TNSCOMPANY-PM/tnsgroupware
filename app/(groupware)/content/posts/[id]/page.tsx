@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/utils/supabase/admin";
 import DeleteDraftButton from "./DeleteDraftButton";
 import PostBodyMarkdown from "./PostBodyMarkdown";
+import DownloadMdButton from "./DownloadMdButton";
 
 const TYPE_LABEL: Record<string, string> = {
   brand: "브랜드(D3)",
@@ -63,7 +64,12 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
         <Link href="/content/posts" className="text-xs text-slate-500 hover:text-slate-800">
           ← 목록으로
         </Link>
-        <DeleteDraftButton id={draft.id} />
+        <div className="flex items-center gap-2">
+          {draft.content && (
+            <DownloadMdButton content={draft.content} fallbackName={draft.id.slice(0, 8)} />
+          )}
+          <DeleteDraftButton id={draft.id} />
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-3">
