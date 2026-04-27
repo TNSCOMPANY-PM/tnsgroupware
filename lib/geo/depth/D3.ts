@@ -19,6 +19,13 @@ import { InsufficientDataError } from "@/lib/geo/types";
 import { routeTopicToFacts } from "@/lib/geo/prefetch/topicRouter";
 import { fetchFrandoorDocx, extractHomepageFacts } from "@/lib/geo/prefetch/frandoorDocx";
 import {
+  isFtc2024Configured,
+  fetchFtcBrand,
+  fetchFtcIndustryStats,
+  computePercentile,
+  fetchHqFinanceAvg,
+} from "@/lib/geo/prefetch/ftc2024";
+import {
   pickMetaPattern,
   buildFormulaItems,
   buildLedeMarkdown,
@@ -437,6 +444,121 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     }
   } else {
     log(`[docx] ${input.brand} — geo_brands.fact_data 없음`);
+  }
+
+  // PR056 — frandoor ftc_brands_2024 connector facts 주입.
+  if (isFtc2024Configured()) {
+    try {
+      const ftcBrand = await fetchFtcBrand({ brand_nm: input.brand });
+      const industryKor =
+        (ftcBrand?.induty_mlsfc as string | undefined) ??
+        official?.master?.industry_sub ??
+        official?.master?.industry_main ??
+        null;
+      log(`[ftc2024] brand_nm=${input.brand} matched=${!!ftcBrand} industry=${industryKor ?? "-"}`);
+      if (industryKor) {
+        const istats = await fetchFtcIndustryStats(industryKor);
+        if (istats) {
+          if (istats.avg_monthly_revenue != null) {
+            facts.facts.push({
+              claim: `${industryKor} 프랜차이즈 ${istats.n}개 평균 월매출 ${istats.avg_monthly_revenue.toLocaleString("ko-KR")}만원 (공정위 정보공개서 ${istats.source_year})`,
+              value: istats.avg_monthly_revenue,
+              unit: "만원",
+              source_url: "https://franchise.ftc.go.kr/",
+              source_title: `공정위 정보공개서 ${istats.source_year} (frandoor 적재)`,
+              year_month: `${istats.source_year}-12`,
+              period_month: `${istats.source_year}-12`,
+              authoritativeness: "primary",
+              tier: "B",
+              source_tier: "B",
+              fact_key: "ftc2024_industry_avg_revenue",
+              derived: false,
+            });
+          }
+          if (istats.avg_cost_total != null) {
+            facts.facts.push({
+              claim: `${industryKor} 프랜차이즈 ${istats.n}개 평균 창업비용 ${istats.avg_cost_total.toLocaleString("ko-KR")}만원 (공정위 ${istats.source_year})`,
+              value: istats.avg_cost_total,
+              unit: "만원",
+              source_url: "https://franchise.ftc.go.kr/",
+              source_title: `공정위 정보공개서 ${istats.source_year} (frandoor 적재)`,
+              year_month: `${istats.source_year}-12`,
+              period_month: `${istats.source_year}-12`,
+              authoritativeness: "primary",
+              tier: "B",
+              source_tier: "B",
+              fact_key: "ftc2024_industry_avg_cost",
+              derived: false,
+            });
+          }
+        }
+
+        // percentile (월매출 기준)
+        const brandRev =
+          (ftcBrand
+            ? Number(ftcBrand.avg_sales_2024_total ?? ftcBrand.avg_monthly_revenue ?? NaN)
+            : null) ??
+          official?.master?.avg_monthly_revenue ??
+          null;
+        if (brandRev != null && Number.isFinite(brandRev)) {
+          const pct = await computePercentile({
+            brand_value: brandRev,
+            industry: industryKor,
+          });
+          if (pct) {
+            const topPct = Math.round((100 - pct.percentile) * 10) / 10;
+            facts.facts.push({
+              claim: `${input.brand} 월평균매출은 ${industryKor} 업종 ${pct.industry_n}개 중 상위 ${topPct}% 수준 (공정위 정보공개서 2024 기반)`,
+              value: pct.percentile,
+              unit: "%",
+              source_url: "https://franchise.ftc.go.kr/",
+              source_title: "공정위 정보공개서 2024 (frandoor 적재)",
+              year_month: "2024-12",
+              period_month: "2024-12",
+              authoritativeness: "primary",
+              tier: "B",
+              source_tier: "B",
+              fact_key: "ftc2024_industry_percentile",
+              derived: true,
+              formula_id: "industry_percentile",
+            });
+          }
+        }
+
+        // 본사 재무 평균 (PR046 케이스 C 해소)
+        const hq = await fetchHqFinanceAvg(industryKor);
+        const brandOpMargin = official?.timeseries?.[0]?.operating_profit != null && official?.timeseries?.[0]?.revenue
+          ? Math.round(
+              (official.timeseries[0].operating_profit / official.timeseries[0].revenue) * 1000,
+            ) / 10
+          : null;
+        if (hq && hq.avg_op_margin_pct != null && brandOpMargin != null) {
+          const diff = Math.round((brandOpMargin - hq.avg_op_margin_pct) * 10) / 10;
+          facts.facts.push({
+            claim: `${input.brand} 본사 영업이익률 ${brandOpMargin}%, ${industryKor} 본사 ${hq.n}개 평균 ${hq.avg_op_margin_pct}% 대비 ${diff >= 0 ? "+" : ""}${diff}%p (공정위 정보공개서 2024)`,
+            value: diff,
+            unit: "%p",
+            source_url: "https://franchise.ftc.go.kr/",
+            source_title: "공정위 정보공개서 2024 (frandoor 적재)",
+            year_month: "2024-12",
+            period_month: "2024-12",
+            authoritativeness: "primary",
+            tier: "B",
+            source_tier: "B",
+            fact_key: "ftc2024_hq_op_margin_vs_industry",
+            derived: true,
+            formula_id: "hq_op_margin_vs_industry",
+          });
+        }
+        log(
+          `[ftc2024] industry=${industryKor} stats=${istats ? `n=${istats.n}` : "none"} hq=${hq ? `n=${hq.n}` : "none"}`,
+        );
+      }
+    } catch (e) {
+      console.warn("[ftc2024] inject 실패:", e instanceof Error ? e.message : e);
+    }
+  } else {
+    log(`[ftc2024] env 미설정 — skip`);
   }
 
   // PR036 — facts 기반 데이터 충분성 게이트 (tier 분류 대체).

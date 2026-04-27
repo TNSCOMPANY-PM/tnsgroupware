@@ -620,6 +620,46 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L72 PR056 — docx (__official_data__) vs xlsx (ftc_brands_2024) 핵심 수치 cross-check.
+    // facts 풀 안 docx 기반 fact 와 ftc2024 기반 fact 가 같은 metric 에서 30%+ 차이 시 WARN.
+    if (payload.kind === "franchiseDoc") {
+      const factList = facts.facts as Array<Record<string, unknown>>;
+      const findValue = (key: string): number | null => {
+        const f = factList.find((x) => x.fact_key === key);
+        if (!f) return null;
+        const raw = f.value;
+        if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+        if (typeof raw === "string") {
+          const cleaned = raw.replace(/[,\s만원%개건배호점]/g, "");
+          const n = Number(cleaned);
+          if (Number.isFinite(n)) return n;
+        }
+        return null;
+      };
+      const pairs = [
+        { docxKey: "docx_stores_total", xlsxKey: "ftc2024_brand_stores", label: "가맹점 수" },
+        { docxKey: "docx_avg_monthly_revenue", xlsxKey: "ftc2024_brand_revenue", label: "월평균매출" },
+        { docxKey: "docx_cost_total", xlsxKey: "ftc2024_brand_cost", label: "창업비용" },
+      ];
+      const conflicts: string[] = [];
+      for (const p of pairs) {
+        const a = findValue(p.docxKey);
+        const b = findValue(p.xlsxKey);
+        if (a == null || b == null || a === 0) continue;
+        const diffPct = Math.abs(((a - b) / a) * 100);
+        if (diffPct >= 30) {
+          conflicts.push(`${p.label} docx ${a} vs ftc ${b} (${Math.round(diffPct * 10) / 10}% 차이)`);
+        }
+      }
+      if (conflicts.length > 0) {
+        warns.push({
+          code: "L72",
+          level: "WARN",
+          msg: `docx vs ftc2024 cross-check 충돌 ${conflicts.length}건: ${conflicts[0]}`,
+        });
+      }
+    }
+
     // L71 PR055 — 본문 markdown 표 헤더/row 길이 mismatch 검사.
     if (payload.kind === "franchiseDoc") {
       const fullBody = payload.sections.map((s) => s.body).join("\n\n");
