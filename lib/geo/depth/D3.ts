@@ -633,7 +633,14 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   ];
 
   // PR043: xlsx POS 경로 폐기 → availableStoreNames 수집 대상 없음.
-  const d3Ctx = { availableStoreNames: [] as string[] };
+  // PR053: 영역 매칭·누락 검증 위해 primary 영역 수 + area_sections 조립 수 전달.
+  const topicForLint = (input as { topic?: string }).topic ?? null;
+  const lintAreaPlan = pickAreas(topicForLint);
+  const d3Ctx = {
+    availableStoreNames: [] as string[],
+    primaryAreaCount: primaryAreas(lintAreaPlan).length,
+    areaSectionAssembled: areaSectionsMd.length,
+  };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [
     ...payload.sections.map((s) => s.body),
