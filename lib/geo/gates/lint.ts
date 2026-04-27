@@ -616,6 +616,30 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L66 PR051 — 공유 CTA 자기과시·광고 톤 차단 + 1회 한정.
+    const SHARE_CTA_BAD = /(도움이?\s*되었?다면|도움이?\s*됐다면|공유\s*부탁|구독\s*부탁|저희?\s*글이?|저희?\s*프랜도어|프랜도어\s*데이터)/g;
+    const ctaBadHits = Array.from(body.matchAll(SHARE_CTA_BAD)).map((m) => m[0]);
+    if (ctaBadHits.length > 0) {
+      errors.push({
+        code: "L66",
+        level: "ERROR",
+        msg: `공유 CTA 자기과시·광고 톤 금지: "${ctaBadHits.slice(0, 3).join(", ")}" — '독자 → 다른 독자' 이타적 프레이밍 사용`,
+        where: "body",
+      });
+    }
+    // share-line 1회 한정.
+    const SHARE_LINE_RE = /(이\s*글을\s*함께\s*보세요|이\s*정리를\s*전해주세요|함께\s*살펴봐도\s*좋습니다)/g;
+    const shareCount = (body.match(SHARE_LINE_RE) ?? []).length;
+    if (shareCount === 0 && payload.kind === "franchiseDoc") {
+      warns.push({ code: "L66", level: "WARN", msg: "결론 박스 share-line 누락" });
+    } else if (shareCount >= 2) {
+      errors.push({
+        code: "L66",
+        level: "ERROR",
+        msg: `share-line ${shareCount}회 등장 (1회 한정 — 2회+ 자기과시)`,
+      });
+    }
+
     // L65 PR050 — 실질폐점률·잘못된 산식·양도양수율 차단.
     // 명의변경은 폐점 아님. 산식 박스 안에서도 등장 시 ERROR (예외 없음).
     const FALSE_CLOSURE_TERMS = /실질\s*폐점률|계약종료\s*\+\s*(?:계약\s*)?해지\s*\+\s*명의변경|양도양수율/g;
