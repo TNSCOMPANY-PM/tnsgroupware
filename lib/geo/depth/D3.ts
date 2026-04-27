@@ -30,6 +30,8 @@ import { buildAvsCRows, renderMarkdownTable } from "@/lib/geo/write/compareTable
 import { chooseTitle } from "@/lib/geo/write/titler";
 import { buildFrontmatter, renderFrontmatterYaml } from "@/lib/geo/write/frontmatter";
 import { buildCategoryFunnelMarkdown } from "@/lib/geo/write/categorySlug";
+import { pickAreas, primaryAreas, secondaryAreas } from "./areaRouter";
+import { buildAreaFacts, buildAreaSectionMarkdown } from "./areaFacts";
 
 const TIMESERIES_META: Record<
   TimeseriesDerived["metric_id"],
@@ -416,6 +418,23 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
     const hpFilled = Object.values(hp).filter((v) => v != null).length;
     log(`[docx] ${input.brand} — official_data=${!!od} industry_avg=${od?.industry_avg_revenue ?? "-"} homepage_extracted=${hpFilled}`);
+
+    // PR052 — 7영역 비교표 → facts 풀 주입.
+    const topicForArea = (input as { topic?: string }).topic ?? null;
+    const areaPlan = pickAreas(topicForArea);
+    log(
+      `[area] topic="${topicForArea ?? ""}" → primary=[${primaryAreas(areaPlan).join(",")}] secondary=[${secondaryAreas(areaPlan).join(",")}]`,
+    );
+    for (const k of primaryAreas(areaPlan)) {
+      for (const f of buildAreaFacts({ area: k, docx, priority: "primary" })) {
+        facts.facts.push(f);
+      }
+    }
+    for (const k of secondaryAreas(areaPlan)) {
+      for (const f of buildAreaFacts({ area: k, docx, priority: "secondary" })) {
+        facts.facts.push(f);
+      }
+    }
   } else {
     log(`[docx] ${input.brand} — geo_brands.fact_data 없음`);
   }
@@ -505,6 +524,18 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   // PR051 — 카테고리 회유 마크다운 링크 (매핑 부재 시 빈 문자열).
   const categoryFunnelMd = buildCategoryFunnelMarkdown(industryForCta);
 
+  // PR052 — 영역별 H2 섹션 markdown 사전 조립 (primary 영역 한정).
+  const areaSectionsMd: { area: string; md: string }[] = [];
+  if (docx) {
+    const topicForArea2 = (input as { topic?: string }).topic ?? null;
+    const plan = pickAreas(topicForArea2);
+    for (const k of primaryAreas(plan)) {
+      const md = buildAreaSectionMarkdown({ area: k, brand: input.brand, tables: docx.comparison_tables });
+      if (md) areaSectionsMd.push({ area: k, md });
+    }
+    log(`[area-sections] ${areaSectionsMd.length} 영역 H2 markdown 조립 (primary 영역 중 비교표 보유분)`);
+  }
+
   log(
     `[md] lede=${ledeMd.length}자 compare_rows=${compareRows.length} formula=${formulaItems.length} meta=${metaSelection.pattern} title=${suggestedTitle?.pattern ?? "-"}`,
   );
@@ -523,6 +554,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     conclusion_section_md: conclusionMd,
     formula_section_md: formulaMd,
     category_funnel_md: categoryFunnelMd,
+    area_sections_md: areaSectionsMd,
     suggested_title: suggestedTitle?.title ?? null,
     suggested_title_pattern: suggestedTitle?.pattern ?? null,
     meta_pattern: metaSelection.pattern,
