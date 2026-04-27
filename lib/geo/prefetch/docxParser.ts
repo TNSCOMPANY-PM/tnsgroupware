@@ -8,12 +8,21 @@
  */
 
 import type { ComparisonRow, ComparisonTable, DataTable } from "./frandoorDocx";
-import { assignArea } from "./frandoorDocx";
+import { assignArea, assignAreaWithConfidence } from "./frandoorDocx";
+
+export type UnmappedTable = {
+  preceding_heading: string | null;
+  headers: string[];
+  rows: string[][];
+  reason: string;
+  docx_section_index: number;
+};
 
 export type DocxParseResult = {
   sections: { level: number; title: string }[];
   comparison_tables: ComparisonTable[];
   data_tables: DataTable[];
+  unmapped_tables: UnmappedTable[];
   raw_text: string;
 };
 
@@ -84,11 +93,61 @@ function extractTablesAndHeadings(html: string): {
   return { sections, tables, raw_text };
 }
 
-function classifyTable(headers: string[]): "comparison" | "data" {
-  const j = headers.join(" ").toLowerCase();
-  const hasOfficial = /공정위|정보공개서|공식/.test(j);
-  const hasBrochure = /브로셔|본사|홈페이지|pos|판매시점/i.test(j);
-  return hasOfficial && hasBrochure ? "comparison" : "data";
+// PR054 — 출처 그룹별 alias 풀 확장.
+const OFFICIAL_PATTERNS: RegExp[] = [
+  /공정위/u,
+  /정보공개서/u,
+  /공식\s*수치/u,
+  /공시/u,
+  /등록\s*기준/u,
+  /A급/u,
+  /a-tier/iu,
+];
+const BROCHURE_PATTERNS: RegExp[] = [
+  /브로셔/u,
+  /본사/u,
+  /홈페이지/u,
+  /POS/iu,
+  /판매시점/u,
+  /실제/u,
+  /실측/u,
+  /발표/u,
+  /자체/u,
+  /공개\s*자료/u,
+  /C급/u,
+  /c-tier/iu,
+];
+const KOSIS_PATTERNS: RegExp[] = [
+  /KOSIS/iu,
+  /통계청/u,
+  /외식업\s*전체/u,
+  /업종\s*평균/u,
+  /B급/u,
+  /b-tier/iu,
+];
+
+function anyMatch(patterns: RegExp[], s: string): boolean {
+  return patterns.some((p) => p.test(s));
+}
+
+function classifyTable(headers: string[], rows: string[][]): "comparison" | "data" {
+  const headerJoined = headers.join(" ");
+  const hasOfficial = anyMatch(OFFICIAL_PATTERNS, headerJoined);
+  const hasBrochure = anyMatch(BROCHURE_PATTERNS, headerJoined);
+  const hasKosis = anyMatch(KOSIS_PATTERNS, headerJoined);
+  const groupCount = [hasOfficial, hasBrochure, hasKosis].filter(Boolean).length;
+  if (groupCount >= 2) return "comparison";
+  // 헤더 부족 시 row 안 비고 컬럼에 "차이/일치/상이/구분" ≥ 30% 등장 → 비교.
+  const noteCol = headers.findIndex((h) => /비고|차이/u.test(h));
+  if (noteCol >= 0 && rows.length > 0) {
+    const compareRows = rows.filter((r) => /차이|일치|상이|구분/u.test(r[noteCol] ?? "")).length;
+    if (compareRows / rows.length >= 0.3) return "comparison";
+  }
+  return "data";
+}
+
+function findHeaderIdx(headers: string[], patterns: RegExp[]): number {
+  return headers.findIndex((h) => patterns.some((p) => p.test(h)));
 }
 
 function extractUnit(s: string): string | null {
@@ -97,10 +156,11 @@ function extractUnit(s: string): string | null {
 }
 
 function buildComparisonRows(headers: string[], rows: string[][]): ComparisonRow[] {
-  const idxMetric = headers.findIndex((h) => /항목|지표|구분/.test(h));
-  const idxOfficial = headers.findIndex((h) => /공정위|정보공개서|공식/.test(h));
-  const idxBrochure = headers.findIndex((h) => /브로셔|본사|홈페이지|pos/i.test(h));
-  const idxNote = headers.findIndex((h) => /비고|차이|설명/.test(h));
+  const idxMetric = headers.findIndex((h) => /항목|지표|구분|기준/u.test(h));
+  const idxOfficial = findHeaderIdx(headers, OFFICIAL_PATTERNS);
+  const idxBrochure = findHeaderIdx(headers, BROCHURE_PATTERNS);
+  const idxKosis = findHeaderIdx(headers, KOSIS_PATTERNS);
+  const idxNote = headers.findIndex((h) => /비고|차이|설명/u.test(h));
   if (idxMetric < 0 || idxOfficial < 0) return [];
 
   return rows
@@ -109,9 +169,10 @@ function buildComparisonRows(headers: string[], rows: string[][]): ComparisonRow
       const official_value = (r[idxOfficial] ?? "").trim();
       if (!metric || !official_value) return null;
       const brochure_value = idxBrochure >= 0 ? r[idxBrochure]?.trim() || null : null;
+      const kosis_value = idxKosis >= 0 ? r[idxKosis]?.trim() || null : null;
       const note = idxNote >= 0 ? r[idxNote]?.trim() || null : null;
       const unit = extractUnit(official_value);
-      return { metric, official_value, brochure_value, note, unit } as ComparisonRow;
+      return { metric, official_value, brochure_value, kosis_value, note, unit } as ComparisonRow;
     })
     .filter((x): x is ComparisonRow => x !== null);
 }
@@ -138,12 +199,28 @@ export async function parseDocxFull(buffer: Buffer): Promise<DocxParseResult> {
 
   const comparison_tables: ComparisonTable[] = [];
   const data_tables: DataTable[] = [];
+  const unmapped_tables: UnmappedTable[] = [];
 
-  for (const t of tables) {
+  for (let i = 0; i < tables.length; i++) {
+    const t = tables[i];
     const headerText = t.headers.join(" ");
     const sectionTitle = t.precedingHeading ?? "";
-    const area = assignArea(`${sectionTitle} ${headerText}`);
-    const kind = classifyTable(t.headers);
+    const { area, confidence } = assignAreaWithConfidence(`${sectionTitle} ${headerText}`);
+    const kind = classifyTable(t.headers, t.rows);
+    void assignArea; // keep export reference
+
+    // confidence low + 비교/데이터 분류도 모호하면 unmapped 보존.
+    if (confidence === "low") {
+      unmapped_tables.push({
+        preceding_heading: t.precedingHeading ?? null,
+        headers: t.headers,
+        rows: t.rows,
+        reason: `assignArea fallback (low confidence) — kind=${kind}`,
+        docx_section_index: i,
+      });
+      continue;
+    }
+
     if (kind === "comparison") {
       const rows = buildComparisonRows(t.headers, t.rows);
       if (rows.length > 0) {
@@ -152,6 +229,15 @@ export async function parseDocxFull(buffer: Buffer): Promise<DocxParseResult> {
           area,
           headers: t.headers,
           rows,
+        });
+      } else {
+        // 비교 분류됐으나 row 추출 실패 — unmapped.
+        unmapped_tables.push({
+          preceding_heading: t.precedingHeading ?? null,
+          headers: t.headers,
+          rows: t.rows,
+          reason: "comparison classify but buildComparisonRows empty",
+          docx_section_index: i,
         });
       }
     } else {
@@ -164,5 +250,5 @@ export async function parseDocxFull(buffer: Buffer): Promise<DocxParseResult> {
     }
   }
 
-  return { sections, comparison_tables, data_tables, raw_text };
+  return { sections, comparison_tables, data_tables, unmapped_tables, raw_text };
 }

@@ -530,7 +530,13 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     const topicForArea2 = (input as { topic?: string }).topic ?? null;
     const plan = pickAreas(topicForArea2);
     for (const k of primaryAreas(plan)) {
-      const md = buildAreaSectionMarkdown({ area: k, brand: input.brand, tables: docx.comparison_tables });
+      const md = buildAreaSectionMarkdown({
+        area: k,
+        brand: input.brand,
+        tables: docx.comparison_tables,
+        dataTables: docx.data_tables,
+        priority: "primary",
+      });
       if (md) areaSectionsMd.push({ area: k, md });
     }
     log(`[area-sections] ${areaSectionsMd.length} 영역 H2 markdown 조립 (primary 영역 중 비교표 보유분)`);

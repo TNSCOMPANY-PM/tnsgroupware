@@ -41,6 +41,8 @@ export type ComparisonRow = {
   metric: string;
   official_value: string;
   brochure_value: string | null;
+  /** PR054 — KOSIS·외식업 전체·B급 컬럼 (있을 때만). */
+  kosis_value?: string | null;
   note: string | null;
   unit?: string | null;
 };
@@ -214,17 +216,70 @@ export function extractHomepageFacts(rawChunks: string[]): ExtractedHomepageFact
   return out;
 }
 
-/** PR052 — 섹션 제목·헤더 텍스트 → 7영역 휴리스틱 매핑. */
+/** PR052/PR054 — 섹션 제목·헤더 텍스트 → 7영역 휴리스틱 매핑.
+ * confidence: high (≥2 패턴 매칭) / medium (1 패턴) / low (매칭 0, brand_basic fallback).
+ */
 export function assignArea(text: string): AreaKey {
   const t = text.toLowerCase();
-  if (/창업비용|가맹비|교육비|보증금|인테리어|예치금|투자금/.test(t)) return "startup_cost";
-  if (/매출.*(지역|시간대|점포별|채널|분포|상위|하위)/.test(t)) return "revenue_detail";
-  if (/평균매출|월매출|연매출/.test(t)) return "avg_revenue";
-  if (/가맹점.*(현황|증감|개점|폐점|명의변경|변동)|점포\s*수/.test(t)) return "frcs_status";
-  if (/계약기간|로열티|옵션|운영.*정보|예치/.test(t)) return "operation";
-  if (/인증|식약처|haccp|법위반|분쟁|시정조치|위생/i.test(t)) return "cert_compliance";
-  if (/브랜드.*(기본|정보|개요)|법인|사업자|등록일/.test(t)) return "brand_basic";
+  if (/창업비용|가맹비|교육비|보증금|인테리어|예치금|투자금|초기\s*비용/u.test(t)) return "startup_cost";
+  if (
+    /(매출|판매).*(지역|시간대|점포별|채널|분포|상위|하위|평일|주말)|sns|유튜브|인스타|네이버\s*검색/iu.test(
+      t,
+    )
+  )
+    return "revenue_detail";
+  if (/평균매출|월매출|연매출|월\s*평균|연\s*평균|매출액/u.test(t)) return "avg_revenue";
+  if (/가맹점.*(현황|증감|개점|폐점|명의변경|변동)|점포\s*수|확장\s*추세|영업중|영업\s*상태/u.test(t))
+    return "frcs_status";
+  if (/계약기간|로열티|옵션|운영.*정보|예치|수익률\s*가정|손익|운영\s*비/u.test(t)) return "operation";
+  if (/인증|식약처|haccp|법위반|분쟁|시정조치|위생|esg|특허/iu.test(t)) return "cert_compliance";
+  if (/브랜드.*(기본|정보|개요)|법인|사업자|등록일|연혁|설립|소개/u.test(t)) return "brand_basic";
   return "brand_basic";
+}
+
+/** PR054 — 영역 매핑 confidence 측정. unmapped 분류용. */
+export function assignAreaWithConfidence(text: string): {
+  area: AreaKey;
+  confidence: "high" | "medium" | "low";
+} {
+  const t = text.toLowerCase();
+  const groups: Array<{ area: AreaKey; patterns: RegExp[] }> = [
+    {
+      area: "startup_cost",
+      patterns: [/창업비용/u, /가맹비/u, /교육비/u, /보증금/u, /인테리어/u, /투자금/u, /예치/u, /초기\s*비용/u],
+    },
+    {
+      area: "avg_revenue",
+      patterns: [/평균매출/u, /월매출/u, /연매출/u, /월\s*평균/u, /연\s*평균/u, /매출액/u],
+    },
+    {
+      area: "revenue_detail",
+      patterns: [/시간대/u, /지역별/u, /점포별/u, /채널/u, /분포/u, /상위|하위/u, /평일|주말/u, /sns/iu, /유튜브/u, /인스타/u, /검색량/u],
+    },
+    {
+      area: "frcs_status",
+      patterns: [/가맹점.*현황/u, /확장/u, /폐점/u, /개점/u, /명의변경/u, /점포\s*수/u, /영업중/u],
+    },
+    {
+      area: "operation",
+      patterns: [/계약기간/u, /로열티/u, /옵션/u, /운영비/u, /수익률\s*가정/u, /손익/u, /예치\s*가맹금/u],
+    },
+    {
+      area: "cert_compliance",
+      patterns: [/인증/u, /식약처/u, /haccp/iu, /법위반/u, /분쟁/u, /시정조치/u, /위생/u, /esg/iu, /특허/u],
+    },
+    {
+      area: "brand_basic",
+      patterns: [/브랜드.*(기본|정보|개요)/u, /법인/u, /사업자/u, /등록일/u, /연혁/u, /설립/u, /소개/u],
+    },
+  ];
+  let best: { area: AreaKey; matches: number } = { area: "brand_basic", matches: 0 };
+  for (const g of groups) {
+    const matches = g.patterns.filter((p) => p.test(t)).length;
+    if (matches > best.matches) best = { area: g.area, matches };
+  }
+  const confidence = best.matches >= 2 ? "high" : best.matches === 1 ? "medium" : "low";
+  return { area: best.area, confidence };
 }
 
 function fmtMan(n: number): string {
