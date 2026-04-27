@@ -22,6 +22,10 @@ export const FactSchema = z.object({
   fact_key: z.string().optional(),
   source_tier: z.enum(["A", "B", "C"]).optional(),
   period_month: z.string().optional(),
+  /** PR048 — frandoor 자체 산출 fact 표시. */
+  derived: z.boolean().optional(),
+  /** PR048 — 산식 박스 항목 ID. */
+  formula_id: z.string().nullable().optional(),
 });
 
 export const DerivedMetricSchema = z.object({
