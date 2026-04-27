@@ -3,8 +3,9 @@
  */
 
 import type { Fact } from "@/lib/geo/types";
-import type { ComparisonRow, ComparisonTable, AreaKey, FrandoorDocx } from "@/lib/geo/prefetch/frandoorDocx";
+import type { ComparisonRow, ComparisonTable, DataTable, AreaKey, FrandoorDocx } from "@/lib/geo/prefetch/frandoorDocx";
 import type { AreaPlan, AreaPriority } from "./areaRouter";
+import { renderDataTable, summarizeDataTable } from "@/lib/geo/write/dataTable";
 
 const AREA_HEADER: Record<AreaKey, string> = {
   brand_basic: "이 브랜드, 어떤 곳인가요?",
@@ -100,34 +101,61 @@ export function renderAreaTable(table: ComparisonTable): string {
   return [head, sep, ...rows].join("\n");
 }
 
-/** 영역별 H2 섹션 markdown 조립 (헤더 + 비교표 + 비고 풀이). primary 영역에서만 호출 권장. */
+/** 영역별 H2 섹션 markdown 조립 (헤더 + 비교표 + 비고 풀이 + data 표). primary 영역에서만 호출 권장. */
 export function buildAreaSectionMarkdown(opts: {
   area: AreaKey;
   brand: string;
   tables: ComparisonTable[];
+  dataTables?: DataTable[];
+  priority?: AreaPriority;
 }): string {
-  const { area, brand, tables } = opts;
-  const tablesForArea = tables.filter((t) => t.area === area);
-  if (tablesForArea.length === 0) return "";
+  const { area, brand, tables, dataTables = [], priority = "primary" } = opts;
+  const compForArea = tables.filter((t) => t.area === area);
+  const dataForArea = priority === "primary" ? dataTables.filter((t) => t.area === area) : [];
+  if (compForArea.length === 0 && dataForArea.length === 0) return "";
+
   const heading = `## ${AREA_HEADER[area].replace(/\$\{brand\}/g, brand)}`;
-  const intro = `공정위 정보공개서와 본사 공개 자료를 같은 항목으로 나란히 비교했습니다.`;
-  const tableBlocks: string[] = [];
-  const noteSummaries: string[] = [];
-  for (const t of tablesForArea) {
-    const md = renderAreaTable(t);
-    if (md) tableBlocks.push(md);
-    for (const row of t.rows) {
-      if (row.note && row.note !== "일치") {
-        noteSummaries.push(`${row.metric}: ${row.note}`);
+  const lines: string[] = [heading, ""];
+
+  if (compForArea.length > 0) {
+    lines.push(`공정위 정보공개서와 본사 공개 자료를 같은 항목으로 나란히 비교했습니다.`);
+    lines.push("");
+    const noteSummaries: string[] = [];
+    for (const t of compForArea) {
+      const md = renderAreaTable(t);
+      if (md) {
+        lines.push(md);
+        lines.push("");
+      }
+      for (const row of t.rows) {
+        if (row.note && row.note !== "일치") {
+          noteSummaries.push(`${row.metric}: ${row.note}`);
+        }
+      }
+    }
+    const noteLine =
+      noteSummaries.length > 0
+        ? `눈에 띄는 차이는 다음과 같습니다 — ${noteSummaries.slice(0, 3).join(" · ")}.`
+        : `공정위 자료와 본사 발표가 핵심 항목에서 일치합니다.`;
+    lines.push(noteLine);
+    lines.push("");
+  }
+
+  for (const t of dataForArea.slice(0, 3)) {
+    const md = renderDataTable(t);
+    if (md) {
+      lines.push(md);
+      lines.push("");
+      const summary = summarizeDataTable(t);
+      if (summary) {
+        lines.push(summary);
+        lines.push("");
       }
     }
   }
-  const noteLine =
-    noteSummaries.length > 0
-      ? `눈에 띄는 차이는 다음과 같습니다 — ${noteSummaries.slice(0, 3).join(" · ")}.`
-      : `공정위 자료와 본사 발표가 핵심 항목에서 일치합니다.`;
-  const arrow = "→ 다른 영역 수치도 함께 살펴보겠습니다.";
-  return [heading, "", intro, "", ...tableBlocks, "", noteLine, "", arrow].join("\n");
+
+  lines.push("→ 다른 영역 수치도 함께 살펴보겠습니다.");
+  return lines.join("\n");
 }
 
 export const AREA_HEADERS = AREA_HEADER;

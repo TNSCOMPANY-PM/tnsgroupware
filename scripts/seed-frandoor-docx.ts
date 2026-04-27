@@ -73,19 +73,25 @@ async function processBrand(opts: {
   const parsed = await parseDocxFull(opts.fileBuffer);
   const compStr = JSON.stringify(parsed.comparison_tables);
   const dataStr = JSON.stringify(parsed.data_tables);
+  const unmappedStr = JSON.stringify(parsed.unmapped_tables);
 
-  // factData 안 __comparison_tables__ / __data_tables__ entry 교체 또는 추가.
+  // factData 안 entry 교체 또는 추가.
   const fd = opts.factData.filter(
-    (x) => x?.label !== "__comparison_tables__" && x?.label !== "__data_tables__",
+    (x) =>
+      x?.label !== "__comparison_tables__" &&
+      x?.label !== "__data_tables__" &&
+      x?.label !== "__unmapped_tables__",
   );
   fd.push({ label: "__comparison_tables__", keyword: compStr });
   fd.push({ label: "__data_tables__", keyword: dataStr });
+  fd.push({ label: "__unmapped_tables__", keyword: unmappedStr });
 
   return {
     fact_data: fd,
     sections: parsed.sections.length,
     comparison: parsed.comparison_tables.length,
     data: parsed.data_tables.length,
+    unmapped: parsed.unmapped_tables.length,
   };
 }
 
@@ -148,7 +154,7 @@ async function main() {
         console.error(`[fail] ${t.name}: update`, error.message);
       } else {
         console.log(
-          `[ok] ${t.name} — sections=${r.sections} comparison=${r.comparison} data=${r.data}`,
+          `[ok] ${t.name} — sections=${r.sections} comparison=${r.comparison} data=${r.data} unmapped=${r.unmapped}`,
         );
       }
     } catch (e) {

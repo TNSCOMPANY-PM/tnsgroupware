@@ -620,6 +620,20 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L70 PR054 — 영역 매핑 휴리스틱 부족 신호.
+    // areaSectionAssembled === 0 && primaryAreaCount > 0 → docx 비교표가 모두 영역 매핑 실패했다는 신호.
+    if (payload.kind === "franchiseDoc") {
+      const assembled = opts.d3?.areaSectionAssembled ?? null;
+      const primaryCount = opts.d3?.primaryAreaCount ?? null;
+      if (primaryCount !== null && assembled !== null && primaryCount > 0 && assembled === 0) {
+        warns.push({
+          code: "L70",
+          level: "WARN",
+          msg: "primary 영역 ≥ 1개인데 area_sections 0개 조립 — docx 비교표·영역 매핑 휴리스틱 부족 신호 (확장 패턴 추가 권장)",
+        });
+      }
+    }
+
     // L67/L69 PR053 — primary 영역 매칭·누락 검증.
     if (payload.kind === "franchiseDoc") {
       const primaryCount = opts.d3?.primaryAreaCount ?? null;
