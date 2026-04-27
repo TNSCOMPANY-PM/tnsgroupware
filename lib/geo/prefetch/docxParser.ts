@@ -18,11 +18,49 @@ export type UnmappedTable = {
   docx_section_index: number;
 };
 
+export type SuspectTable = {
+  preceding_heading: string | null;
+  headers: string[];
+  rows: string[][];
+  reason: string;
+  docx_section_index: number;
+};
+
+/** PR055 — 표 헤더 vs row 길이 정렬 검증. mismatch 시 suspect 분류. */
+export function validateTableAlignment(
+  headers: string[],
+  rows: string[][],
+): { valid: boolean; reason?: string } {
+  if (headers.length === 0) return { valid: false, reason: "empty headers" };
+  if (rows.length === 0) return { valid: true };
+  const headerLen = headers.length;
+  const rowLens = new Set(rows.map((r) => r.length));
+  if (rowLens.size > 1) {
+    return { valid: false, reason: `inconsistent row lengths: ${[...rowLens].join(",")}` };
+  }
+  const rowLen = [...rowLens][0];
+  if (rowLen !== headerLen) {
+    return { valid: false, reason: `header(${headerLen}) vs row(${rowLen}) length mismatch` };
+  }
+  return { valid: true };
+}
+
+/** PR055 — frandoorDocx FrandoorDocx 타입에 추가될 suspect_tables. */
+export type AlignmentSafeOpts = { dataTableHeaders?: string[]; dataTableRows?: Record<string, string>[] };
+export function isAlignmentSafe(headers: string[], rowsRecord: Record<string, string>[]): boolean {
+  // record-format data 표 align 검증 — 모든 row 가 헤더 키 모두 포함하는지.
+  if (headers.length === 0) return false;
+  if (rowsRecord.length === 0) return true;
+  const expectedKeys = headers.map((h) => h.replace(/\s+/g, "_"));
+  return rowsRecord.every((row) => expectedKeys.every((k) => k in row));
+}
+
 export type DocxParseResult = {
   sections: { level: number; title: string }[];
   comparison_tables: ComparisonTable[];
   data_tables: DataTable[];
   unmapped_tables: UnmappedTable[];
+  suspect_tables: SuspectTable[];
   raw_text: string;
 };
 
@@ -44,6 +82,33 @@ function decodeHtmlEntities(s: string): string {
 
 function stripTags(s: string): string {
   return decodeHtmlEntities(s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
+}
+
+/** PR055 — 셀 안 nested <p>·<br>·줄바꿈을 단일 텍스트로 결합. 셀 자체 split 차단. */
+function extractCellText(cellHtml: string): string {
+  return decodeHtmlEntities(
+    cellHtml
+      .replace(/<\/p>\s*<p[^>]*>/gi, " ") // 인접 <p> 결합
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+/** PR055 — colspan="N" 셀을 N번 복제 (단순 처리). */
+function extractRowCells(rowHtml: string): string[] {
+  const cells: string[] = [];
+  const cellRe = /<(t[hd])([^>]*)>([\s\S]*?)<\/\1>/giu;
+  let m: RegExpExecArray | null;
+  while ((m = cellRe.exec(rowHtml)) !== null) {
+    const attrs = m[2];
+    const text = extractCellText(m[3]);
+    const colspanMatch = attrs.match(/colspan\s*=\s*"?(\d+)"?/iu);
+    const span = colspanMatch ? Math.max(1, parseInt(colspanMatch[1], 10)) : 1;
+    for (let i = 0; i < span; i++) cells.push(text);
+  }
+  return cells;
 }
 
 /** mammoth HTML 출력에서 테이블·헤딩 추출. 정규식 기반 (HTML 단순 구조 대상). */
@@ -69,18 +134,13 @@ function extractTablesAndHeadings(html: string): {
         lastHeading = title;
       }
     } else if (m[3]) {
-      // 테이블
+      // 테이블 — PR055: extractRowCells (colspan + nested <p> 처리).
       const tbl = m[3];
       const rows: string[][] = [];
       const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/giu;
       let tr: RegExpExecArray | null;
       while ((tr = trRe.exec(tbl)) !== null) {
-        const cells: string[] = [];
-        const tdRe = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/giu;
-        let td: RegExpExecArray | null;
-        while ((td = tdRe.exec(tr[1])) !== null) {
-          cells.push(stripTags(td[1]));
-        }
+        const cells = extractRowCells(tr[1]);
         if (cells.length > 0) rows.push(cells);
       }
       if (rows.length > 0) {
@@ -200,6 +260,7 @@ export async function parseDocxFull(buffer: Buffer): Promise<DocxParseResult> {
   const comparison_tables: ComparisonTable[] = [];
   const data_tables: DataTable[] = [];
   const unmapped_tables: UnmappedTable[] = [];
+  const suspect_tables: SuspectTable[] = [];
 
   for (let i = 0; i < tables.length; i++) {
     const t = tables[i];
@@ -208,6 +269,19 @@ export async function parseDocxFull(buffer: Buffer): Promise<DocxParseResult> {
     const { area, confidence } = assignAreaWithConfidence(`${sectionTitle} ${headerText}`);
     const kind = classifyTable(t.headers, t.rows);
     void assignArea; // keep export reference
+
+    // PR055 — 정렬 검증. 헤더 vs row 길이 mismatch 또는 row 간 길이 불일치 → suspect.
+    const alignment = validateTableAlignment(t.headers, t.rows);
+    if (!alignment.valid) {
+      suspect_tables.push({
+        preceding_heading: t.precedingHeading ?? null,
+        headers: t.headers,
+        rows: t.rows,
+        reason: alignment.reason ?? "alignment unknown",
+        docx_section_index: i,
+      });
+      continue;
+    }
 
     // confidence low + 비교/데이터 분류도 모호하면 unmapped 보존.
     if (confidence === "low") {
@@ -250,5 +324,5 @@ export async function parseDocxFull(buffer: Buffer): Promise<DocxParseResult> {
     }
   }
 
-  return { sections, comparison_tables, data_tables, unmapped_tables, raw_text };
+  return { sections, comparison_tables, data_tables, unmapped_tables, suspect_tables, raw_text };
 }

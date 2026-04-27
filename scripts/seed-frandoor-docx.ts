@@ -74,17 +74,20 @@ async function processBrand(opts: {
   const compStr = JSON.stringify(parsed.comparison_tables);
   const dataStr = JSON.stringify(parsed.data_tables);
   const unmappedStr = JSON.stringify(parsed.unmapped_tables);
+  const suspectStr = JSON.stringify(parsed.suspect_tables);
 
   // factData 안 entry 교체 또는 추가.
   const fd = opts.factData.filter(
     (x) =>
       x?.label !== "__comparison_tables__" &&
       x?.label !== "__data_tables__" &&
-      x?.label !== "__unmapped_tables__",
+      x?.label !== "__unmapped_tables__" &&
+      x?.label !== "__suspect_tables__",
   );
   fd.push({ label: "__comparison_tables__", keyword: compStr });
   fd.push({ label: "__data_tables__", keyword: dataStr });
   fd.push({ label: "__unmapped_tables__", keyword: unmappedStr });
+  fd.push({ label: "__suspect_tables__", keyword: suspectStr });
 
   return {
     fact_data: fd,
@@ -92,6 +95,7 @@ async function processBrand(opts: {
     comparison: parsed.comparison_tables.length,
     data: parsed.data_tables.length,
     unmapped: parsed.unmapped_tables.length,
+    suspect: parsed.suspect_tables.length,
   };
 }
 
@@ -154,7 +158,7 @@ async function main() {
         console.error(`[fail] ${t.name}: update`, error.message);
       } else {
         console.log(
-          `[ok] ${t.name} — sections=${r.sections} comparison=${r.comparison} data=${r.data} unmapped=${r.unmapped}`,
+          `[ok] ${t.name} — sections=${r.sections} comparison=${r.comparison} data=${r.data} unmapped=${r.unmapped} suspect=${r.suspect}`,
         );
       }
     } catch (e) {

@@ -7,6 +7,16 @@ import type { ComparisonRow, ComparisonTable, DataTable, AreaKey, FrandoorDocx }
 import type { AreaPlan, AreaPriority } from "./areaRouter";
 import { renderDataTable, summarizeDataTable } from "@/lib/geo/write/dataTable";
 
+/** PR055 — record-format data 표 align 검증. 모든 row 가 헤더 키 모두 보유해야 safe. */
+function isAlignmentSafeData(headers: string[], rows: Record<string, string>[]): boolean {
+  if (headers.length === 0) return false;
+  if (rows.length === 0) return true;
+  const expectedKeys = headers.map((h) => h.replace(/\s+/g, "_"));
+  return rows.every((row) => {
+    return expectedKeys.every((k) => k in row && row[k] !== undefined);
+  });
+}
+
 const AREA_HEADER: Record<AreaKey, string> = {
   brand_basic: "이 브랜드, 어떤 곳인가요?",
   avg_revenue: "평균매출, 어느 정도인가요?",
@@ -142,15 +152,21 @@ export function buildAreaSectionMarkdown(opts: {
   }
 
   for (const t of dataForArea.slice(0, 3)) {
-    const md = renderDataTable(t);
-    if (md) {
-      lines.push(md);
-      lines.push("");
-      const summary = summarizeDataTable(t);
-      if (summary) {
-        lines.push(summary);
+    // PR055 — align safe 한 표만 markdown 노출, unsafe 면 자연어 요약만.
+    const safe = isAlignmentSafeData(t.headers, t.rows);
+    if (safe) {
+      const md = renderDataTable(t);
+      if (md) {
+        lines.push(md);
         lines.push("");
       }
+    }
+    const summary = safe
+      ? summarizeDataTable(t)
+      : `${t.section} 관련 세부 내역은 공정위 정보공개서 원문에서 직접 열람하실 수 있습니다.`;
+    if (summary) {
+      lines.push(summary);
+      lines.push("");
     }
   }
 
