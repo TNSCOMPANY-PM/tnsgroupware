@@ -616,6 +616,28 @@ export function lintForDepth(
       warns.push({ code: "L59", level: "WARN", msg: "본문 진입 화살표 진입 (→ ) 누락" });
     }
 
+    // L67/L68 PR052 — 비교표 비고 자연어 풀이 검증.
+    if (payload.kind === "franchiseDoc") {
+      // 본문 안 markdown 비교표 ("| 항목 | ... | 비고 |" 행 포함) 검출.
+      const sectionsBody = payload.sections.map((s) => s.body).join("\n\n");
+      const tableHeaderRe = /^\|\s*항목\s*\|[^\n]*비고\s*\|/gmu;
+      let hasTable = false;
+      let m: RegExpExecArray | null;
+      while ((m = tableHeaderRe.exec(sectionsBody)) !== null) {
+        hasTable = true;
+        const tail = sectionsBody.slice(m.index + m[0].length, m.index + m[0].length + 400);
+        if (!/(차이|일치|기준)/u.test(tail)) {
+          warns.push({
+            code: "L68",
+            level: "WARN",
+            msg: "비교표 직후 ±400자 안 비고 컬럼 자연어 풀이 (차이/일치/기준) 누락",
+          });
+          break;
+        }
+      }
+      void hasTable;
+    }
+
     // L66 PR051 — 공유 CTA 자기과시·광고 톤 차단 + 1회 한정.
     const SHARE_CTA_BAD = /(도움이?\s*되었?다면|도움이?\s*됐다면|공유\s*부탁|구독\s*부탁|저희?\s*글이?|저희?\s*프랜도어|프랜도어\s*데이터)/g;
     const ctaBadHits = Array.from(body.matchAll(SHARE_CTA_BAD)).map((m) => m[0]);
