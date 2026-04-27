@@ -41,12 +41,53 @@ function periodLabel(f: FactLite | null): string {
   return m[2] === "12" ? `${m[1]}년 말` : `${m[1]}년 ${parseInt(m[2], 10)}월`;
 }
 
+/** PR057 — topic 에 비교 키워드 (vs|비교|평균|대비|차이) 매칭 시 true. */
+function isCompareTopic(topic: string | undefined): boolean {
+  if (!topic) return false;
+  return /\bvs\b|비교|평균|대비|차이/i.test(topic);
+}
+
+/** PR057 — ftc 업종 평균 fact 추출 (compare lede 용). */
+function pickFtcIndustryAvgRev(
+  facts: FactLite[],
+): { industry: string; n: number; avg: number } | null {
+  const f = facts.find((x) => x.fact_key === "ftc2024_industry_avg_revenue");
+  if (!f) return null;
+  const claim = (f as unknown as { claim?: string }).claim;
+  if (!claim) return null;
+  const m = claim.match(/^(\S+?)\s*프랜차이즈\s*(\d+)\s*개\s*평균\s*월매출\s*([\d,]+)/);
+  if (!m) return null;
+  const avgVal = Number(m[3].replace(/,/g, ""));
+  if (!Number.isFinite(avgVal)) return null;
+  return { industry: m[1], n: parseInt(m[2], 10), avg: avgVal };
+}
+
 export function buildOneLineAnswer(opts: {
   brand: string;
   facts: FactLite[];
   deriveds: DerivedMetric[];
+  /** PR057 — topic 비교 키워드 시 첫 문장 비교 중심으로 전환. */
+  topic?: string;
 }): { answer: string; detail: string | null } {
-  const { brand, facts, deriveds } = opts;
+  const { brand, facts, deriveds, topic } = opts;
+
+  // PR057 — topic 비교 우선: ftc 업종 평균 + 브랜드 월매출 가용 시 비교 lede
+  if (isCompareTopic(topic)) {
+    const ind = pickFtcIndustryAvgRev(facts);
+    const brandRev = num(pickByKey(facts, "docx_avg_monthly_revenue", "A")?.value);
+    if (ind && brandRev != null && ind.avg > 0) {
+      const ratio = Math.round((brandRev / ind.avg) * 100) / 100;
+      const ratioLabel = ratio >= 1 ? `${ratio}배 수준` : `약 ${Math.round(ratio * 100)}% 수준`;
+      const answer = `${withJosa(`${brand} 월평균매출 ${formatManwon(brandRev)}`, "은/는")} ${ind.industry} 프랜차이즈 ${ind.n}개 평균 ${formatManwon(ind.avg)}의 ${ratioLabel}입니다.`;
+      const aN = num(pickByKey(facts, "frcs_cnt", "A")?.value);
+      const cN = num(pickByKey(facts, "frcs_cnt", "C")?.value);
+      const detail =
+        aN != null && cN != null
+          ? `공정위 정보공개서 가맹점은 ${aN}개, 본사 발표 기준 ${cN}호점입니다.`
+          : null;
+      return { answer, detail };
+    }
+  }
 
   const aStores = pickByKey(facts, "frcs_cnt", "A");
   const cStores = pickByKey(facts, "frcs_cnt", "C");
@@ -344,9 +385,11 @@ export function buildLedeMarkdown(opts: {
   metaPeriodGapMonths: number | null;
   sectionTitle?: string;
   transitionLine?: string;
+  /** PR057 — topic 비교 키워드 시 첫 문장 비교 중심으로 전환. */
+  topic?: string;
 }): string {
   const { brand, facts, deriveds, metaPattern, metaPeriodGapMonths } = opts;
-  const lede = buildOneLineAnswer({ brand, facts, deriveds });
+  const lede = buildOneLineAnswer({ brand, facts, deriveds, topic: opts.topic });
   const stats = pickHeadlineStats({ facts, deriveds });
   const sectionTitle = opts.sectionTitle ?? `${brand} 핵심 수치, 한눈에 보면`;
 

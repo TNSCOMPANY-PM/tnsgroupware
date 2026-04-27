@@ -211,6 +211,10 @@ export type D3LintContext = {
   primaryAreaCount?: number;
   /** PR053 — area_sections_md 조립 개수 (실제 본문에 들어간 영역 H2 수). */
   areaSectionAssembled?: number;
+  /** PR057 — 사용자 입력 topic (L73 검증용). */
+  topic?: string | null;
+  /** PR057 — ftc 매칭 시도 결과 (L74 검증용). null 미시도, false 미매칭, true 매칭. */
+  ftcBrandMatched?: boolean | null;
 };
 
 export function lintForDepth(
@@ -657,6 +661,50 @@ export function lintForDepth(
           level: "WARN",
           msg: `docx vs ftc2024 cross-check 충돌 ${conflicts.length}건: ${conflicts[0]}`,
         });
+      }
+    }
+
+    // L73 PR057 — topic 무력화 검출.
+    // topic 비어있지 않은데 제목·lede(첫 800자) 어디에도 topic 핵심 키워드 0건 매칭 시 WARN.
+    {
+      const topic = opts.d3?.topic ?? null;
+      if (topic && topic.trim().length >= 2) {
+        const topicNorm = topic.replace(/\s+/g, "");
+        const keywords = topicNorm
+          .split(/[^\p{Script=Hangul}A-Za-z0-9]+/u)
+          .filter((k) => k.length >= 2);
+        const title = String(((fm as { title?: unknown }).title) ?? "");
+        const head = (body ?? "").slice(0, 1500);
+        const haystack = `${title}\n${head}`.toLowerCase();
+        const hasAny = keywords.some((k) => haystack.includes(k.toLowerCase())) ||
+          /\bvs\b|비교|평균|대비|차이|창업비용|확장|폐점|매출/i.test(`${title}\n${head}`);
+        if (!hasAny) {
+          warns.push({
+            code: "L73",
+            level: "WARN",
+            msg: `topic 무력화 — topic="${topic.slice(0, 30)}" 키워드가 제목·lede 어디에도 등장 안함`,
+          });
+        }
+      }
+    }
+
+    // L74 PR057 — ftc 미가동 검출.
+    // ftc 매칭 가능 brand 인데 facts 풀에 ftc2024_* fact 0건 시 WARN.
+    {
+      const matched = opts.d3?.ftcBrandMatched ?? null;
+      if (matched === true) {
+        const factList = facts.facts as Array<Record<string, unknown>>;
+        const ftcFacts = factList.filter((f) => {
+          const k = typeof f.fact_key === "string" ? f.fact_key : "";
+          return k.startsWith("ftc2024_");
+        });
+        if (ftcFacts.length === 0) {
+          warns.push({
+            code: "L74",
+            level: "WARN",
+            msg: `ftc 미가동 — brand 매칭 ✓ but facts 풀에 ftc2024_* fact 0건 (industry/percentile/hq 모두 누락)`,
+          });
+        }
       }
     }
 

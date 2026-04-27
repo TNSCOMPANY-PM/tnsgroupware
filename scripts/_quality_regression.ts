@@ -33,13 +33,68 @@ if (fs.existsSync(envPath)) {
 const DEFAULT_BRANDS = [{ id: "82c7ffc9-ed53-44bf-859d-a9a72b147b20", name: "오공김밥" }];
 const TOPICS = ["창업비용 분석", "가맹점 확장 추세", "월매출 분석"];
 
-type Args = { brand?: string; topic?: string; max?: number };
+/**
+ * PR057 — fact_data 풍부 + ftc 매칭 가용 + industry_main 다양성 5 brand 자동 선정.
+ * ftc 미가동 또는 후보 부족 시 graceful fallback (DEFAULT_BRANDS 만).
+ * --auto 플래그 시에만 동작.
+ */
+async function pickRegressionBrands(): Promise<{ id: string; name: string }[]> {
+  const { createAdminClient } = await import("../utils/supabase/admin");
+  const { isFtc2024Configured, fetchFtcBrand } = await import("../lib/geo/prefetch/ftc2024");
+
+  const adminSb = createAdminClient();
+  const { data: candidates, error } = await adminSb
+    .from("geo_brands")
+    .select("id, name, industry_main, fact_data")
+    .not("fact_data", "is", null)
+    .limit(50);
+  if (error || !candidates) {
+    console.warn(`[pickRegressionBrands] geo_brands 조회 실패: ${error?.message ?? "no data"}`);
+    return DEFAULT_BRANDS;
+  }
+
+  // 오공김밥 항상 첫번째
+  const seedName = "오공김밥";
+  const seed = candidates.find((c) => c.name === seedName);
+  const selected: { id: string; name: string }[] = [];
+  const usedIndustries = new Set<string>();
+  if (seed) {
+    selected.push({ id: seed.id, name: seed.name });
+    if (seed.industry_main) usedIndustries.add(seed.industry_main);
+  }
+
+  // ftc 매칭 가능 + industry 다양성
+  const ftcOn = isFtc2024Configured();
+  for (const c of candidates) {
+    if (selected.find((s) => s.id === c.id)) continue;
+    if (c.industry_main && usedIndustries.has(c.industry_main)) continue;
+    if (ftcOn) {
+      const ftc = await fetchFtcBrand({ brand_nm: c.name });
+      if (!ftc) continue;
+    }
+    // fact_data 가 충분히 풍부한지 (기본: docx 비교표 ≥ 1개 또는 official_data 존재)
+    const fd = c.fact_data as { __comparison_tables__?: unknown[]; official_data?: unknown } | null;
+    const rich =
+      (Array.isArray(fd?.__comparison_tables__) && (fd?.__comparison_tables__?.length ?? 0) >= 1) ||
+      !!fd?.official_data;
+    if (!rich) continue;
+
+    selected.push({ id: c.id, name: c.name });
+    if (c.industry_main) usedIndustries.add(c.industry_main);
+    if (selected.length === 5) break;
+  }
+  if (selected.length === 0) return DEFAULT_BRANDS;
+  return selected;
+}
+
+type Args = { brand?: string; topic?: string; max?: number; auto?: boolean };
 function parseArgs(): Args {
   const a: Args = {};
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith("--brand=")) a.brand = arg.slice("--brand=".length);
     else if (arg.startsWith("--topic=")) a.topic = arg.slice("--topic=".length);
     else if (arg.startsWith("--max=")) a.max = parseInt(arg.slice("--max=".length), 10);
+    else if (arg === "--auto") a.auto = true;
   }
   return a;
 }
@@ -174,8 +229,13 @@ async function runOne(input: { brandId: string; brandName: string; topic: string
 
 async function main() {
   const args = parseArgs();
+  // PR057 — --auto 플래그 시 fact_data + ftc 매칭 + industry 다양성 휴리스틱으로 5 brand 자동 선정.
+  const brandPool = args.auto ? await pickRegressionBrands() : DEFAULT_BRANDS;
+  if (args.auto) {
+    console.log(`[--auto] ${brandPool.length} brands: ${brandPool.map((b) => b.name).join(", ")}\n`);
+  }
   const targets: { brandId: string; brandName: string; topic: string }[] = [];
-  for (const b of DEFAULT_BRANDS) {
+  for (const b of brandPool) {
     if (args.brand && b.name !== args.brand) continue;
     for (const topic of TOPICS) {
       if (args.topic && !topic.includes(args.topic)) continue;
