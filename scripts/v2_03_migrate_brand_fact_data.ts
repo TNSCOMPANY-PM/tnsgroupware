@@ -6,7 +6,7 @@
  * 사용:
  *   npx tsx scripts/v2_03_migrate_brand_fact_data.ts
  *   npx tsx scripts/v2_03_migrate_brand_fact_data.ts --dry-run
- *   npx tsx scripts/v2_03_migrate_brand_fact_data.ts --brand-id <UUID>
+ *   npx tsx scripts/v2_03_migrate_brand_fact_data.ts --brand-id <geo_brand_id>
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
