@@ -29,6 +29,14 @@ import {
 } from "@/lib/geo/prefetch/ftc2024";
 import { crossCheckDocxVsFtc, mappingStats } from "@/lib/geo/depth/unifiedFacts";
 import type { StandardMetricId } from "@/lib/geo/standardSchema";
+import { pickScenario, getScenario } from "@/lib/geo/scenarios";
+import {
+  buildScenarioTitle,
+  buildScenarioConclusionLine,
+  buildScenarioBodySkeleton,
+  listScenarioHeadings,
+  type InterpolateVars,
+} from "@/lib/geo/depth/scenarioBuilder";
 import {
   pickMetaPattern,
   buildFormulaItems,
@@ -671,9 +679,9 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
             industry: industryKor,
           });
           if (pct) {
-            const topPct = Math.round((100 - pct.percentile) * 10) / 10;
+            // PR062 — pct.percentile 자체가 "상위 N%" 의미 (rank/total × 100).
             facts.facts.push({
-              claim: `${input.brand} 월평균매출은 ${industryKor} 업종 ${pct.industry_n}개 중 상위 ${topPct}% 수준 (공정위 정보공개서 2024 기반)`,
+              claim: `${input.brand} 월평균매출은 ${industryKor} 업종 ${pct.industry_n}개 중 상위 ${pct.percentile}% 수준 (공정위 정보공개서 2024 기반)`,
               value: pct.percentile,
               unit: "%",
               source_url: "https://franchise.ftc.go.kr/",
@@ -821,13 +829,81 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const titleYear = official?.master.latest_year
     ? String(official.master.latest_year)
     : (docx?.official_data?.source_year ?? "2024");
-  const suggestedTitle = chooseTitle({
+
+  // PR062 — topic → 시나리오 라우터 → H2 골격 + 시나리오 변수.
+  const topicRaw = (input as { topic?: string }).topic;
+  const scenarioId = pickScenario({ topic: topicRaw, depth: "D3" });
+  const scenario = getScenario(scenarioId);
+  log(`[scenario] picked=${scenarioId} (topic="${topicRaw ?? "-"}")`);
+
+  // 시나리오 변수: brand / industry / n / ratio / pct / value 등
+  const ftcAvgFactClaim = (() => {
+    const f = facts.facts.find((x) => x.fact_key === "ftc2024_industry_avg_revenue") as
+      | (typeof facts.facts)[number]
+      | undefined;
+    return f?.claim ?? "";
+  })();
+  const industryFromClaim = (() => {
+    const m = ftcAvgFactClaim.match(/^(\S+?)\s*프랜차이즈\s*(\d+)\s*개/);
+    return m ? { industry: m[1], n: parseInt(m[2], 10) } : null;
+  })();
+  const brandRevNum = (() => {
+    const f = facts.facts.find(
+      (x) => x.fact_key === "docx_avg_monthly_revenue" && x.source_tier === "A",
+    );
+    if (!f) return null;
+    const v = typeof f.value === "number" ? f.value : Number(f.value);
+    return Number.isFinite(v) ? v : null;
+  })();
+  const percentileFact = facts.facts.find(
+    (x) => x.fact_key === "ftc2024_industry_percentile",
+  );
+  const pctNum = (() => {
+    if (!percentileFact) return null;
+    const v =
+      typeof percentileFact.value === "number"
+        ? percentileFact.value
+        : Number(percentileFact.value);
+    return Number.isFinite(v) ? v : null;
+  })();
+  const ratioToIndustry = (() => {
+    if (brandRevNum == null || !industryFromClaim) return null;
+    const m = ftcAvgFactClaim.match(/평균\s*월매출\s*([\d,]+)/);
+    if (!m) return null;
+    const avgN = Number(m[1].replace(/,/g, ""));
+    if (!Number.isFinite(avgN) || avgN <= 0) return null;
+    return Math.round((brandRevNum / avgN) * 100) / 100;
+  })();
+  const scenarioVars: InterpolateVars = {
+    brand: input.brand,
+    industry: industryFromClaim?.industry ?? null,
+    n: industryFromClaim?.n ?? null,
+    ratio: ratioToIndustry,
+    pct: pctNum,
+    value: brandRevNum,
+    year: titleYear,
+  };
+  const scenarioTitle = buildScenarioTitle(scenario, scenarioVars);
+  const scenarioConclusionLine = buildScenarioConclusionLine(scenario, scenarioVars);
+  const scenarioSkeletonMd = buildScenarioBodySkeleton(scenario, scenarioVars);
+  const scenarioHeadings = listScenarioHeadings(scenario, scenarioVars);
+  log(
+    `[scenario] title="${scenarioTitle.slice(0, 40)}..." h2_sections=${scenario.h2_sections.length} conclusion="${scenarioConclusionLine.slice(0, 40)}..."`,
+  );
+
+  // PR062 — facts-priority titler (PR057) + 시나리오 title 결합. default fallback 시 facts-priority 우선.
+  const factsTitle = chooseTitle({
     brand: input.brand,
     facts: facts.facts,
     deriveds: allDeriveds,
-    topic: (input as { topic?: string }).topic,
+    topic: topicRaw,
     year: titleYear,
   });
+  const useScenarioTitle =
+    scenarioId !== "default_brand_overview" && !scenarioTitle.includes("(미공개)");
+  const suggestedTitle: typeof factsTitle = useScenarioTitle
+    ? { title: scenarioTitle, pattern: factsTitle?.pattern ?? "compare-hook" }
+    : factsTitle;
   const metaSelection = pickMetaPattern({ facts: facts.facts, deriveds: allDeriveds });
   const formulaItems = buildFormulaItems({ facts: facts.facts, deriveds: allDeriveds });
 
@@ -902,6 +978,13 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     suggested_title_pattern: suggestedTitle?.pattern ?? null,
     meta_pattern: metaSelection.pattern,
     meta_period_gap_months: metaSelection.period_gap_months,
+    // PR062 — 시나리오 H2 골격 + 결론 패턴 (sonnet 가이드)
+    scenario_id: scenarioId,
+    scenario_category: scenario.category,
+    scenario_lede_focus: scenario.lede_focus,
+    scenario_h2_headings: scenarioHeadings,
+    scenario_conclusion_line: scenarioConclusionLine,
+    scenario_skeleton_md: scenarioSkeletonMd,
   });
   const raw = sonnet.raw as {
     canonicalUrl?: unknown;
@@ -990,6 +1073,10 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     mappingStats: mappingStatsForLint,
     crossCheckConflicts,
     rescueApplied,
+    // PR062 — 시나리오 H2 일치 검증 + 결론 패턴 검증
+    scenarioId,
+    scenarioHeadings,
+    scenarioConclusionLine,
   };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [

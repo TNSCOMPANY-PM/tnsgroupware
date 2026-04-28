@@ -312,7 +312,9 @@ export async function computePercentile(input: {
     const desc = [...monthlyValues].sort((a, b) => b - a);
     const higher = desc.filter((v) => v > input.brand_value).length;
     const rank = higher + 1;
-    const percentile = Math.round(((desc.length - rank + 1) / desc.length) * 1000) / 10;
+    // PR062 — "상위 N%" 의미. rank/total × 100 (작을수록 상위).
+    // 524개 중 1위 → 0.2% / 100위 → 19.1% / 524위 → 100%.
+    const topPercentile = Math.round((rank / desc.length) * 1000) / 10;
 
     return {
       metric: "monthly_avg_sales",
@@ -321,7 +323,7 @@ export async function computePercentile(input: {
       industry_median: median(monthlyValues) ?? 0,
       brand_rank: rank,
       industry_n: desc.length,
-      percentile,
+      percentile: topPercentile,
     };
   } catch (e) {
     console.warn("[ftc2024] percentile 실패:", e instanceof Error ? e.message : e);
