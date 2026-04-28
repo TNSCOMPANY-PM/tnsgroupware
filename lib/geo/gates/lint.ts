@@ -235,6 +235,12 @@ export type D3LintContext = {
   }>;
   /** PR061 — rescue 적용 여부 (L76 면제 입력). */
   rescueApplied?: boolean;
+  /** PR062 — 시나리오 ID (L77/L78 lint 입력). */
+  scenarioId?: string;
+  /** PR062 — 시나리오 H2 헤더 목록 (L77 lint 입력, interpolate 적용본). */
+  scenarioHeadings?: string[];
+  /** PR062 — 시나리오 결론 1문장 템플릿 (L78 lint 입력). */
+  scenarioConclusionLine?: string;
 };
 
 export function lintForDepth(
@@ -737,6 +743,69 @@ export function lintForDepth(
             level: "WARN",
             msg: `ftc 가용한데 docx __official_data__ A급 사용 ${violations.length}건 (PR059 정책 권장 위반, rescue 미적용): ${typeof sample.source_title === "string" ? sample.source_title : "?"} / ${typeof sample.fact_key === "string" ? sample.fact_key : "?"}`,
           });
+        }
+      }
+    }
+
+    // L77 PR062 — 시나리오 H2 골격 위반 검출.
+    // 시나리오가 정의한 H2 헤더 중 본문에 등장하지 않는 헤더 → WARN.
+    // default_brand_overview 시나리오는 면제 (관용 흐름).
+    {
+      const headings = opts.d3?.scenarioHeadings ?? [];
+      const sid = opts.d3?.scenarioId ?? "";
+      if (sid && sid !== "default_brand_overview" && headings.length > 0) {
+        const fullBody = body ?? "";
+        // H2 헤더 중 fullBody 에 등장하지 않는 것 (정확 일치 또는 핵심 키워드 부분 일치)
+        const missing = headings.filter((h) => {
+          if (!h || h.trim().length === 0) return false;
+          // 정확 일치
+          if (fullBody.includes(h)) return false;
+          // 핵심 키워드 (한글/숫자 2자 이상) 30% 이상 일치하면 통과
+          const tokens = (h.match(/[\p{Script=Hangul}A-Za-z0-9]{2,}/gu) ?? []).filter(
+            (t) => t.length >= 2,
+          );
+          if (tokens.length === 0) return true;
+          const hits = tokens.filter((t) => fullBody.includes(t)).length;
+          return hits / tokens.length < 0.3;
+        });
+        if (missing.length > 0) {
+          warns.push({
+            code: "L77",
+            level: "WARN",
+            msg: `시나리오 H2 누락 ${missing.length}/${headings.length}건 (scenario=${sid}): "${missing[0].slice(0, 30)}..."`,
+          });
+        }
+      }
+    }
+
+    // L78 PR062 — 시나리오 conclusion_pattern 미준수 검출.
+    // 결론 섹션에 시나리오 conclusion_line 의 핵심 키워드 50% 이상 부재 시 WARN.
+    {
+      const conclusionLine = opts.d3?.scenarioConclusionLine ?? "";
+      const sid = opts.d3?.scenarioId ?? "";
+      if (
+        sid &&
+        sid !== "default_brand_overview" &&
+        conclusionLine &&
+        !conclusionLine.includes("(미공개)")
+      ) {
+        const fullBody = body ?? "";
+        const idx = fullBody.lastIndexOf("## 결론");
+        const conclusionBody = idx >= 0 ? fullBody.slice(idx) : "";
+        // 결론 라인 안 한글/숫자 토큰 추출 (interpolate 결과의 변수값 포함)
+        const tokens = (conclusionLine.match(/[\p{Script=Hangul}A-Za-z0-9]{2,}/gu) ?? [])
+          .filter((t) => t.length >= 2)
+          .slice(0, 10);
+        if (tokens.length >= 3 && conclusionBody.length > 0) {
+          const hits = tokens.filter((t) => conclusionBody.includes(t)).length;
+          const ratio = hits / tokens.length;
+          if (ratio < 0.5) {
+            warns.push({
+              code: "L78",
+              level: "WARN",
+              msg: `시나리오 결론 패턴 미준수 (scenario=${sid}, ${hits}/${tokens.length} 키워드 일치, ${Math.round(ratio * 100)}% < 50%)`,
+            });
+          }
         }
       }
     }
