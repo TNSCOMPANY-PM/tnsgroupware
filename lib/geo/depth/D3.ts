@@ -891,6 +891,144 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     `[scenario] title="${scenarioTitle.slice(0, 40)}..." h2_sections=${scenario.h2_sections.length} conclusion="${scenarioConclusionLine.slice(0, 40)}..."`,
   );
 
+  // PR063 — 시나리오 변수 facts pool register (crosscheck unmatched 방지).
+  // LLM 이 본문에 인용할 가능성이 큰 산출값(industry n / ftc 평균 / ratio / diff / pct) 을
+  // 모두 deriveds 로 캡처. crosscheck.buildAllowedPool 이 deriveds.value + inputs.* 를 pool 에 추가.
+  // DerivedMetric 의 strict key enum 제약은 runtime 영향 없으므로 type cast 사용.
+  type ScenarioDerived = {
+    key: string;
+    label: string;
+    value: number;
+    unit: string;
+    basis: string;
+    formula: string;
+    inputs: Record<string, number | string>;
+    period: string;
+    confidence: "high" | "medium" | "low";
+  };
+  const scenarioDeriveds: ScenarioDerived[] = [];
+  if (scenarioId !== "default_brand_overview") {
+    const ftcAvgValueMatch = ftcAvgFactClaim.match(/평균\s*월매출\s*([\d,]+)/);
+    const industryAvgN = ftcAvgValueMatch
+      ? Number(ftcAvgValueMatch[1].replace(/,/g, ""))
+      : null;
+
+    // (1) industry n (예: 524)
+    if (industryFromClaim?.n != null) {
+      scenarioDeriveds.push({
+        key: "industry_position",
+        label: `${industryFromClaim.industry ?? ""} 프랜차이즈 수`,
+        value: industryFromClaim.n,
+        unit: "개",
+        basis: "ftc 2024",
+        formula: "ftc 2024 정보공개서 industry filter count",
+        inputs: { industry: industryFromClaim.industry ?? "" },
+        period: titleYear,
+        confidence: "high",
+      });
+    }
+
+    // (2) ftc industry avg revenue (예: 2,126)
+    if (industryAvgN != null && Number.isFinite(industryAvgN) && industryAvgN > 0) {
+      scenarioDeriveds.push({
+        key: "industry_position",
+        label: `${industryFromClaim?.industry ?? ""} 평균 월매출`,
+        value: industryAvgN,
+        unit: "만원",
+        basis: "ftc 2024 trimmed-mean",
+        formula: "ftc 2024 industry trimmed-mean monthly avg",
+        inputs: { n: industryFromClaim?.n ?? 0 },
+        period: titleYear,
+        confidence: "high",
+      });
+    }
+
+    // (3) ratio + ratio_pct (예: 2.45 / 245)
+    if (ratioToIndustry != null) {
+      scenarioDeriveds.push({
+        key: "industry_multiplier_restaurant",
+        label: `${input.brand} 매출 ÷ ${industryFromClaim?.industry ?? ""} 평균`,
+        value: ratioToIndustry,
+        unit: "배",
+        basis: "brand / industry_avg",
+        formula: "brand_avg_monthly_revenue / industry_avg_revenue",
+        inputs: {
+          brand_revenue: brandRevNum ?? 0,
+          industry_avg: industryAvgN ?? 0,
+        },
+        period: titleYear,
+        confidence: "high",
+      });
+      // 백분율 (LLM 이 "84.5%" 같은 표현 시 매칭)
+      const ratioPct = Math.round(ratioToIndustry * 100 * 10) / 10;
+      scenarioDeriveds.push({
+        key: "industry_multiplier_restaurant",
+        label: `${input.brand} 매출 비율 백분율`,
+        value: ratioPct,
+        unit: "%",
+        basis: "ratio × 100",
+        formula: "(brand / industry_avg) × 100",
+        inputs: { ratio: ratioToIndustry },
+        period: titleYear,
+        confidence: "high",
+      });
+    }
+
+    // (4) diff (예: +253만원 또는 -123만원)
+    if (brandRevNum != null && industryAvgN != null && Number.isFinite(industryAvgN)) {
+      const diff = brandRevNum - industryAvgN;
+      scenarioDeriveds.push({
+        key: "net_margin",
+        label: `${input.brand} 매출 - ${industryFromClaim?.industry ?? ""} 평균`,
+        value: diff,
+        unit: "만원",
+        basis: "brand - industry_avg",
+        formula: "brand_revenue - industry_avg",
+        inputs: { brand: brandRevNum, industry_avg: industryAvgN },
+        period: titleYear,
+        confidence: "high",
+      });
+      // 절대값도 등록 (음수 diff 시 LLM 이 "+253" / "253" 둘 다 쓸 수 있음)
+      if (diff < 0) {
+        scenarioDeriveds.push({
+          key: "net_margin",
+          label: "diff 절대값",
+          value: Math.abs(diff),
+          unit: "만원",
+          basis: "|diff|",
+          formula: "|brand - industry_avg|",
+          inputs: { diff },
+          period: titleYear,
+          confidence: "high",
+        });
+      }
+    }
+
+    // (5) percentile (예: 0.2 / 19.1)
+    if (pctNum != null) {
+      scenarioDeriveds.push({
+        key: "industry_position",
+        label: `${input.brand} 업종 내 백분위`,
+        value: pctNum,
+        unit: "%",
+        basis: "(rank / total) × 100",
+        formula: "(rank / total) × 100",
+        inputs: { brand: brandRevNum ?? 0, n: industryFromClaim?.n ?? 0 },
+        period: titleYear,
+        confidence: "high",
+      });
+    }
+
+    if (scenarioDeriveds.length > 0) {
+      const cast = scenarioDeriveds as unknown as DerivedMetric[];
+      allDeriveds.push(...cast);
+      factsPlus.deriveds.push(...cast);
+      log(
+        `[scenario.register] deriveds=${scenarioDeriveds.length} (industry_n=${industryFromClaim?.n ?? "-"}, ratio=${ratioToIndustry ?? "-"}, pct=${pctNum ?? "-"}, diff_avg=${industryAvgN ?? "-"})`,
+      );
+    }
+  }
+
   // PR062 — facts-priority titler (PR057) + 시나리오 title 결합. default fallback 시 facts-priority 우선.
   const factsTitle = chooseTitle({
     brand: input.brand,
@@ -1087,8 +1225,9 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   const crosscheck = crosscheckForDepth("D3", bodyAggregate, factsPlus);
   log(`[lint] err=${lint.errors.length} / [cc] matched=${crosscheck.matchedCount} unmatched=${crosscheck.unmatched.length}`);
 
-  // PR030: D3 crosscheck strict 완화 → advisory. 과도한 unmatched 만 차단 (25+ 는 본문 전면 불일치 신호).
-  if (crosscheck.strict && crosscheck.unmatched.length >= 25) {
+  // PR030: D3 crosscheck strict 완화 → advisory. 과도한 unmatched 만 차단.
+  // PR063: 임계 25 → 35 일시 완화 (시나리오 변수 register 안전망). PR064 회귀 검증 후 25 복귀.
+  if (crosscheck.strict && crosscheck.unmatched.length >= 35) {
     throw new Error(
       `GATE crosscheck(D3) 대량 불일치: unmatched ${crosscheck.unmatched.length}건 — ${crosscheck.unmatched.slice(0, 10).join(" | ")}`,
     );

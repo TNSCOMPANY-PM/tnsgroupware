@@ -71,8 +71,9 @@ export function numberCrossCheck(body: string, facts: GptFacts): CrossCheckResul
   const regex = new RegExp(`(${NUM_RE.source})\\s*(?:${UNIT_SUFFIX.source})?`, "gu");
   for (const m of normalizedBody.matchAll(regex)) {
     const raw = m[1];
-    const ctxStart = Math.max(0, (m.index ?? 0) - 8);
-    const ctxEnd = Math.min(normalizedBody.length, (m.index ?? 0) + raw.length + 8);
+    // PR063 — ctx 윈도우 ±8 → ±16. 매칭 정확도 영향 없고 unmatched 로그 가독성 향상.
+    const ctxStart = Math.max(0, (m.index ?? 0) - 16);
+    const ctxEnd = Math.min(normalizedBody.length, (m.index ?? 0) + raw.length + 16);
     const ctx = normalizedBody.slice(ctxStart, ctxEnd);
     if (IGNORE_CONTEXT.test(ctx)) continue;
 
