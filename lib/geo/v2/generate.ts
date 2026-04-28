@@ -135,34 +135,48 @@ function parseFrontmatter(raw: string): {
 }
 
 export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Output> {
-  // (1) brand 정보 (tnsgroupware)
-  const tns = createAdminClient();
-  const { data: brand, error: bErr } = await tns
-    .from("geo_brands")
-    .select("id, name, industry_main, industry_sub")
+  // v2-10: input.brandId = ftc_brands_2024.id (UUID).
+  // (1) ftc brand 정보 (frandoor)
+  const fra = createFrandoorClient();
+  const { data: ftcBrand, error: bErr } = await fra
+    .from("ftc_brands_2024")
+    .select("id, brand_nm, corp_nm, induty_lclas, induty_mlsfc")
     .eq("id", input.brandId)
-    .single();
-  if (bErr || !brand) {
-    throw new Error(`brand not found: ${input.brandId} (${bErr?.message ?? "no row"})`);
+    .maybeSingle();
+  if (bErr || !ftcBrand) {
+    throw new Error(`ftc brand not found: ${input.brandId} (${bErr?.message ?? "no row"})`);
   }
 
-  // (2) facts pool — frandoor
-  const fra = createFrandoorClient();
+  // (2) geo_brands 매핑 확인 — 우리 고객일 경우 docx layer 추가
+  const tns = createAdminClient();
+  const { data: geoMapping } = await tns
+    .from("geo_brands")
+    .select("id, name")
+    .eq("ftc_brand_id", input.brandId)
+    .maybeSingle();
+  const isCustomer = !!geoMapping;
+  const brandName = (ftcBrand.brand_nm as string) ?? "?";
+
+  // (3) brand_facts retrieve (ftc + 매핑된 docx 모두 — brand_id 가 ftc PK 통일)
   const { data: brandFacts, error: fErr } = await fra
     .from("brand_facts")
-    .select("metric_id, metric_label, value_num, value_text, unit, period, source_tier, source_label, formula")
+    .select(
+      "metric_id, metric_label, value_num, value_text, unit, period, source_tier, source_label, formula",
+    )
     .eq("brand_id", input.brandId)
     .in("source_tier", input.tiers);
   if (fErr) throw new Error(`brand_facts fetch: ${fErr.message}`);
 
-  const industries = [brand.industry_sub, brand.industry_main].filter(
+  const industries = [ftcBrand.induty_mlsfc, ftcBrand.induty_lclas].filter(
     (x): x is string => typeof x === "string" && x.length > 0,
   );
   let industryFacts: Record<string, unknown>[] = [];
   if (industries.length > 0) {
     const { data: ifData, error: ifErr } = await fra
       .from("industry_facts")
-      .select("metric_id, metric_label, value_num, unit, period, n, agg_method, source_label, industry")
+      .select(
+        "metric_id, metric_label, value_num, unit, period, n, agg_method, source_label, industry",
+      )
       .in("industry", industries);
     if (ifErr) console.warn(`[v2.gen] industry_facts: ${ifErr.message}`);
     industryFacts = (ifData ?? []) as Record<string, unknown>[];
@@ -197,10 +211,10 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
   ];
 
   console.log(
-    `[v2.gen] brand=${brand.name} facts=${factsPool.length} (brand_facts=${brandFacts?.length ?? 0} + industry_facts=${industryFacts.length})`,
+    `[v2.gen] brand=${brandName} (customer=${isCustomer}) facts=${factsPool.length} (brand_facts=${brandFacts?.length ?? 0} + industry_facts=${industryFacts.length})`,
   );
 
-  // (3) guard — facts 부족
+  // (4) guard — facts 부족
   if (factsPool.length < MIN_FACTS_REQUIRED) {
     throw new InsufficientDataError({
       factsCount: factsPool.length,
@@ -208,13 +222,13 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
     });
   }
 
-  // (4) sonnet 1차 호출
+  // (5) sonnet 1차 호출
   const sysPrompt = buildSystemPrompt({
     brand: {
-      id: brand.id as string,
-      name: brand.name as string,
-      industry_main: brand.industry_main as string | null,
-      industry_sub: brand.industry_sub as string | null,
+      id: ftcBrand.id as string,
+      name: brandName,
+      industry_main: (ftcBrand.induty_lclas as string | null) ?? null,
+      industry_sub: (ftcBrand.induty_mlsfc as string | null) ?? null,
     },
     factsPool,
     topic: input.topic,
@@ -269,18 +283,21 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
   let draftId: string | null = null;
   let saveError: string | null = null;
   try {
+    // v2-10: brand_id = geo_brands.id (우리 고객일 때만), ftc_brand_id = ftc PK 항상.
     const { data: ins, error: dErr } = await tns
       .from("frandoor_blog_drafts")
       .insert({
-        brand_id: input.brandId,
+        brand_id: geoMapping?.id ?? null,
+        ftc_brand_id: input.brandId,
         channel: "frandoor",
-        title: title || `${brand.name} ${input.topic}`,
+        title: title || `${brandName} ${input.topic}`,
         content: finalContent,
         faq: frontmatter.faq ?? [],
         meta: {
           tags: frontmatter.tags ?? [],
           description: frontmatter.description ?? null,
           frontmatter,
+          isCustomer,
         },
         content_type: "brand",
         status: "draft",
@@ -299,7 +316,7 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
   return {
     draftId,
     saveError,
-    title: title || `${brand.name} ${input.topic}`,
+    title: title || `${brandName} ${input.topic}`,
     content: bodyMd,
     frontmatter,
     factsUsed: factsPool.length,
