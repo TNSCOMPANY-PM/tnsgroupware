@@ -1,60 +1,37 @@
+/**
+ * v2-05: /api/geo/generate — generateV2 호출.
+ * v1 의 D0~D3 분기 + DEPTH_TO_CONTENT_TYPE + serializeDraft 모두 제거됐습니다.
+ * 입력: { brandId, topic, tiers }. 출력: GenerateV2Output.
+ */
+
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
-import { GeoInputSchema } from "@/lib/geo/schema";
-import { generate } from "@/lib/geo";
-import { NotImplementedError, InsufficientDataError, type GeoOutput } from "@/lib/geo/types";
-import { createAdminClient } from "@/utils/supabase/admin";
+import {
+  generateV2,
+  InsufficientDataError,
+  HallucinationDetectedError,
+  LintV2Error,
+  type GenerateV2Input,
+} from "@/lib/geo/v2/generate";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const DEPTH_TO_CONTENT_TYPE: Record<string, string> = {
-  D0: "guide",
-  D1: "compare",
-  D2: "compare",
-  D3: "brand",
-};
+const TIER_VALUES: ReadonlySet<"A" | "B" | "C"> = new Set(["A", "B", "C"]);
 
-function serializeDraft(out: GeoOutput): {
-  title: string;
-  content: string;
-  faq: unknown[];
-  closureHtml: string | null;
-  meta: Record<string, unknown>;
-} {
-  const p = out.payload;
-  if (p.kind === "markdown") {
-    const title = typeof p.frontmatter?.title === "string" ? p.frontmatter.title : "";
-    return { title, content: p.body ?? "", faq: [], closureHtml: null, meta: {} };
-  }
-  if (p.kind === "industryDoc") {
-    const body = (p.sections ?? []).map(s => `## ${s.heading}\n\n${s.body}`).join("\n\n");
-    const title = p.sections?.[0]?.heading ?? "";
-    return { title, content: body, faq: [], closureHtml: null, meta: {} };
-  }
-  if (p.kind === "franchiseDoc") {
-    // PR031: closure.bodyHtml 는 본문 md 에서 분리 — 별도 meta.closure_html 로 저장.
-    // PR047: 본문 markdown 앞에 frontmatter YAML prepend.
-    const sectionMd = (p.sections ?? []).map(s => `## ${s.heading}\n\n${s.body}`).join("\n\n");
-    const fm = p.meta?.frontmatterYaml ?? "";
-    const body = fm ? `${fm}\n${sectionMd}` : sectionMd;
-    const title = p.meta?.title ?? p.closure?.headline ?? p.sections?.[0]?.heading ?? "";
-    return {
-      title,
-      content: body,
-      faq: p.faq25 ?? [],
-      closureHtml: p.closure?.bodyHtml ?? null,
-      meta: {
-        tags: p.meta?.tags ?? [],
-        description: p.meta?.description ?? null,
-        period: p.meta?.period ?? null,
-        closure_headline: p.closure?.headline ?? null,
-        closure_html: p.closure?.bodyHtml ?? null,
-        frontmatter: p.meta?.frontmatter ?? null,
-      },
-    };
-  }
-  return { title: "", content: JSON.stringify(out.payload, null, 2), faq: [], closureHtml: null, meta: {} };
+function parseInput(raw: unknown): GenerateV2Input | { error: string } {
+  if (!raw || typeof raw !== "object") return { error: "INVALID_INPUT" };
+  const r = raw as Record<string, unknown>;
+  const brandId = typeof r.brandId === "string" ? r.brandId : "";
+  const topic = typeof r.topic === "string" ? r.topic.trim() : "";
+  const tiersRaw = Array.isArray(r.tiers) ? r.tiers : [];
+  const tiers = tiersRaw.filter((t): t is "A" | "B" | "C" =>
+    typeof t === "string" && TIER_VALUES.has(t as "A" | "B" | "C"),
+  );
+  if (!brandId) return { error: "brandId 필수" };
+  if (!topic) return { error: "topic 필수" };
+  if (tiers.length === 0) return { error: "tiers 1개 이상 필수" };
+  return { brandId, topic, tiers };
 }
 
 export async function POST(req: Request) {
@@ -62,76 +39,35 @@ export async function POST(req: Request) {
   if (!session) return unauthorized();
 
   const raw = await req.json().catch(() => null);
-  const parsed = GeoInputSchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "INVALID_INPUT", detail: parsed.error.issues },
-      { status: 422 },
-    );
-  }
-
-  const depth = parsed.data.depth;
-  const tiers = parsed.data.tiers ?? ["A", "B"];
-
-  if (depth !== "D3" && tiers.includes("C")) {
-    return NextResponse.json(
-      { error: "C_TIER_D3_ONLY", message: "C급은 D3 전용" },
-      { status: 400 },
-    );
-  }
-
-  if (depth === "D3" && !parsed.data.brandId) {
-    return NextResponse.json(
-      { error: "D3_REQUIRES_BRAND_ID", message: "D3는 brandId 필수" },
-      { status: 400 },
-    );
+  const parsed = parseInput(raw);
+  if ("error" in parsed) {
+    return NextResponse.json({ error: "INVALID_INPUT", message: parsed.error }, { status: 422 });
   }
 
   try {
-    const out = await generate(parsed.data);
-
-    let draftId: string | null = null;
-    let saveError: string | null = null;
-    try {
-      const supabase = createAdminClient();
-      const serialized = serializeDraft(out);
-      const brandId = depth === "D3" && "brandId" in parsed.data ? parsed.data.brandId : null;
-      const { data, error } = await supabase
-        .from("frandoor_blog_drafts")
-        .insert({
-          brand_id: brandId,
-          channel: "frandoor",
-          title: serialized.title,
-          content: serialized.content,
-          faq: serialized.faq,
-          meta: serialized.meta,
-          content_type: DEPTH_TO_CONTENT_TYPE[depth] ?? "external",
-          status: "draft",
-          target_date: new Date().toISOString().slice(0, 10),
-        })
-        .select("id")
-        .single();
-      if (error) {
-        saveError = error.message;
-      } else {
-        draftId = data?.id ?? null;
-      }
-    } catch (e) {
-      saveError = e instanceof Error ? e.message : String(e);
-    }
-
-    return NextResponse.json({ ...out, draftId, saveError });
+    const out = await generateV2(parsed);
+    return NextResponse.json(out);
   } catch (e) {
-    if (e instanceof NotImplementedError) {
-      return NextResponse.json({ error: "NOT_IMPLEMENTED", message: e.message }, { status: 501 });
-    }
     if (e instanceof InsufficientDataError) {
       return NextResponse.json(
         { error: e.code, message: e.message, stats: e.stats },
         { status: 400 },
       );
     }
+    if (e instanceof HallucinationDetectedError) {
+      return NextResponse.json(
+        { error: e.code, message: e.message, unmatched: e.unmatched },
+        { status: 400 },
+      );
+    }
+    if (e instanceof LintV2Error) {
+      return NextResponse.json(
+        { error: e.code, message: e.message, lintErrors: e.lintErrors },
+        { status: 400 },
+      );
+    }
     const msg = e instanceof Error ? e.message : String(e);
+    console.error("[v2.gen] failed:", msg);
     return NextResponse.json({ error: "GENERATE_FAILED", message: msg }, { status: 500 });
   }
 }

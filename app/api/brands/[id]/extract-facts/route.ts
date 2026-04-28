@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { isFrandoorConfigured, createFrandoorClient } from "@/utils/supabase/frandoor";
+import { mapFactLabelToMetricId, decideProvenance } from "@/lib/geo/v2/factLabelMap";
+import { METRIC_IDS } from "@/lib/geo/v2/metric_ids";
 import OpenAI from "openai";
 import { DOCX_FACT_EXTRACTION_SCHEMA, type FactRecord, type FactLabel, type FactUnit, type FactSourceType } from "@/types/factSchema";
 
@@ -96,6 +99,7 @@ export async function POST(
       .eq("brand_id", brandId)
       .eq("provenance", "docx");
 
+    let v2Adapted = 0;
     if (facts.length > 0) {
       const rows: Omit<FactRecord, "id" | "created_at">[] = facts.map(f => ({
         brand_id: brandId,
@@ -115,11 +119,60 @@ export async function POST(
         console.error("[extract-facts] insert 실패:", insertErr);
         return NextResponse.json({ error: insertErr.message }, { status: 500 });
       }
+
+      // v2-03: brand_facts (frandoor) 에도 dual-write (provenance='docx', source_tier='C')
+      // 매핑 가능한 label 만 저장. 실패해도 메인 흐름 차단 X.
+      if (isFrandoorConfigured()) {
+        try {
+          const fra = createFrandoorClient();
+          const period = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+          const v2Rows: Array<Record<string, unknown>> = [];
+          for (const f of facts) {
+            const metric_id = mapFactLabelToMetricId(f.label, f.source_type);
+            if (!metric_id) continue;
+            const meta = METRIC_IDS[metric_id];
+            if (!meta) continue;
+            const { provenance: prov, source_tier } = decideProvenance("docx", f.source_type);
+            v2Rows.push({
+              brand_id: brandId,
+              metric_id,
+              metric_label: meta.label,
+              value_num: f.value_normalized,
+              value_text: f.value_normalized == null ? f.value : null,
+              unit: f.unit !== "없음" ? f.unit : meta.unit,
+              period,
+              provenance: prov,
+              source_tier,
+              source_url: null,
+              source_label: `본사 docx (${doc.file_name}, ${period})${f.source_note ? ` — ${f.source_note}` : ""}`,
+              confidence: f.confidence >= 0.85 ? "high" : f.confidence >= 0.7 ? "medium" : "low",
+            });
+          }
+          if (v2Rows.length > 0) {
+            // 기존 docx provenance 이번 brand 의 row 삭제 후 신규 insert
+            await fra.from("brand_facts").delete().eq("brand_id", brandId).eq("provenance", "docx");
+            const { error: v2Err } = await fra
+              .from("brand_facts")
+              .upsert(v2Rows, { onConflict: "brand_id,metric_id,period,provenance" });
+            if (v2Err) {
+              console.warn("[extract-facts] v2 brand_facts 적재 실패:", v2Err.message);
+            } else {
+              v2Adapted = v2Rows.length;
+            }
+          }
+        } catch (e) {
+          console.warn(
+            "[extract-facts] v2 brand_facts dual-write 실패:",
+            e instanceof Error ? e.message : e,
+          );
+        }
+      }
     }
 
     return NextResponse.json({
       ok: true,
       facts_count: facts.length,
+      v2_adapted: v2Adapted,
       facts: facts.slice(0, 15),
     });
   } catch (e) {
