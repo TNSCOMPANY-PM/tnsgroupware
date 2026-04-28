@@ -9,6 +9,21 @@ import "server-only";
 import { isFrandoorConfigured, createFrandoorClient } from "@/utils/supabase/frandoor";
 import { ftcRowToMetrics, toManwon, type StandardMetricId } from "@/lib/geo/standardSchema";
 
+/**
+ * PR060 — createFrandoorClient 실패 시 명확한 메시지 출력 후 null 반환.
+ * URL invalid / env 누락 등 모든 케이스 1줄로 진단 가능.
+ */
+function safeCreateClient(callerLabel: string): ReturnType<typeof createFrandoorClient> | null {
+  try {
+    return createFrandoorClient();
+  } catch (e) {
+    console.warn(
+      `[ftc2024] ${callerLabel} client 생성 실패: ${e instanceof Error ? e.message : e}`,
+    );
+    return null;
+  }
+}
+
 export type FtcBrand2024 = Record<string, unknown>;
 
 /** PR058 — ftc_brands_2024 raw row 을 표준 metric ID 키로 정규화한 형태. */
@@ -120,8 +135,9 @@ export async function fetchFtcBrand(input: {
   corp_nm?: string;
 }): Promise<FtcBrand2024 | null> {
   if (!isFrandoorConfigured()) return null;
+  const sb = safeCreateClient("fetchFtcBrand");
+  if (!sb) return null;
   try {
-    const sb = createFrandoorClient();
 
     // 1차: exact match
     let q = sb.from("ftc_brands_2024").select("*").limit(1);
@@ -211,8 +227,9 @@ function trimmedMean(values: number[], trimPct = 0.05): number | null {
 
 export async function fetchFtcIndustryStats(industryKor: string): Promise<IndustryStats | null> {
   if (!isFrandoorConfigured() || !industryKor) return null;
+  const sb = safeCreateClient("fetchFtcIndustryStats");
+  if (!sb) return null;
   try {
-    const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
       .select(
@@ -274,8 +291,9 @@ export async function computePercentile(input: {
   metric_columns?: string[];
 }): Promise<IndustryPercentile | null> {
   if (!isFrandoorConfigured()) return null;
+  const sb = safeCreateClient("computePercentile");
+  if (!sb) return null;
   try {
-    const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
       .select(`${COL_ANNUAL_SALES}`)
@@ -313,8 +331,9 @@ export async function computePercentile(input: {
 
 export async function fetchHqFinanceAvg(industryKor: string): Promise<HqFinanceAvg | null> {
   if (!isFrandoorConfigured() || !industryKor) return null;
+  const sb = safeCreateClient("fetchHqFinanceAvg");
+  if (!sb) return null;
   try {
-    const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
       .select(`${COL_FIN_REV}, ${COL_FIN_OP}, ${COL_FIN_DEBT}, ${COL_FIN_EQUITY}`)
@@ -369,8 +388,9 @@ export async function fetchRegionalAvg(
   region?: Region,
 ): Promise<RegionalAvg[] | null> {
   if (!isFrandoorConfigured() || !industryKor) return null;
+  const sb = safeCreateClient("fetchRegionalAvg");
+  if (!sb) return null;
   try {
-    const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
       .select("*")
