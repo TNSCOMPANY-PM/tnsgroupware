@@ -28,24 +28,27 @@ export type SysPromptArgs = {
 
 /**
  * factsPool 을 LLM 친화 JSON 형식으로 직렬화.
+ * v2-12: indent 제거 (line per fact) — 입력 token 수 ~40% 감소.
+ *        100+ fact × 100+ industry_facts 시 5,000~10,000 token → 3,000~6,000 token.
  */
 function serializeFactsPool(factsPool: FactPoolItem[]): string {
-  return JSON.stringify(
-    factsPool.map((f) => ({
+  // 각 fact 를 1줄 JSON 으로 (LLM 가독성 + token 효율).
+  const lines = factsPool.map((f) => {
+    const obj: Record<string, unknown> = {
       metric: f.metric_label,
       value: f.value_num ?? f.value_text,
       unit: f.unit ?? "",
       period: f.period ?? "",
       tier: f.source_tier,
       source: f.source_label ?? "",
-      formula: f.formula ?? null,
-      ...(f.industry ? { industry: f.industry } : {}),
-      ...(f.n != null ? { sample_n: f.n } : {}),
-      ...(f.agg_method ? { agg_method: f.agg_method } : {}),
-    })),
-    null,
-    2,
-  );
+    };
+    if (f.formula) obj.formula = f.formula;
+    if (f.industry) obj.industry = f.industry;
+    if (f.n != null) obj.sample_n = f.n;
+    if (f.agg_method) obj.agg_method = f.agg_method;
+    return JSON.stringify(obj);
+  });
+  return `[\n${lines.join(",\n")}\n]`;
 }
 
 export function buildSystemPrompt(args: SysPromptArgs): string {
