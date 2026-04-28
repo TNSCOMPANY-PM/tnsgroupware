@@ -28,6 +28,7 @@ import {
   fetchRegionalAvg,
 } from "@/lib/geo/prefetch/ftc2024";
 import { crossCheckDocxVsFtc, mappingStats } from "@/lib/geo/depth/unifiedFacts";
+import type { StandardMetricId } from "@/lib/geo/standardSchema";
 import {
   pickMetaPattern,
   buildFormulaItems,
@@ -279,16 +280,33 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   //         docx __raw_text__ (본사 측, C급) 는 그대로 유지.
   const docx = await fetchFrandoorDocx(input.brandId);
   // ftc 사전 매칭 (env 가용 + brand 매칭) → useDocxOfficial false 로 docx A급 차단
+  // PR061 — 핵심 metric 3개 이상 매핑됐을 때만 docx 차단 (rescue fallback).
   let useDocxOfficial = true;
   let preFetchedStdFtc: Awaited<ReturnType<typeof fetchFtcBrandStandardized>> | null = null;
+  // 핵심 5개 metric 중 3개 이상 매핑된 경우만 docx 차단 가치 있음.
+  const FTC_CORE_KEYS: ReadonlyArray<StandardMetricId> = [
+    "stores_total",
+    "monthly_avg_sales",
+    "cost_total",
+    "hq_revenue",
+    "hq_op_profit",
+  ];
   if (isFtc2024Configured()) {
     try {
       preFetchedStdFtc = await fetchFtcBrandStandardized({ brand_nm: input.brand });
-      if (preFetchedStdFtc && Object.keys(preFetchedStdFtc.metrics).length > 0) {
+      const ftcCoreCount = preFetchedStdFtc
+        ? FTC_CORE_KEYS.filter((k) => preFetchedStdFtc!.metrics[k] != null).length
+        : 0;
+      log(`[ftc-policy] preFetched core metrics: ${ftcCoreCount}/${FTC_CORE_KEYS.length}`);
+      if (preFetchedStdFtc && ftcCoreCount >= 3) {
         useDocxOfficial = false;
-        log(`[ftc-policy] ftc 매칭 ✓ — docx __official_data__ A급 facts 차단 (PR059 정책)`);
+        log(
+          `[ftc-policy] ftc 매칭 ✓ + 핵심 ${ftcCoreCount}/${FTC_CORE_KEYS.length} — docx __official_data__ A급 facts 차단 (PR059 정책)`,
+        );
       } else {
-        log(`[ftc-policy] ftc 미매칭 또는 metrics 비어있음 — docx __official_data__ fallback 허용`);
+        log(
+          `[ftc-policy] ftc ${preFetchedStdFtc ? "✓" : "✗"} 핵심 ${ftcCoreCount}/${FTC_CORE_KEYS.length} 부족 — docx __official_data__ fallback 허용 (PR061 rescue)`,
+        );
       }
     } catch (e) {
       log(`[ftc-policy] ftc 사전 매칭 실패 → docx fallback 허용: ${e instanceof Error ? e.message : e}`);
@@ -311,11 +329,18 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
       tier: "A" as const,
       source_tier: "A" as const,
     };
-    const pushDocxOfficial = (claim: string, value: number, unit: string, fact_key: string) =>
+    // PR061 — fact_key 중복 회피 push (rescue 시 ftc 가 이미 주입했을 수 있음).
+    const hasFactKey = (key: string) =>
+      facts.facts.some((f) => (f as { fact_key?: string }).fact_key === key);
+    const pushDocxOfficial = (claim: string, value: number, unit: string, fact_key: string) => {
+      if (hasFactKey(fact_key)) return;
       facts.facts.push({ ...officialBase, claim, value, unit, fact_key });
+    };
 
     // PR059 — useDocxOfficial=false 시 docx __official_data__ 기반 A급 facts 차단.
-    if (od && useDocxOfficial) {
+    // PR061 — rescue 시 재호출 가능하도록 함수화.
+    const injectDocxOfficialFacts = () => {
+      if (!od) return;
       if (od.stores_total != null)
         pushDocxOfficial(
           `공정위 정보공개서 ${sourceYearOfficial} 기준 가맹점수 ${od.stores_total.toLocaleString()}개`,
@@ -353,7 +378,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
         );
 
       // 업종 평균 — 공정위 가맹사업 현황 통계 (docx 작성자가 조사)
-      if (od.industry_avg_revenue != null) {
+      if (od.industry_avg_revenue != null && !hasFactKey("docx_industry_avg_revenue")) {
         const industryBase = {
           source_url: "https://www.ftc.go.kr/",
           source_title: `공정위 가맹사업 현황 통계 ${sourceYearOfficial}`,
@@ -371,7 +396,11 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
           fact_key: "docx_industry_avg_revenue",
         });
 
-        if (od.avg_monthly_revenue != null && od.industry_avg_revenue > 0) {
+        if (
+          od.avg_monthly_revenue != null &&
+          od.industry_avg_revenue > 0 &&
+          !hasFactKey("docx_industry_vs_brand_ratio")
+        ) {
           const ratio = Math.round((od.avg_monthly_revenue / od.industry_avg_revenue) * 100) / 100;
           facts.facts.push({
             ...officialBase,
@@ -384,7 +413,14 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
           });
         }
       }
+    };
+
+    if (od && useDocxOfficial) {
+      injectDocxOfficialFacts();
     }
+    // PR061 — 함수 ref 를 외부에서 참조하기 위해 docx 컨테이너에 보존.
+    (docx as { __injectDocxOfficialFacts__?: () => void }).__injectDocxOfficialFacts__ =
+      injectDocxOfficialFacts;
 
     // __raw_text__ 기반 홈페이지 facts (본사 자체 공개 자료)
     const homepageBase = {
@@ -728,10 +764,22 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   }
 
   // PR036 — facts 기반 데이터 충분성 게이트 (tier 분류 대체).
-  const aFactsCount = facts.facts.filter((f) => f.source_tier === "A").length;
+  // PR061 — A급 부족 시 docx __official_data__ rescue 보충 (PR059 정책 위반 케이스 자동 복구).
+  let aFactsCount = facts.facts.filter((f) => f.source_tier === "A").length;
+  let rescueApplied = false;
+  if (aFactsCount < 3 && docx) {
+    const inject = (docx as { __injectDocxOfficialFacts__?: () => void }).__injectDocxOfficialFacts__;
+    if (inject && !useDocxOfficial) {
+      log(`[ftc-rescue] A급 ${aFactsCount}개 < 3 → docx __official_data__ rescue 보충 (PR061)`);
+      inject();
+      rescueApplied = true;
+      aFactsCount = facts.facts.filter((f) => f.source_tier === "A").length;
+      log(`[ftc-rescue] rescue 후 A급 ${aFactsCount}개`);
+    }
+  }
   const cFactsCount = facts.facts.filter((f) => f.source_tier === "C").length;
   const totalFactsCount = facts.facts.length;
-  log(`[facts] total=${totalFactsCount} A=${aFactsCount} C=${cFactsCount}`);
+  log(`[facts] total=${totalFactsCount} A=${aFactsCount} C=${cFactsCount}${rescueApplied ? " (rescue applied)" : ""}`);
   if (totalFactsCount < 10 || aFactsCount < 3) {
     throw new InsufficientDataError(
       `D3 생성 불가: facts=${totalFactsCount} (A=${aFactsCount}, C=${cFactsCount}). 공정위 정보공개서 또는 본사 POS 데이터 적재 후 재시도.`,
@@ -941,6 +989,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     ftcBrandMatched,
     mappingStats: mappingStatsForLint,
     crossCheckConflicts,
+    rescueApplied,
   };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [

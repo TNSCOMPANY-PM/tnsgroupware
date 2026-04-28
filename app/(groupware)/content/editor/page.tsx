@@ -116,7 +116,11 @@ export default function EditorPage() {
 
       if (!res.ok) {
         const errData = await res.json();
-        setError(errData.error || errData.message || "생성 실패");
+        // PR061 — message 우선 (정확한 사유), code 보조.
+        const msg = errData.message
+          ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}`
+          : errData.error || "생성 실패";
+        setError(msg);
         setLoading(false);
         return;
       }
