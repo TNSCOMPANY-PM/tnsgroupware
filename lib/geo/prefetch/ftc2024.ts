@@ -7,7 +7,7 @@
 
 import "server-only";
 import { isFrandoorConfigured, createFrandoorClient } from "@/utils/supabase/frandoor";
-import { ftcRowToMetrics, type StandardMetricId } from "@/lib/geo/standardSchema";
+import { ftcRowToMetrics, toManwon, type StandardMetricId } from "@/lib/geo/standardSchema";
 
 export type FtcBrand2024 = Record<string, unknown>;
 
@@ -91,63 +91,28 @@ function median(arr: number[]): number | null {
     : sorted[mid];
 }
 
-/** 컬럼 후보 다중 시도 — frandoor 측 정확한 컬럼명 알아내기 전 robust fallback. */
-const COL_STORES = ["total_stores", "stores_total", "tot_stores", "frcs_cnt"];
-const COL_REVENUE = ["avg_sales_2024_total", "avg_monthly_revenue", "avg_sales_total", "monthly_avg_revenue"];
-const COL_COST = ["cost_total", "startup_cost_total", "total_cost"];
-const COL_FIN_REV = ["fin_2024_revenue", "revenue_2024", "fin_revenue"];
-const COL_FIN_OP = ["fin_2024_op_profit", "op_profit_2024", "operating_profit"];
-const COL_FIN_DEBT = ["fin_2024_total_debt", "total_debt_2024", "total_liabilities"];
-const COL_FIN_EQUITY = ["fin_2024_total_equity", "total_equity_2024", "equity"];
+/** PR059 — _dump-ftc-diagnose.ts 실측 컬럼명 정정. */
+const COL_STORES_TOTAL = "frcs_cnt_2024_total";
+const COL_ANNUAL_SALES = "avg_sales_2024_total";       // 천원, ÷12 환산 후 만원
+const COL_COST_TOTAL = "startup_cost_total";           // 천원
+const COL_FIN_REV = "fin_2024_revenue";                // 천원
+const COL_FIN_OP = "fin_2024_op_profit";               // 천원
+const COL_FIN_DEBT = "fin_2024_total_debt";            // 천원
+const COL_FIN_EQUITY = "fin_2024_total_equity";        // 천원
 
-/** PR057 — 17개 지역 + "전체". 컬럼명은 _check-frandoor-env.ts 결과 기반 정정 필요. */
+/** PR057 — 17개 지역 + "전체". region 한글 → ftc 컬럼 영문 suffix. */
 const REGIONS = [
   "전체", "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
   "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
 ] as const;
 type Region = typeof REGIONS[number];
 
-/** 지역별 월평균매출 컬럼 후보. frandoor 측 실제 컬럼명 확인 후 정정. */
-const COL_REVENUE_REGIONAL: Record<Region, string[]> = {
-  전체: ["avg_sales_2024_total", "avg_monthly_revenue", "avg_sales_total"],
-  서울: ["avg_sales_2024_seoul", "avg_sales_seoul_2024", "avg_sales_seoul"],
-  부산: ["avg_sales_2024_busan", "avg_sales_busan_2024", "avg_sales_busan"],
-  대구: ["avg_sales_2024_daegu", "avg_sales_daegu_2024", "avg_sales_daegu"],
-  인천: ["avg_sales_2024_incheon", "avg_sales_incheon_2024", "avg_sales_incheon"],
-  광주: ["avg_sales_2024_gwangju", "avg_sales_gwangju_2024", "avg_sales_gwangju"],
-  대전: ["avg_sales_2024_daejeon", "avg_sales_daejeon_2024", "avg_sales_daejeon"],
-  울산: ["avg_sales_2024_ulsan", "avg_sales_ulsan_2024", "avg_sales_ulsan"],
-  세종: ["avg_sales_2024_sejong", "avg_sales_sejong_2024", "avg_sales_sejong"],
-  경기: ["avg_sales_2024_gyeonggi", "avg_sales_gyeonggi_2024", "avg_sales_gyeonggi"],
-  강원: ["avg_sales_2024_gangwon", "avg_sales_gangwon_2024", "avg_sales_gangwon"],
-  충북: ["avg_sales_2024_chungbuk", "avg_sales_chungbuk_2024", "avg_sales_chungbuk"],
-  충남: ["avg_sales_2024_chungnam", "avg_sales_chungnam_2024", "avg_sales_chungnam"],
-  전북: ["avg_sales_2024_jeonbuk", "avg_sales_jeonbuk_2024", "avg_sales_jeonbuk"],
-  전남: ["avg_sales_2024_jeonnam", "avg_sales_jeonnam_2024", "avg_sales_jeonnam"],
-  경북: ["avg_sales_2024_gyeongbuk", "avg_sales_gyeongbuk_2024", "avg_sales_gyeongbuk"],
-  경남: ["avg_sales_2024_gyeongnam", "avg_sales_gyeongnam_2024", "avg_sales_gyeongnam"],
-  제주: ["avg_sales_2024_jeju", "avg_sales_jeju_2024", "avg_sales_jeju"],
+const REGION_SUFFIX: Record<Region, string> = {
+  전체: "total", 서울: "seoul", 부산: "busan", 대구: "daegu", 인천: "incheon",
+  광주: "gwangju", 대전: "daejeon", 울산: "ulsan", 세종: "sejong", 경기: "gyeonggi",
+  강원: "gangwon", 충북: "chungbuk", 충남: "chungnam", 전북: "jeonbuk", 전남: "jeonnam",
+  경북: "gyeongbuk", 경남: "gyeongnam", 제주: "jeju",
 };
-
-const COL_UNIT_AREA_REGIONAL: Record<Region, string[]> = Object.fromEntries(
-  REGIONS.map((r) => [
-    r,
-    [
-      `avg_sales_per_area_${r === "전체" ? "total" : r}`,
-      `avg_unit_area_${r === "전체" ? "total" : r}_2024`,
-    ],
-  ]),
-) as Record<Region, string[]>;
-
-function pickFirstNumColumn(row: Record<string, unknown>, cols: string[]): number | null {
-  for (const c of cols) {
-    if (c in row) {
-      const n = pickFiniteNum(row[c]);
-      if (n !== null) return n;
-    }
-  }
-  return null;
-}
 
 export async function fetchFtcBrand(input: {
   brand_nm?: string;
@@ -231,41 +196,70 @@ export async function fetchFtcBrandStandardized(input: {
   };
 }
 
+/** trimmed mean (상하 trimPct 제외 평균). 표본 부족 시 단순 평균. */
+function trimmedMean(values: number[], trimPct = 0.05): number | null {
+  if (values.length === 0) return null;
+  if (values.length < 10) {
+    return values.reduce((s, v) => s + v, 0) / values.length;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const trim = Math.floor(sorted.length * trimPct);
+  const trimmed = sorted.slice(trim, sorted.length - trim);
+  if (trimmed.length === 0) return null;
+  return trimmed.reduce((s, v) => s + v, 0) / trimmed.length;
+}
+
 export async function fetchFtcIndustryStats(industryKor: string): Promise<IndustryStats | null> {
   if (!isFrandoorConfigured() || !industryKor) return null;
   try {
     const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
-      .select("*")
+      .select(
+        `${COL_STORES_TOTAL}, ${COL_ANNUAL_SALES}, ${COL_COST_TOTAL}, ${COL_FIN_REV}, ${COL_FIN_OP}`,
+      )
       .eq("induty_mlsfc", industryKor);
     if (error || !data || data.length === 0) {
       if (error) console.warn("[ftc2024] industry stats:", error.message);
       return null;
     }
-    const stores = data.map((r) => pickFirstNumColumn(r as Record<string, unknown>, COL_STORES)).filter((x): x is number => x !== null);
-    const revenue = data.map((r) => pickFirstNumColumn(r as Record<string, unknown>, COL_REVENUE)).filter((x): x is number => x !== null);
-    const cost = data.map((r) => pickFirstNumColumn(r as Record<string, unknown>, COL_COST)).filter((x): x is number => x !== null);
-    const opMargins = data
-      .map((r) => {
-        const row = r as Record<string, unknown>;
-        const rev = pickFirstNumColumn(row, COL_FIN_REV);
-        const op = pickFirstNumColumn(row, COL_FIN_OP);
-        if (rev === null || op === null || rev <= 0) return null;
-        return (op / rev) * 100;
-      })
-      .filter((x): x is number => x !== null);
+
+    const stores: number[] = [];
+    const monthlyRev: number[] = []; // 만원
+    const cost: number[] = []; // 만원
+    const opMargins: number[] = [];
+
+    for (const r of data) {
+      const row = r as Record<string, unknown>;
+      const s = pickFiniteNum(row[COL_STORES_TOTAL]);
+      if (s != null && s > 0) stores.push(s);
+      const annualKw = pickFiniteNum(row[COL_ANNUAL_SALES]);
+      if (annualKw != null && annualKw > 0) {
+        // 천원 → 만원 → 월 환산
+        const monthlyMan = Math.round(annualKw / 10 / 12);
+        if (monthlyMan > 0) monthlyRev.push(monthlyMan);
+      }
+      const costMan = toManwon(row[COL_COST_TOTAL]);
+      if (costMan != null && costMan > 0) cost.push(costMan);
+      const rev = pickFiniteNum(row[COL_FIN_REV]);
+      const op = pickFiniteNum(row[COL_FIN_OP]);
+      if (rev != null && rev > 0 && op != null) {
+        opMargins.push((op / rev) * 100);
+      }
+    }
 
     return {
       industry: industryKor,
       n: data.length,
       avg_stores: avg(stores),
       median_stores: median(stores),
-      avg_monthly_revenue: avg(revenue),
-      median_monthly_revenue: median(revenue),
+      avg_monthly_revenue: avg(monthlyRev),
+      median_monthly_revenue: median(monthlyRev),
       avg_cost_total: avg(cost),
       median_cost_total: median(cost),
-      avg_op_margin_pct: avg(opMargins),
+      avg_op_margin_pct: opMargins.length > 0
+        ? Math.round((trimmedMean(opMargins) ?? 0) * 10) / 10
+        : null,
       source_year: "2024",
     };
   } catch (e) {
@@ -284,26 +278,29 @@ export async function computePercentile(input: {
     const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
-      .select("*")
+      .select(`${COL_ANNUAL_SALES}`)
       .eq("induty_mlsfc", input.industry);
     if (error || !data || data.length === 0) return null;
-    const cols = input.metric_columns ?? COL_REVENUE;
-    const values = data
-      .map((r) => pickFirstNumColumn(r as Record<string, unknown>, cols))
-      .filter((x): x is number => x !== null);
-    if (values.length === 0) return null;
+    // PR059 — 천원 연 → 만원 월 환산. brand_value 도 만원 월 단위로 받아야 함.
+    const monthlyValues = data
+      .map((r) => {
+        const v = pickFiniteNum((r as Record<string, unknown>)[COL_ANNUAL_SALES]);
+        if (v == null || v <= 0) return null;
+        return Math.round(v / 10 / 12);
+      })
+      .filter((x): x is number => x !== null && x > 0);
+    if (monthlyValues.length === 0) return null;
 
-    const desc = [...values].sort((a, b) => b - a);
-    // brand_value 보다 큰 값 개수 + 1 = rank (1-based, ties = 같은 rank).
+    const desc = [...monthlyValues].sort((a, b) => b - a);
     const higher = desc.filter((v) => v > input.brand_value).length;
     const rank = higher + 1;
     const percentile = Math.round(((desc.length - rank + 1) / desc.length) * 1000) / 10;
 
     return {
-      metric: cols[0],
+      metric: "monthly_avg_sales",
       brand_value: input.brand_value,
-      industry_avg: avg(values) ?? 0,
-      industry_median: median(values) ?? 0,
+      industry_avg: avg(monthlyValues) ?? 0,
+      industry_median: median(monthlyValues) ?? 0,
       brand_rank: rank,
       industry_n: desc.length,
       percentile,
@@ -320,28 +317,40 @@ export async function fetchHqFinanceAvg(industryKor: string): Promise<HqFinanceA
     const sb = createFrandoorClient();
     const { data, error } = await sb
       .from("ftc_brands_2024")
-      .select("*")
+      .select(`${COL_FIN_REV}, ${COL_FIN_OP}, ${COL_FIN_DEBT}, ${COL_FIN_EQUITY}`)
       .eq("induty_mlsfc", industryKor);
     if (error || !data || data.length === 0) return null;
     const opMargins: number[] = [];
     const debtRatios: number[] = [];
-    const revenuesEok: number[] = [];
+    const revenuesEok: number[] = []; // 천원 → 억원: ÷ 1000_000 (천원 → 만원 ÷10, 만원 → 억원 ÷10000 = 총 ÷100000)
     for (const r of data) {
       const row = r as Record<string, unknown>;
-      const rev = pickFirstNumColumn(row, COL_FIN_REV);
-      const op = pickFirstNumColumn(row, COL_FIN_OP);
-      const debt = pickFirstNumColumn(row, COL_FIN_DEBT);
-      const equity = pickFirstNumColumn(row, COL_FIN_EQUITY);
-      if (rev != null && op != null && rev > 0) opMargins.push((op / rev) * 100);
-      if (debt != null && equity != null && equity > 0) debtRatios.push((debt / equity) * 100);
-      if (rev != null && rev > 0) revenuesEok.push(rev / 100_000_000); // 원 → 억원
+      const rev = pickFiniteNum(row[COL_FIN_REV]);
+      const op = pickFiniteNum(row[COL_FIN_OP]);
+      const debt = pickFiniteNum(row[COL_FIN_DEBT]);
+      const equity = pickFiniteNum(row[COL_FIN_EQUITY]);
+      // PR059 — 분모 0 명시 제외 + 양쪽 부호 보존.
+      if (rev != null && rev > 0 && op != null) {
+        opMargins.push((op / rev) * 100);
+      }
+      if (debt != null && equity != null && equity > 0) {
+        debtRatios.push((debt / equity) * 100);
+      }
+      if (rev != null && rev > 0) {
+        // 천원 → 억원: 1억원 = 100,000,000원 = 100,000 천원.
+        revenuesEok.push(rev / 100_000);
+      }
     }
+    // PR059 — trimmed mean (상하 5% 제외) outlier filter.
+    const opTrim = trimmedMean(opMargins);
+    const debtTrim = trimmedMean(debtRatios);
+    const revTrim = trimmedMean(revenuesEok);
     return {
       industry: industryKor,
       n: data.length,
-      avg_op_margin_pct: avg(opMargins),
-      avg_debt_ratio_pct: avg(debtRatios),
-      avg_revenue_eok: avg(revenuesEok),
+      avg_op_margin_pct: opTrim != null ? Math.round(opTrim * 10) / 10 : null,
+      avg_debt_ratio_pct: debtTrim != null ? Math.round(debtTrim * 10) / 10 : null,
+      avg_revenue_eok: revTrim != null ? Math.round(revTrim * 100) / 100 : null,
       source_year: "2024",
     };
   } catch (e) {
@@ -373,14 +382,25 @@ export async function fetchRegionalAvg(
     const targets: readonly Region[] = region ? [region] : REGIONS;
     const results: RegionalAvg[] = [];
     for (const reg of targets) {
-      const revCols = COL_REVENUE_REGIONAL[reg] ?? [];
-      const areaCols = COL_UNIT_AREA_REGIONAL[reg] ?? [];
-      const revVals = data
-        .map((r) => pickFirstNumColumn(r as Record<string, unknown>, revCols))
-        .filter((x): x is number => x !== null);
-      const areaVals = data
-        .map((r) => pickFirstNumColumn(r as Record<string, unknown>, areaCols))
-        .filter((x): x is number => x !== null);
+      const suffix = REGION_SUFFIX[reg];
+      const revCol = `avg_sales_2024_${suffix}`;       // 천원 (연)
+      const areaCol = `sales_per_area_2024_${suffix}`;  // 천원 (단위면적당)
+      const revVals: number[] = [];
+      const areaVals: number[] = [];
+      for (const r of data) {
+        const row = r as Record<string, unknown>;
+        const annualKw = pickFiniteNum(row[revCol]);
+        if (annualKw != null && annualKw > 0) {
+          // 천원/연 → 만원/월
+          revVals.push(Math.round(annualKw / 10 / 12));
+        }
+        const areaKw = pickFiniteNum(row[areaCol]);
+        if (areaKw != null && areaKw > 0) {
+          // 천원/면적 → 만원/면적
+          const v = toManwon(areaKw);
+          if (v != null) areaVals.push(v);
+        }
+      }
       if (revVals.length === 0 && areaVals.length === 0) continue;
       results.push({
         industry: industryKor,
