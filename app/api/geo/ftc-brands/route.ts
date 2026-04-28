@@ -43,8 +43,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // v2-11: ftc.id 가 integer/uuid 등 어떤 형태든 string 으로 정규화 (brand_facts.brand_id TEXT 통일)
     const result = (data ?? []).map((r) => ({
-      id: r.id,
+      id: r.id != null ? String(r.id) : "",
       name: r.brand_nm,
       corp: r.corp_nm,
       industry: r.induty_mlsfc ?? r.induty_lclas ?? null,

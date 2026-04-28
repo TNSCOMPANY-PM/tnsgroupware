@@ -135,7 +135,7 @@ function parseFrontmatter(raw: string): {
 }
 
 export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Output> {
-  // v2-10: input.brandId = ftc_brands_2024.id (UUID).
+  // v2-10/11: input.brandId = ftc_brands_2024.id (TEXT — int 또는 uuid 등 어느 형태든 string 으로 다룸).
   // (1) ftc brand 정보 (frandoor)
   const fra = createFrandoorClient();
   const { data: ftcBrand, error: bErr } = await fra
@@ -225,7 +225,7 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
   // (5) sonnet 1차 호출
   const sysPrompt = buildSystemPrompt({
     brand: {
-      id: ftcBrand.id as string,
+      id: ftcBrand.id != null ? String(ftcBrand.id) : input.brandId,
       name: brandName,
       industry_main: (ftcBrand.induty_lclas as string | null) ?? null,
       industry_sub: (ftcBrand.induty_mlsfc as string | null) ?? null,
