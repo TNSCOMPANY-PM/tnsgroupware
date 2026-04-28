@@ -53,7 +53,7 @@ export async function POST(
 
   const { data: brand } = await supabase
     .from("geo_brands")
-    .select("name")
+    .select("name, ftc_brand_id")
     .eq("id", brandId)
     .single();
   if (!brand) return NextResponse.json({ error: "브랜드 없음" }, { status: 404 });
@@ -120,9 +120,10 @@ export async function POST(
         return NextResponse.json({ error: insertErr.message }, { status: 500 });
       }
 
-      // v2-03: brand_facts (frandoor) 에도 dual-write (provenance='docx', source_tier='C')
-      // 매핑 가능한 label 만 저장. 실패해도 메인 흐름 차단 X.
-      if (isFrandoorConfigured()) {
+      // v2-10: brand_facts (frandoor) dual-write — brand_id = geo_brands.ftc_brand_id 통일.
+      // ftc 매핑 안 된 geo_brand 는 dual-write skip (글 생성 universe 가 ftc 이므로).
+      const ftcBrandIdForFacts = (brand as { ftc_brand_id: string | null }).ftc_brand_id;
+      if (isFrandoorConfigured() && ftcBrandIdForFacts) {
         try {
           const fra = createFrandoorClient();
           const period = new Date().toISOString().slice(0, 7); // "YYYY-MM"
@@ -134,7 +135,7 @@ export async function POST(
             if (!meta) continue;
             const { provenance: prov, source_tier } = decideProvenance("docx", f.source_type);
             v2Rows.push({
-              brand_id: brandId,
+              brand_id: ftcBrandIdForFacts,
               metric_id,
               metric_label: meta.label,
               value_num: f.value_normalized,
@@ -149,8 +150,11 @@ export async function POST(
             });
           }
           if (v2Rows.length > 0) {
-            // 기존 docx provenance 이번 brand 의 row 삭제 후 신규 insert
-            await fra.from("brand_facts").delete().eq("brand_id", brandId).eq("provenance", "docx");
+            await fra
+              .from("brand_facts")
+              .delete()
+              .eq("brand_id", ftcBrandIdForFacts)
+              .eq("provenance", "docx");
             const { error: v2Err } = await fra
               .from("brand_facts")
               .upsert(v2Rows, { onConflict: "brand_id,metric_id,period,provenance" });
@@ -166,6 +170,11 @@ export async function POST(
             e instanceof Error ? e.message : e,
           );
         }
+      } else if (isFrandoorConfigured() && !ftcBrandIdForFacts) {
+        console.warn(
+          `[extract-facts] geo_brand=${brandId} 의 ftc_brand_id 미매핑 — v2 brand_facts dual-write skip. ` +
+            `우리 고객 등록 시 geo_brands.ftc_brand_id 지정 필요.`,
+        );
       }
     }
 

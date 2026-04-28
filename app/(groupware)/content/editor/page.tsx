@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 
 type Tier = "A" | "B" | "C";
 
-type Brand = {
+type FtcBrand = {
   id: string;
   name: string;
+  corp: string | null;
+  industry: string | null;
 };
 
 type GenerateV2Response = {
@@ -23,32 +25,43 @@ type GenerateV2Response = {
 
 export default function EditorPage() {
   const [tiers, setTiers] = useState<Set<Tier>>(new Set(["A", "B", "C"]));
-  const [brandId, setBrandId] = useState<string>("");
   const [topic, setTopic] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenerateV2Response | null>(null);
-  const [brands, setBrands] = useState<Brand[]>([]);
+  // v2-10: ftc 9552 brand 검색 typeahead
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<FtcBrand[]>([]);
+  const [searching, setSearching] = useState<boolean>(false);
+  const [selectedBrand, setSelectedBrand] = useState<FtcBrand | null>(null);
   const [error, setError] = useState<string>("");
 
+  // debounced typeahead (200ms)
   useEffect(() => {
-    const fetchBrands = async () => {
+    if (selectedBrand) return; // 선택 후엔 검색 X
+    if (!searchTerm.trim() || searchTerm.length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setSearching(true);
       try {
-        const res = await fetch("/api/geo/brands");
+        const res = await fetch(
+          `/api/geo/ftc-brands?q=${encodeURIComponent(searchTerm)}&limit=20`,
+        );
         if (res.ok) {
-          const data = await res.json();
-          setBrands(Array.isArray(data) ? data : []);
+          const data = (await res.json()) as FtcBrand[];
+          setSearchResults(Array.isArray(data) ? data : []);
+        } else {
+          setSearchResults([]);
         }
       } catch {
-        setBrands([]);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
       }
-    };
-    fetchBrands();
-  }, []);
-
-  const filteredBrands = searchTerm.trim()
-    ? brands.filter((b) => b.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    : brands;
+    }, 200);
+    return () => clearTimeout(t);
+  }, [searchTerm, selectedBrand]);
 
   const toggleTier = (tier: Tier) => {
     setTiers((prev) => {
@@ -65,7 +78,7 @@ export default function EditorPage() {
     setLoading(true);
     try {
       const body = {
-        brandId,
+        brandId: selectedBrand?.id ?? "",
         topic,
         tiers: Array.from(tiers),
       };
@@ -93,9 +106,9 @@ export default function EditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [brandId, topic, tiers]);
+  }, [selectedBrand, topic, tiers]);
 
-  const isGenerateDisabled = loading || !topic.trim() || !brandId || tiers.size === 0;
+  const isGenerateDisabled = loading || !topic.trim() || !selectedBrand || tiers.size === 0;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -129,29 +142,70 @@ export default function EditorPage() {
         </p>
       </div>
 
-      {/* 2. 브랜드 선택 */}
+      {/* 2. 브랜드 선택 (ftc 9,552 brand 검색) */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-sm font-semibold text-slate-800 mb-4">2. 브랜드 선택</h2>
-        <div className="space-y-3">
-          <input
-            type="text"
-            placeholder="브랜드 검색..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={brandId}
-            onChange={(e) => setBrandId(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">브랜드를 선택하세요</option>
-            {filteredBrands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+        <h2 className="text-sm font-semibold text-slate-800 mb-4">
+          2. 브랜드 선택 (ftc 9,552 brand 중)
+        </h2>
+        <div className="space-y-3 relative">
+          {selectedBrand ? (
+            <div className="flex items-center gap-2 p-3 border border-blue-200 bg-blue-50 rounded-lg">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-900">{selectedBrand.name}</p>
+                <p className="text-xs text-slate-500">
+                  {selectedBrand.corp ?? "-"}
+                  {selectedBrand.industry ? ` · ${selectedBrand.industry}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBrand(null);
+                  setSearchTerm("");
+                }}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                변경
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                type="text"
+                placeholder="브랜드명 검색 (예: 오공김밥)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {searching && (
+                <p className="text-xs text-slate-400">검색 중...</p>
+              )}
+              {!searching && searchResults.length > 0 && (
+                <ul className="border border-slate-200 rounded-lg max-h-72 overflow-y-auto bg-white">
+                  {searchResults.map((b) => (
+                    <li
+                      key={b.id}
+                      onClick={() => {
+                        setSelectedBrand(b);
+                        setSearchTerm("");
+                        setSearchResults([]);
+                      }}
+                      className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
+                    >
+                      <p className="text-sm font-medium text-slate-800">{b.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {b.corp ?? "-"}
+                        {b.industry ? ` · ${b.industry}` : ""}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!searching && searchTerm.trim() && searchResults.length === 0 && (
+                <p className="text-xs text-slate-400">검색 결과 없음</p>
+              )}
+            </>
+          )}
         </div>
       </div>
 

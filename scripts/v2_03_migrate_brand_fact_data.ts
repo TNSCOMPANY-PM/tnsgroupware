@@ -60,17 +60,52 @@ async function main() {
     console.error("[brand_fact_data] 조회 실패:", error.message);
     process.exit(1);
   }
-  console.log(`[brand_fact_data] ${rows?.length ?? 0} row\n`);
+  console.log(`[brand_fact_data] ${rows?.length ?? 0} row`);
 
-  // 2. 매핑
+  // v2-10: geo_brands.id → geo_brands.ftc_brand_id 매핑 사전 조회
+  const geoBrandIds = [...new Set((rows ?? []).map((r) => r.brand_id).filter(Boolean))];
+  const { data: gbMappings, error: gbErr } = await tns
+    .from("geo_brands")
+    .select("id, name, ftc_brand_id")
+    .in("id", geoBrandIds);
+  if (gbErr) {
+    console.error("[geo_brands] 매핑 조회 실패:", gbErr.message);
+    process.exit(1);
+  }
+  const geoToFtcMap = new Map<string, string | null>();
+  const geoNameMap = new Map<string, string>();
+  for (const g of gbMappings ?? []) {
+    geoToFtcMap.set(String(g.id), (g.ftc_brand_id as string | null) ?? null);
+    if (g.name) geoNameMap.set(String(g.id), String(g.name));
+  }
+  const unmappedGeoBrands = [...geoToFtcMap.entries()]
+    .filter(([, ftcId]) => !ftcId)
+    .map(([id]) => geoNameMap.get(id) ?? id);
+  if (unmappedGeoBrands.length > 0) {
+    console.log(
+      `\n  ⚠ geo_brand → ftc 매핑 없음 ${unmappedGeoBrands.length} brand:`,
+    );
+    for (const n of unmappedGeoBrands.slice(0, 30)) console.log(`    - ${n}`);
+    if (unmappedGeoBrands.length > 30) console.log(`    ... 외 ${unmappedGeoBrands.length - 30}건`);
+  }
+  console.log("");
+
+  // 2. 매핑 (v2-10: geo_brand → ftc_brand_id 변환)
   const v2Rows: Array<Record<string, unknown>> = [];
   let skippedNoMap = 0;
   let skippedNoBrand = 0;
-  const period = "2026-04"; // 마이그레이션 시점
+  let skippedNoFtcMap = 0;
+  const period = "2026-04";
 
   for (const r of rows ?? []) {
     if (!r.brand_id) {
       skippedNoBrand++;
+      continue;
+    }
+    // v2-10: geo_brand.id → ftc_brand_id 변환
+    const ftcBrandId = geoToFtcMap.get(String(r.brand_id));
+    if (!ftcBrandId) {
+      skippedNoFtcMap++;
       continue;
     }
     const metric_id = mapFactLabelToMetricId(
@@ -92,7 +127,7 @@ async function main() {
     );
 
     v2Rows.push({
-      brand_id: r.brand_id,
+      brand_id: ftcBrandId,
       metric_id,
       metric_label: meta.label,
       value_num: r.value_normalized,
@@ -119,7 +154,9 @@ async function main() {
     });
   }
 
-  console.log(`[mapping] 변환=${v2Rows.length} skip(매핑없음)=${skippedNoMap} skip(brand없음)=${skippedNoBrand}\n`);
+  console.log(
+    `[mapping] 변환=${v2Rows.length} skip(매핑없음)=${skippedNoMap} skip(brand없음)=${skippedNoBrand} skip(ftc미매핑)=${skippedNoFtcMap}\n`,
+  );
 
   if (args.dryRun) {
     console.log("✓ dry-run — 적재 skip\n");
