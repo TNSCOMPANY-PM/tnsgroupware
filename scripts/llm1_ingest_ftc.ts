@@ -124,6 +124,128 @@ const INDUSTRY_AGG_METRICS: MetricId[] = [
 ];
 const AGG_METHODS = ["trimmed_mean_5pct", "median", "p25", "p75", "p90"] as const;
 
+/**
+ * v2-09 brand name 정규화. 법인격/괄호/공백/구두점 모두 제거 후 lowercase.
+ *  · "(주)오공김밥" → "오공김밥"
+ *  · "주식회사 오공김밥" → "오공김밥"
+ *  · "오공김밥(외식)" → "오공김밥"
+ *  · "OGONG.KIMBAB" → "ogongkimbab"
+ */
+function normalizeBrandName(s: string): string {
+  if (!s) return "";
+  let n = s;
+  // 괄호 + 안 내용 제거 (앞 (주) 등 포함)
+  n = n.replace(/\([^)]*\)/g, "");
+  n = n.replace(/（[^）]*）/g, "");
+  // 법인격
+  n = n.replace(/주식회사|유한회사|합자회사|합명회사|\(주\)|\（주\）/g, "");
+  // 공백 / 점 / 따옴표 / 하이픈 / 언더스코어 / 슬래시
+  n = n.replace(/[\s.,'"\-_/·•~`!@#$%^&*+=|\\<>?:;{}[\]]/g, "");
+  return n.toLowerCase().trim();
+}
+
+type MatchTier = "exact" | "normalized" | "contains";
+type MatchResult =
+  | { id: string; tier: MatchTier; raw: string; matchedTo: string }
+  | null;
+
+/**
+ * v2-09 다단계 brand 매칭.
+ *  1. exact (raw trimmed) — fast path
+ *  2. normalized — 법인격/괄호/공백 제거 후 비교
+ *  3. contains — 3+자 normalized 가 부분 포함되면 hit (false positive 위험 → 콘솔 로그)
+ */
+function matchBrand(
+  ftcName: string,
+  geoList: Array<{ id: string; name: string; normalized: string }>,
+  rawMap: Map<string, string>,
+  normMap: Map<string, string>,
+): MatchResult {
+  const trimmed = ftcName.trim();
+  if (!trimmed) return null;
+
+  // 1) exact
+  const exactId = rawMap.get(trimmed);
+  if (exactId) return { id: exactId, tier: "exact", raw: trimmed, matchedTo: trimmed };
+
+  // 2) normalized
+  const norm = normalizeBrandName(trimmed);
+  if (norm) {
+    const normId = normMap.get(norm);
+    if (normId) {
+      const matchedTo = geoList.find((g) => g.id === normId)?.name ?? "?";
+      return { id: normId, tier: "normalized", raw: trimmed, matchedTo };
+    }
+  }
+
+  // 3) contains (3+자 — false positive 위험)
+  if (norm.length >= 3) {
+    // ftc norm 이 geo norm 에 포함 OR geo norm 이 ftc norm 에 포함
+    const candidates = geoList.filter(
+      (g) =>
+        g.normalized.length >= 3 &&
+        (g.normalized.includes(norm) || norm.includes(g.normalized)),
+    );
+    if (candidates.length === 1) {
+      const c = candidates[0];
+      console.log(
+        `[match.contains] "${trimmed}" → "${c.name}" (norm: "${norm}" ↔ "${c.normalized}") — 수동 검증 권장`,
+      );
+      return { id: c.id, tier: "contains", raw: trimmed, matchedTo: c.name };
+    } else if (candidates.length > 1) {
+      console.log(
+        `[match.contains] "${trimmed}" 다중 매칭 ${candidates.length}건 — skip (모호): ${candidates.map((c) => c.name).slice(0, 3).join(", ")}`,
+      );
+    }
+  }
+
+  return null;
+}
+
+/**
+ * v2-09 frandoor.ftc_brands_2024 전수 조회 (.range 1000 row 단위 batch pagination).
+ * supabase-js 는 기본 1000 row limit 이므로 명시적 .range() 반복 필수.
+ */
+async function fetchAllFtcBrands(
+  fra: { from: (t: string) => unknown },
+  selectCols: string,
+  filter?: { industry?: string | null; limit?: number | null },
+): Promise<Record<string, unknown>[]> {
+  const PAGE = 1000;
+  const all: Record<string, unknown>[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const targetEnd = filter?.limit
+      ? Math.min(offset + PAGE - 1, filter.limit - 1)
+      : offset + PAGE - 1;
+    if (filter?.limit && offset >= filter.limit) break;
+
+    let q = (fra.from("ftc_brands_2024") as {
+      select: (s: string) => {
+        eq: (k: string, v: string) => unknown;
+        range: (a: number, b: number) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+    }).select(selectCols);
+    if (filter?.industry) {
+      q = (q as unknown as { eq: (k: string, v: string) => typeof q }).eq(
+        "induty_mlsfc",
+        filter.industry,
+      );
+    }
+    const { data, error } = await (q as unknown as {
+      range: (a: number, b: number) => Promise<{ data: unknown; error: { message: string } | null }>;
+    }).range(offset, targetEnd);
+    if (error) {
+      console.error(`[ftc.fetchAll] batch range(${offset},${targetEnd}) 실패:`, error.message);
+      throw new Error(error.message);
+    }
+    const batch = (data ?? []) as Record<string, unknown>[];
+    all.push(...batch);
+    process.stdout.write(`[ftc.fetchAll] batch range(${offset},${targetEnd}) → ${batch.length} row (누적 ${all.length})\n`);
+    if (batch.length < PAGE) break; // 마지막 batch
+  }
+  return all;
+}
+
 function trimmedMean(values: number[], trimPct = 0.05): number | null {
   if (values.length === 0) return null;
   if (values.length < 10) {
@@ -184,18 +306,27 @@ async function main() {
   const fra = createFrandoorClient();
   const tns = createAdminClient();
 
-  // (0) reset
+  // (0) reset — v2-09: ftc + industry_facts 만 wipe, docx 보존
   if (args.reset && !args.dryRun) {
-    console.log("[reset] brand_facts WHERE provenance='ftc' OR 'frandoor_derived' 삭제 중...");
-    const { error: rErr } = await fra.from("brand_facts").delete().in("provenance", ["ftc", "frandoor_derived"]);
+    console.log("[reset] brand_facts WHERE provenance IN ('ftc', 'frandoor_derived') 삭제 중...");
+    const { error: rErr } = await fra
+      .from("brand_facts")
+      .delete()
+      .in("provenance", ["ftc", "frandoor_derived"]);
     if (rErr) {
-      console.error("[reset] 실패:", rErr.message);
+      console.error("[reset] brand_facts 실패:", rErr.message);
       process.exit(1);
     }
-    console.log("[reset] 완료\n");
+    console.log("[reset] industry_facts 전체 삭제 중...");
+    const { error: iErr } = await fra.from("industry_facts").delete().not("id", "is", null);
+    if (iErr) {
+      console.error("[reset] industry_facts 실패:", iErr.message);
+      process.exit(1);
+    }
+    console.log("[reset] ✓ ftc + industry_facts wipe (provenance='docx' 는 보존)\n");
   }
 
-  // (1) tnsgroupware geo_brands → brand_id 매핑 (brand_nm 으로 join 시도)
+  // (1) tnsgroupware geo_brands → brand_id 매핑 (raw + normalized 두 키 동시 보유)
   const { data: geoBrands, error: gbErr } = await tns
     .from("geo_brands")
     .select("id, name");
@@ -203,39 +334,51 @@ async function main() {
     console.error("[geo_brands] 조회 실패:", gbErr.message);
     process.exit(1);
   }
-  const geoBrandMap = new Map<string, string>();
+  type GeoBrandEntry = { id: string; name: string; normalized: string };
+  const geoBrandList: GeoBrandEntry[] = [];
+  const geoBrandRawMap = new Map<string, string>();
+  const geoBrandNormMap = new Map<string, string>();
   for (const b of geoBrands ?? []) {
-    if (typeof b.name === "string") geoBrandMap.set(b.name.replace(/\s+/g, ""), b.id);
+    if (typeof b.name !== "string" || !b.name.trim()) continue;
+    const trimmed = b.name.trim();
+    const normalized = normalizeBrandName(trimmed);
+    geoBrandList.push({ id: b.id, name: trimmed, normalized });
+    geoBrandRawMap.set(trimmed, b.id);
+    if (normalized) geoBrandNormMap.set(normalized, b.id);
   }
-  console.log(`[geo_brands] ${geoBrandMap.size} brand`);
+  console.log(`[geo_brands] ${geoBrandList.length} brand (raw=${geoBrandRawMap.size} norm=${geoBrandNormMap.size})`);
 
-  // (2) ftc_brands_2024 fetch
+  // (2) ftc_brands_2024 fetch — v2-09: batch pagination 으로 전수 9552 read
   const ftcCols = Object.keys(FTC_COL_TO_METRIC).concat(["brand_nm"]);
-  let q = fra.from("ftc_brands_2024").select(ftcCols.join(", "));
-  if (args.industry) q = q.eq("induty_mlsfc", args.industry);
-  if (args.limit) q = q.limit(args.limit);
-  const { data: ftcRows, error: fErr } = await q;
-  if (fErr) {
-    console.error("[ftc_brands_2024] 조회 실패:", fErr.message);
-    process.exit(1);
-  }
-  const rows = (ftcRows ?? []) as unknown as Record<string, unknown>[];
-  console.log(`[ftc_brands_2024] ${rows.length} row\n`);
+  console.log(`[ftc_brands_2024] batch pagination 시작 (page=1000)...`);
+  const rows = await fetchAllFtcBrands(fra as unknown as { from: (t: string) => unknown }, ftcCols.join(", "), {
+    industry: args.industry,
+    limit: args.limit,
+  });
+  console.log(`[ftc_brands_2024] ✓ 총 ${rows.length} row\n`);
 
-  // (3) brand_facts 빌드
+  // (3) brand_facts 빌드 — v2-09: 다단계 matchBrand + 매칭 분포 추적
   const allFacts: BrandFactRow[] = [];
   let matchedBrands = 0;
-  let unmatchedBrandsExample: string[] = [];
+  const matchTierCounts: Record<MatchTier, number> = { exact: 0, normalized: 0, contains: 0 };
+  const matchedGeoBrandIds = new Set<string>();
+  const ftcUnmatched: string[] = [];
 
   for (const row of rows) {
-    const brandNm = String(row.brand_nm ?? "").replace(/\s+/g, "");
-    if (!brandNm) continue;
-    const brandId = geoBrandMap.get(brandNm);
-    if (!brandId) {
-      if (unmatchedBrandsExample.length < 5) unmatchedBrandsExample.push(brandNm);
+    const brandNmRaw = String(row.brand_nm ?? "").trim();
+    if (!brandNmRaw) continue;
+    const match = matchBrand(brandNmRaw, geoBrandList, geoBrandRawMap, geoBrandNormMap);
+    if (!match) {
+      // 우리 고객이 ftc 에 없는 case 와 ftc 에는 있지만 우리 고객 list 에 없는 case 가 섞임.
+      // ftc 측에서 unmatched 로 뜨는 이름 = 우리 geo_brands 에 없는 brand → 90% 는 우리 고객 아님.
+      // 진짜 알고 싶은 건 "우리 고객 중 ftc 에 없는 brand" → 별도 list (아래 (3z))
+      ftcUnmatched.push(brandNmRaw);
       continue;
     }
     matchedBrands++;
+    matchTierCounts[match.tier]++;
+    matchedGeoBrandIds.add(match.id);
+    const brandId = match.id;
 
     const localFacts: BrandFactRow[] = [];
     const metricsByCol: Record<MetricId, number | string | null> = {};
@@ -394,29 +537,81 @@ async function main() {
     allFacts.push(...localFacts);
   }
 
-  console.log(`[brand_facts] 매칭 brand=${matchedBrands} / 미매칭=${rows.length - matchedBrands}`);
-  if (unmatchedBrandsExample.length > 0) {
-    console.log(`  미매칭 예시: ${unmatchedBrandsExample.join(", ")}`);
+  // v2-09 진단 — 89 brand 매칭 분포 + 우리 고객 중 ftc 에 없는 brand list
+  console.log(`\n=== 매칭 진단 ===`);
+  console.log(
+    `[brand_facts] 매칭 brand=${matchedBrands} (geo unique=${matchedGeoBrandIds.size}/${geoBrandList.length}) / ftc unmatched=${ftcUnmatched.length}/${rows.length}`,
+  );
+  console.log(
+    `  매칭 tier 분포: exact=${matchTierCounts.exact} / normalized=${matchTierCounts.normalized} / contains=${matchTierCounts.contains}`,
+  );
+  // 우리 geo_brands 중 ftc 에서 매칭 안 된 brand list (재민이 직접 검토)
+  const unmatchedGeoBrands = geoBrandList
+    .filter((g) => !matchedGeoBrandIds.has(g.id))
+    .map((g) => g.name);
+  if (unmatchedGeoBrands.length > 0) {
+    console.log(
+      `\n  ⚠ 우리 고객 ${unmatchedGeoBrands.length}/${geoBrandList.length} brand 가 ftc 에 없음 (또는 표기 차이로 미매칭):`,
+    );
+    for (const n of unmatchedGeoBrands) console.log(`    - ${n}`);
   }
-  console.log(`[brand_facts] 총 row=${allFacts.length} (brand 평균 ${(allFacts.length / matchedBrands || 0).toFixed(1)} metric)\n`);
+  // ftc unmatched (우리 고객 아닌 brand 일 가능성 높음 — 처음 10개만 샘플)
+  if (ftcUnmatched.length > 0) {
+    console.log(
+      `\n  ftc unmatched 샘플 (총 ${ftcUnmatched.length}, 대부분 우리 고객 아님): ${ftcUnmatched.slice(0, 10).join(", ")}${ftcUnmatched.length > 10 ? " ..." : ""}`,
+    );
+  }
+  console.log(
+    `\n[brand_facts] 총 row=${allFacts.length} (brand 평균 ${(allFacts.length / matchedBrands || 0).toFixed(1)} metric)\n`,
+  );
 
-  // (4) industry_facts 빌드
-  // brand 별 metric 값 그룹핑 → 업종별 집계
+  // (4) industry_facts 빌드 — ALL ftc rows 기준 (우리 고객 한정 X, 전체 9552 brand 집계)
   const industryGroups = new Map<string, Map<MetricId, number[]>>();
-  for (const f of allFacts) {
-    if (f.value_num == null) continue;
-    if (!INDUSTRY_AGG_METRICS.includes(f.metric_id)) continue;
-    // 해당 brand 의 industry_sub 조회
-    const brandRow = rows.find((r) => {
-      const nm = String(r.brand_nm ?? "").replace(/\s+/g, "");
-      return nm && geoBrandMap.get(nm) === f.brand_id;
-    });
-    const industry = String(brandRow?.induty_mlsfc ?? "");
+  for (const row of rows) {
+    const industry = String(row.induty_mlsfc ?? "").trim();
     if (!industry) continue;
+
+    // raw 매핑값 산출 (brand 단위 fact 생성 로직과 동일하지만 industry 용으로 별도 압축)
+    const localMetrics: Record<string, number> = {};
+    for (const [col, mapping] of Object.entries(FTC_COL_TO_METRIC)) {
+      const raw = row[col];
+      if (raw == null || raw === "") continue;
+      const n = typeof raw === "number" ? raw : Number(String(raw).replace(/,/g, ""));
+      if (!Number.isFinite(n) || n === 0) continue;
+      const v = mapping.transform ? mapping.transform(n) : n;
+      localMetrics[mapping.metric_id] = v;
+    }
+    // derived (industry 평균에 포함될 monthly_avg / op_margin / debt_ratio)
+    if (typeof localMetrics["annual_revenue"] === "number" && localMetrics["annual_revenue"] > 0) {
+      localMetrics["monthly_avg_revenue"] = Math.round(localMetrics["annual_revenue"] / 12);
+    }
+    const rev = localMetrics["hq_revenue"];
+    const op = localMetrics["hq_op_profit"];
+    if (typeof rev === "number" && rev > 0 && typeof op === "number") {
+      localMetrics["hq_op_margin_pct"] = Math.round((op / rev) * 1000) / 10;
+    }
+    const debt = localMetrics["hq_total_debt"];
+    const equity = localMetrics["hq_total_equity"];
+    if (typeof debt === "number" && typeof equity === "number" && equity > 0) {
+      localMetrics["hq_debt_ratio_pct"] = Math.round((debt / equity) * 1000) / 10;
+    }
+    const stores = localMetrics["stores_total"];
+    const interior = localMetrics["cost_interior"];
+    const area = localMetrics["cost_store_area"];
+    if (typeof interior === "number" && typeof area === "number" && area > 0) {
+      const perPy = Math.round(interior / (area / 3.3));
+      if (Number.isFinite(perPy) && perPy > 0) localMetrics["cost_per_pyung"] = perPy;
+    }
+    void stores;
+
     if (!industryGroups.has(industry)) industryGroups.set(industry, new Map());
     const m = industryGroups.get(industry)!;
-    if (!m.has(f.metric_id)) m.set(f.metric_id, []);
-    m.get(f.metric_id)!.push(f.value_num);
+    for (const mid of INDUSTRY_AGG_METRICS) {
+      const v = localMetrics[mid];
+      if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) continue;
+      if (!m.has(mid)) m.set(mid, []);
+      m.get(mid)!.push(v);
+    }
   }
 
   const industryFactRows: Array<{
