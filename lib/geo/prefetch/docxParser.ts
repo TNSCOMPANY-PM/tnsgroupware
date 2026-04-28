@@ -8,6 +8,7 @@
  */
 
 import type { ComparisonRow, ComparisonTable, DataTable } from "./frandoorDocx";
+import { assignMetric } from "@/lib/geo/standardSchema";
 import { assignArea, assignAreaWithConfidence } from "./frandoorDocx";
 
 export type UnmappedTable = {
@@ -232,7 +233,18 @@ function buildComparisonRows(headers: string[], rows: string[][]): ComparisonRow
       const kosis_value = idxKosis >= 0 ? r[idxKosis]?.trim() || null : null;
       const note = idxNote >= 0 ? r[idxNote]?.trim() || null : null;
       const unit = extractUnit(official_value);
-      return { metric, official_value, brochure_value, kosis_value, note, unit } as ComparisonRow;
+      // PR058 — 표준 metric ID 매핑.
+      const mapping = assignMetric(metric, headers.join(" | "));
+      return {
+        metric,
+        official_value,
+        brochure_value,
+        kosis_value,
+        note,
+        unit,
+        metric_id: mapping?.metric_id ?? null,
+        confidence: mapping?.confidence ?? "unmapped",
+      } as ComparisonRow;
     })
     .filter((x): x is ComparisonRow => x !== null);
 }

@@ -7,8 +7,19 @@
 
 import "server-only";
 import { isFrandoorConfigured, createFrandoorClient } from "@/utils/supabase/frandoor";
+import { ftcRowToMetrics, type StandardMetricId } from "@/lib/geo/standardSchema";
 
 export type FtcBrand2024 = Record<string, unknown>;
+
+/** PR058 — ftc_brands_2024 raw row 을 표준 metric ID 키로 정규화한 형태. */
+export type StandardFtcBrand = {
+  brand_nm: string | null;
+  reg_no: string | null;
+  industry_sub: string | null;
+  metrics: Partial<Record<StandardMetricId, unknown>>;
+  /** 디버깅용 — raw row 보존. */
+  raw: FtcBrand2024;
+};
 
 export type IndustryStats = {
   industry: string;
@@ -197,6 +208,27 @@ export async function fetchFtcBrand(input: {
     console.warn("[ftc2024] fetchFtcBrand 실패:", e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+/**
+ * PR058 — fetchFtcBrand 결과를 표준 metric ID 키로 정규화.
+ * D3 UnifiedFact 빌더가 docx 결과와 단일 metric_id 키로 비교 가능.
+ */
+export async function fetchFtcBrandStandardized(input: {
+  brand_nm?: string;
+  reg_no?: string;
+  corp_nm?: string;
+}): Promise<StandardFtcBrand | null> {
+  const raw = await fetchFtcBrand(input);
+  if (!raw) return null;
+  const row = raw as Record<string, unknown>;
+  return {
+    brand_nm: typeof row.brand_nm === "string" ? row.brand_nm : null,
+    reg_no: typeof row.reg_no === "string" ? row.reg_no : null,
+    industry_sub: typeof row.induty_mlsfc === "string" ? row.induty_mlsfc : null,
+    metrics: ftcRowToMetrics(row),
+    raw,
+  };
 }
 
 export async function fetchFtcIndustryStats(industryKor: string): Promise<IndustryStats | null> {

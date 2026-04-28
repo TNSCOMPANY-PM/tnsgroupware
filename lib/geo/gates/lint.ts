@@ -215,6 +215,24 @@ export type D3LintContext = {
   topic?: string | null;
   /** PR057 — ftc 매칭 시도 결과 (L74 검증용). null 미시도, false 미매칭, true 매칭. */
   ftcBrandMatched?: boolean | null;
+  /** PR058 — docx 비교표 metric_id 매핑률 (L75 검증용). */
+  mappingStats?: {
+    total: number;
+    high: number;
+    medium: number;
+    low: number;
+    unmapped: number;
+    high_pct: number;
+    unmapped_pct: number;
+  } | null;
+  /** PR058 — docx vs ftc cross-check conflicts (L72 강화). */
+  crossCheckConflicts?: Array<{
+    metric_id: string;
+    metric_label: string;
+    docx_value: number;
+    ftc_value: number;
+    diff_pct: number;
+  }>;
 };
 
 export function lintForDepth(
@@ -625,42 +643,74 @@ export function lintForDepth(
     }
 
     // L72 PR056 — docx (__official_data__) vs xlsx (ftc_brands_2024) 핵심 수치 cross-check.
-    // facts 풀 안 docx 기반 fact 와 ftc2024 기반 fact 가 같은 metric 에서 30%+ 차이 시 WARN.
+    // PR058 — metric_id 기반 conflicts 우선 (정확도 향상). fallback: legacy fact_key pair 검사.
     if (payload.kind === "franchiseDoc") {
-      const factList = facts.facts as Array<Record<string, unknown>>;
-      const findValue = (key: string): number | null => {
-        const f = factList.find((x) => x.fact_key === key);
-        if (!f) return null;
-        const raw = f.value;
-        if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-        if (typeof raw === "string") {
-          const cleaned = raw.replace(/[,\s만원%개건배호점]/g, "");
-          const n = Number(cleaned);
-          if (Number.isFinite(n)) return n;
-        }
-        return null;
-      };
-      const pairs = [
-        { docxKey: "docx_stores_total", xlsxKey: "ftc2024_brand_stores", label: "가맹점 수" },
-        { docxKey: "docx_avg_monthly_revenue", xlsxKey: "ftc2024_brand_revenue", label: "월평균매출" },
-        { docxKey: "docx_cost_total", xlsxKey: "ftc2024_brand_cost", label: "창업비용" },
-      ];
-      const conflicts: string[] = [];
-      for (const p of pairs) {
-        const a = findValue(p.docxKey);
-        const b = findValue(p.xlsxKey);
-        if (a == null || b == null || a === 0) continue;
-        const diffPct = Math.abs(((a - b) / a) * 100);
-        if (diffPct >= 30) {
-          conflicts.push(`${p.label} docx ${a} vs ftc ${b} (${Math.round(diffPct * 10) / 10}% 차이)`);
-        }
-      }
-      if (conflicts.length > 0) {
+      const stdConflicts = opts.d3?.crossCheckConflicts ?? [];
+      if (stdConflicts.length > 0) {
+        const head = stdConflicts[0];
         warns.push({
           code: "L72",
           level: "WARN",
-          msg: `docx vs ftc2024 cross-check 충돌 ${conflicts.length}건: ${conflicts[0]}`,
+          msg: `docx vs ftc 표준 metric cross-check 충돌 ${stdConflicts.length}건: ${head.metric_label} (id=${head.metric_id}) docx ${head.docx_value} vs ftc ${head.ftc_value}, 차이 ${head.diff_pct}%`,
         });
+      } else {
+        // legacy fact_key pair fallback (PR056 패턴 유지)
+        const factList = facts.facts as Array<Record<string, unknown>>;
+        const findValue = (key: string): number | null => {
+          const f = factList.find((x) => x.fact_key === key);
+          if (!f) return null;
+          const raw = f.value;
+          if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+          if (typeof raw === "string") {
+            const cleaned = raw.replace(/[,\s만원%개건배호점]/g, "");
+            const n = Number(cleaned);
+            if (Number.isFinite(n)) return n;
+          }
+          return null;
+        };
+        const pairs = [
+          { docxKey: "docx_stores_total", xlsxKey: "ftc2024_brand_stores", label: "가맹점 수" },
+          { docxKey: "docx_avg_monthly_revenue", xlsxKey: "ftc2024_brand_revenue", label: "월평균매출" },
+          { docxKey: "docx_cost_total", xlsxKey: "ftc2024_brand_cost", label: "창업비용" },
+        ];
+        const conflicts: string[] = [];
+        for (const p of pairs) {
+          const a = findValue(p.docxKey);
+          const b = findValue(p.xlsxKey);
+          if (a == null || b == null || a === 0) continue;
+          const diffPct = Math.abs(((a - b) / a) * 100);
+          if (diffPct >= 30) {
+            conflicts.push(`${p.label} docx ${a} vs ftc ${b} (${Math.round(diffPct * 10) / 10}% 차이)`);
+          }
+        }
+        if (conflicts.length > 0) {
+          warns.push({
+            code: "L72",
+            level: "WARN",
+            msg: `docx vs ftc2024 cross-check 충돌 (legacy) ${conflicts.length}건: ${conflicts[0]}`,
+          });
+        }
+      }
+    }
+
+    // L75 PR058 — docx 비교표 metric_id 매핑률 검증.
+    // unmapped 비율 ≥ 30% 또는 high 비율 < 50% 시 WARN.
+    {
+      const ms = opts.d3?.mappingStats;
+      if (ms && ms.total >= 5) {
+        if (ms.unmapped_pct >= 30) {
+          warns.push({
+            code: "L75",
+            level: "WARN",
+            msg: `표준 metric 매핑 부족 — unmapped ${ms.unmapped}/${ms.total} (${ms.unmapped_pct}%) ≥ 30% — alias 추가 또는 LLM fallback 활성 검토`,
+          });
+        } else if (ms.high_pct < 50) {
+          warns.push({
+            code: "L75",
+            level: "WARN",
+            msg: `표준 metric 매핑 정확도 낮음 — high ${ms.high}/${ms.total} (${ms.high_pct}%) < 50% — alias 정정 검토`,
+          });
+        }
       }
     }
 
