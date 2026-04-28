@@ -714,6 +714,34 @@ export function lintForDepth(
       }
     }
 
+    // L76 PR059 — ftc 가용한데 docx __official_data__ A급 facts 사용 검출.
+    // ftcBrandMatched=true + facts 풀에 docx_* fact_key 의 source_title 에 "공정위 정보공개서" + "(frandoor 적재" 미포함 시 ERROR.
+    {
+      const matched = opts.d3?.ftcBrandMatched ?? null;
+      if (matched === true) {
+        const factList = facts.facts as Array<Record<string, unknown>>;
+        // PR059 정책: ftc 매칭 시 A급 fact 의 source_title 은 모두 "공정위 정보공개서 2024 (frandoor 적재본)" 이어야 함.
+        // docx __official_data__ 기반 fact 는 source_title 에 "frandoor 적재본" 미포함.
+        const violations = factList.filter((f) => {
+          if (f.source_tier !== "A") return false;
+          const title = typeof f.source_title === "string" ? f.source_title : "";
+          if (!title.includes("정보공개서")) return false;
+          // ftc 적재본은 통과
+          if (title.includes("frandoor 적재")) return false;
+          // docx __official_data__ 기반 → 위반
+          return true;
+        });
+        if (violations.length > 0) {
+          const sample = violations[0];
+          errors.push({
+            code: "L76",
+            level: "ERROR",
+            msg: `ftc 가용한데 docx __official_data__ A급 사용 ${violations.length}건 (PR059 정책 위반): ${typeof sample.source_title === "string" ? sample.source_title : "?"} / ${typeof sample.fact_key === "string" ? sample.fact_key : "?"}`,
+          });
+        }
+      }
+    }
+
     // L73 PR057 — topic 무력화 검출.
     // topic 비어있지 않은데 제목·lede(첫 800자) 어디에도 topic 핵심 키워드 0건 매칭 시 WARN.
     {

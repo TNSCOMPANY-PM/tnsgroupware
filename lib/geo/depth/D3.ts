@@ -275,7 +275,25 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   }
 
   // PR043 — docx (geo_brands.fact_data) 기반 facts 주입. xlsx POS 경로 폐기.
+  // PR059 — A급 정책 변경: ftc_brands_2024 가용 + 매칭 시 docx __official_data__ 본문 인용 차단.
+  //         docx __raw_text__ (본사 측, C급) 는 그대로 유지.
   const docx = await fetchFrandoorDocx(input.brandId);
+  // ftc 사전 매칭 (env 가용 + brand 매칭) → useDocxOfficial false 로 docx A급 차단
+  let useDocxOfficial = true;
+  let preFetchedStdFtc: Awaited<ReturnType<typeof fetchFtcBrandStandardized>> | null = null;
+  if (isFtc2024Configured()) {
+    try {
+      preFetchedStdFtc = await fetchFtcBrandStandardized({ brand_nm: input.brand });
+      if (preFetchedStdFtc && Object.keys(preFetchedStdFtc.metrics).length > 0) {
+        useDocxOfficial = false;
+        log(`[ftc-policy] ftc 매칭 ✓ — docx __official_data__ A급 facts 차단 (PR059 정책)`);
+      } else {
+        log(`[ftc-policy] ftc 미매칭 또는 metrics 비어있음 — docx __official_data__ fallback 허용`);
+      }
+    } catch (e) {
+      log(`[ftc-policy] ftc 사전 매칭 실패 → docx fallback 허용: ${e instanceof Error ? e.message : e}`);
+    }
+  }
   if (docx) {
     const od = docx.official_data;
     const hp = extractHomepageFacts(docx.raw_text_chunks);
@@ -296,7 +314,8 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     const pushDocxOfficial = (claim: string, value: number, unit: string, fact_key: string) =>
       facts.facts.push({ ...officialBase, claim, value, unit, fact_key });
 
-    if (od) {
+    // PR059 — useDocxOfficial=false 시 docx __official_data__ 기반 A급 facts 차단.
+    if (od && useDocxOfficial) {
       if (od.stores_total != null)
         pushDocxOfficial(
           `공정위 정보공개서 ${sourceYearOfficial} 기준 가맹점수 ${od.stores_total.toLocaleString()}개`,
@@ -463,13 +482,14 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
   console.log(`[ftc2024] env_configured=${isFtc2024Configured()}`);
   if (isFtc2024Configured()) {
     try {
-      const ftcBrand = await fetchFtcBrand({ brand_nm: input.brand });
+      // PR059 — preFetchedStdFtc 재사용 (docx 차단 정책 결정용 사전 fetch).
+      const stdFtc = preFetchedStdFtc ?? (await fetchFtcBrandStandardized({ brand_nm: input.brand }));
+      const ftcBrand = stdFtc?.raw ?? (await fetchFtcBrand({ brand_nm: input.brand }));
       ftcBrandMatched = !!ftcBrand;
       console.log(`[ftc2024] fetchFtcBrand("${input.brand}") → ${ftcBrand ? "✓ matched" : "✗ NULL"}`);
 
       // PR058 — 표준 metric ID 기반 cross-check (docx 비교표 vs ftc 정규화).
       try {
-        const stdFtc = await fetchFtcBrandStandardized({ brand_nm: input.brand });
         crossCheckConflicts = crossCheckDocxVsFtc({ docx, ftc: stdFtc });
         if (crossCheckConflicts.length > 0) {
           log(
@@ -488,8 +508,81 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
         null;
       log(`[ftc2024] brand_nm=${input.brand} matched=${!!ftcBrand} industry=${industryKor ?? "-"}`);
       if (ftcBrand) {
-        const stores = (ftcBrand as Record<string, unknown>).total_stores ?? "-";
+        const stores = (ftcBrand as Record<string, unknown>).frcs_cnt_2024_total ?? "-";
         console.log(`[ftc2024] industry=${industryKor ?? "-"} stores=${stores}`);
+      }
+
+      // PR059 — ftc 매칭 시 A급 brand fact 주입 (docx __official_data__ 대체).
+      if (stdFtc && stdFtc.metrics) {
+        const m = stdFtc.metrics;
+        const ftcBase = {
+          source_url: "https://franchise.ftc.go.kr/",
+          source_title: `공정위 정보공개서 2024 (frandoor 적재본)`,
+          year_month: "2024-12",
+          period_month: "2024-12",
+          authoritativeness: "primary" as const,
+          tier: "A" as const,
+          source_tier: "A" as const,
+        };
+        const fmtMan = (n: number) => `${n.toLocaleString("ko-KR")}만원`;
+        if (typeof m.stores_total === "number" && m.stores_total > 0) {
+          facts.facts.push({
+            ...ftcBase,
+            claim: `공정위 정보공개서 2024 기준 가맹점수 ${m.stores_total.toLocaleString("ko-KR")}개`,
+            value: m.stores_total,
+            unit: "개",
+            fact_key: "frcs_cnt",
+          });
+        }
+        if (typeof m.monthly_avg_sales === "number" && m.monthly_avg_sales > 0) {
+          facts.facts.push({
+            ...ftcBase,
+            claim: `공정위 정보공개서 2024 기준 가맹점당 월평균매출 ${fmtMan(m.monthly_avg_sales)}`,
+            value: m.monthly_avg_sales,
+            unit: "만원",
+            fact_key: "docx_avg_monthly_revenue",
+          });
+        }
+        if (typeof m.cost_total === "number" && m.cost_total > 0) {
+          facts.facts.push({
+            ...ftcBase,
+            claim: `공정위 정보공개서 2024 기준 창업비용 총액 ${fmtMan(m.cost_total)}`,
+            value: m.cost_total,
+            unit: "만원",
+            fact_key: "docx_cost_total",
+          });
+        }
+        if (typeof m.franchise_fee === "number" && m.franchise_fee > 0) {
+          facts.facts.push({
+            ...ftcBase,
+            claim: `공정위 정보공개서 2024 기준 가맹비 ${fmtMan(m.franchise_fee)}`,
+            value: m.franchise_fee,
+            unit: "만원",
+            fact_key: "docx_franchise_fee",
+          });
+        }
+        if (typeof m.hq_op_margin_pct === "number") {
+          facts.facts.push({
+            ...ftcBase,
+            claim: `공정위 정보공개서 2024 기준 본사 영업이익률 ${m.hq_op_margin_pct}%`,
+            value: m.hq_op_margin_pct,
+            unit: "%",
+            fact_key: "ftc_hq_op_margin_pct",
+            derived: true,
+            formula_id: "hq_op_margin_pct",
+          });
+        }
+        if (typeof m.hq_debt_ratio_pct === "number") {
+          facts.facts.push({
+            ...ftcBase,
+            claim: `공정위 정보공개서 2024 기준 본사 부채비율 ${m.hq_debt_ratio_pct}%`,
+            value: m.hq_debt_ratio_pct,
+            unit: "%",
+            fact_key: "ftc_hq_debt_ratio_pct",
+            derived: true,
+            formula_id: "hq_debt_ratio_pct",
+          });
+        }
       }
       if (industryKor) {
         const istats = await fetchFtcIndustryStats(industryKor);
