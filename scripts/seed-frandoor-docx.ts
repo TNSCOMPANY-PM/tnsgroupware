@@ -30,12 +30,20 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-type Args = { brand?: string; brandId?: string; all?: boolean; file?: string };
+type Args = {
+  brand?: string;
+  brandId?: string;
+  all?: boolean;
+  file?: string;
+  /** PR058 — 휴리스틱 매핑 실패 셀에 LLM fallback 적용. */
+  llmClassify?: boolean;
+};
 
 function parseArgs(): Args {
   const a: Args = {};
   for (const arg of process.argv.slice(2)) {
     if (arg === "--all") a.all = true;
+    else if (arg === "--llm-classify") a.llmClassify = true;
     else if (arg.startsWith("--brand=")) a.brand = arg.slice("--brand=".length);
     else if (arg.startsWith("--brand-id=")) a.brandId = arg.slice("--brand-id=".length);
     else if (arg.startsWith("--file=")) a.file = arg.slice("--file=".length);
@@ -68,13 +76,68 @@ async function processBrand(opts: {
   name: string;
   factData: Array<Record<string, unknown>>;
   fileBuffer: Buffer;
+  llmClassify?: boolean;
 }) {
   const { parseDocxFull } = await import("../lib/geo/prefetch/docxParser");
   const parsed = await parseDocxFull(opts.fileBuffer);
+
+  // PR058 — 휴리스틱 매핑 실패 셀에 LLM fallback 적용 (옵션).
+  const unmappedMetrics: Array<{
+    cell_text: string;
+    headers: string[];
+    section: string;
+    reason: string;
+  }> = [];
+  let llmCalls = 0;
+  let llmHits = 0;
+  if (opts.llmClassify) {
+    const { llmClassifyMetric } = await import("../lib/geo/prefetch/llmMetricClassifier");
+    for (const tbl of parsed.comparison_tables) {
+      for (const row of tbl.rows) {
+        if (row.metric_id != null) continue;
+        if (!row.metric || !row.metric.trim()) continue;
+        llmCalls++;
+        const r = await llmClassifyMetric({
+          cell_text: row.metric,
+          context_headers: tbl.headers,
+          context_section: tbl.section,
+          sample_value: row.official_value ?? null,
+        });
+        if (r.metric_id) {
+          row.metric_id = r.metric_id;
+          row.confidence = r.confidence === "high" ? "low" : "low"; // LLM = low confidence (휴리스틱 high/medium 보다 약함)
+          llmHits++;
+        } else {
+          unmappedMetrics.push({
+            cell_text: row.metric,
+            headers: tbl.headers,
+            section: tbl.section,
+            reason: r.reason ?? "LLM skip",
+          });
+        }
+      }
+    }
+  } else {
+    // LLM 비활성 — 휴리스틱 unmapped 셀을 unmappedMetrics 에 그대로 보존.
+    for (const tbl of parsed.comparison_tables) {
+      for (const row of tbl.rows) {
+        if (row.metric_id != null) continue;
+        if (!row.metric || !row.metric.trim()) continue;
+        unmappedMetrics.push({
+          cell_text: row.metric,
+          headers: tbl.headers,
+          section: tbl.section,
+          reason: "휴리스틱 미매칭 (LLM 비활성)",
+        });
+      }
+    }
+  }
+
   const compStr = JSON.stringify(parsed.comparison_tables);
   const dataStr = JSON.stringify(parsed.data_tables);
   const unmappedStr = JSON.stringify(parsed.unmapped_tables);
   const suspectStr = JSON.stringify(parsed.suspect_tables);
+  const unmappedMetricsStr = JSON.stringify(unmappedMetrics);
 
   // factData 안 entry 교체 또는 추가.
   const fd = opts.factData.filter(
@@ -82,12 +145,14 @@ async function processBrand(opts: {
       x?.label !== "__comparison_tables__" &&
       x?.label !== "__data_tables__" &&
       x?.label !== "__unmapped_tables__" &&
-      x?.label !== "__suspect_tables__",
+      x?.label !== "__suspect_tables__" &&
+      x?.label !== "__unmapped_metrics__",
   );
   fd.push({ label: "__comparison_tables__", keyword: compStr });
   fd.push({ label: "__data_tables__", keyword: dataStr });
   fd.push({ label: "__unmapped_tables__", keyword: unmappedStr });
   fd.push({ label: "__suspect_tables__", keyword: suspectStr });
+  fd.push({ label: "__unmapped_metrics__", keyword: unmappedMetricsStr });
 
   return {
     fact_data: fd,
@@ -96,6 +161,9 @@ async function processBrand(opts: {
     data: parsed.data_tables.length,
     unmapped: parsed.unmapped_tables.length,
     suspect: parsed.suspect_tables.length,
+    unmapped_metrics: unmappedMetrics.length,
+    llm_calls: llmCalls,
+    llm_hits: llmHits,
   };
 }
 
@@ -149,7 +217,13 @@ async function main() {
       ? (data.fact_data as Array<Record<string, unknown>>)
       : [];
     try {
-      const r = await processBrand({ id: t.id, name: t.name, factData, fileBuffer: buffer });
+      const r = await processBrand({
+        id: t.id,
+        name: t.name,
+        factData,
+        fileBuffer: buffer,
+        llmClassify: args.llmClassify,
+      });
       const { error } = await sb
         .from("geo_brands")
         .update({ fact_data: r.fact_data })
@@ -157,8 +231,9 @@ async function main() {
       if (error) {
         console.error(`[fail] ${t.name}: update`, error.message);
       } else {
+        const llmInfo = args.llmClassify ? ` llm_calls=${r.llm_calls} hits=${r.llm_hits}` : "";
         console.log(
-          `[ok] ${t.name} — sections=${r.sections} comparison=${r.comparison} data=${r.data} unmapped=${r.unmapped} suspect=${r.suspect}`,
+          `[ok] ${t.name} — sections=${r.sections} comparison=${r.comparison} data=${r.data} unmapped=${r.unmapped} suspect=${r.suspect} unmapped_metrics=${r.unmapped_metrics}${llmInfo}`,
         );
       }
     } catch (e) {

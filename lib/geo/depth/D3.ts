@@ -21,11 +21,13 @@ import { fetchFrandoorDocx, extractHomepageFacts } from "@/lib/geo/prefetch/fran
 import {
   isFtc2024Configured,
   fetchFtcBrand,
+  fetchFtcBrandStandardized,
   fetchFtcIndustryStats,
   computePercentile,
   fetchHqFinanceAvg,
   fetchRegionalAvg,
 } from "@/lib/geo/prefetch/ftc2024";
+import { crossCheckDocxVsFtc, mappingStats } from "@/lib/geo/depth/unifiedFacts";
 import {
   pickMetaPattern,
   buildFormulaItems,
@@ -427,6 +429,12 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
     const hpFilled = Object.values(hp).filter((v) => v != null).length;
     log(`[docx] ${input.brand} — official_data=${!!od} industry_avg=${od?.industry_avg_revenue ?? "-"} homepage_extracted=${hpFilled}`);
 
+    // PR058 — docx 비교표 metric_id 매핑률 (L75 lint 입력).
+    const mstats = mappingStats(docx);
+    log(
+      `[unified] mapping total=${mstats.total} high=${mstats.high}(${mstats.high_pct}%) medium=${mstats.medium} low=${mstats.low} unmapped=${mstats.unmapped}(${mstats.unmapped_pct}%)`,
+    );
+
     // PR052 — 7영역 비교표 → facts 풀 주입.
     const topicForArea = (input as { topic?: string }).topic ?? null;
     const areaPlan = pickAreas(topicForArea);
@@ -449,19 +457,43 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
   // PR056 — frandoor ftc_brands_2024 connector facts 주입.
   // PR057 — ftcBrandMatched 추적 (L74 lint 입력).
+  // PR058 — vercel logs 즉시 진단용 단계별 console.log (Part A T2) + 표준 metric cross-check.
   let ftcBrandMatched: boolean | null = null;
+  let crossCheckConflicts: ReturnType<typeof crossCheckDocxVsFtc> = [];
+  console.log(`[ftc2024] env_configured=${isFtc2024Configured()}`);
   if (isFtc2024Configured()) {
     try {
       const ftcBrand = await fetchFtcBrand({ brand_nm: input.brand });
       ftcBrandMatched = !!ftcBrand;
+      console.log(`[ftc2024] fetchFtcBrand("${input.brand}") → ${ftcBrand ? "✓ matched" : "✗ NULL"}`);
+
+      // PR058 — 표준 metric ID 기반 cross-check (docx 비교표 vs ftc 정규화).
+      try {
+        const stdFtc = await fetchFtcBrandStandardized({ brand_nm: input.brand });
+        crossCheckConflicts = crossCheckDocxVsFtc({ docx, ftc: stdFtc });
+        if (crossCheckConflicts.length > 0) {
+          log(
+            `[unified] cross-check conflicts ${crossCheckConflicts.length}건: ${crossCheckConflicts
+              .map((c) => `${c.metric_label}(${c.diff_pct}%)`)
+              .join(", ")}`,
+          );
+        }
+      } catch (e) {
+        console.warn("[unified] cross-check 실패:", e instanceof Error ? e.message : e);
+      }
       const industryKor =
         (ftcBrand?.induty_mlsfc as string | undefined) ??
         official?.master?.industry_sub ??
         official?.master?.industry_main ??
         null;
       log(`[ftc2024] brand_nm=${input.brand} matched=${!!ftcBrand} industry=${industryKor ?? "-"}`);
+      if (ftcBrand) {
+        const stores = (ftcBrand as Record<string, unknown>).total_stores ?? "-";
+        console.log(`[ftc2024] industry=${industryKor ?? "-"} stores=${stores}`);
+      }
       if (industryKor) {
         const istats = await fetchFtcIndustryStats(industryKor);
+        console.log(`[ftc2024] industryStats n=${istats?.n ?? "-"} avg_revenue=${istats?.avg_monthly_revenue ?? "-"}`);
         if (istats) {
           if (istats.avg_monthly_revenue != null) {
             facts.facts.push({
@@ -531,6 +563,7 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
         // 본사 재무 평균 (PR046 케이스 C 해소)
         const hq = await fetchHqFinanceAvg(industryKor);
+        console.log(`[ftc2024] hqAvg n=${hq?.n ?? "-"} avg_op_margin=${hq?.avg_op_margin_pct ?? "-"}`);
         const brandOpMargin = official?.timeseries?.[0]?.operating_profit != null && official?.timeseries?.[0]?.revenue
           ? Math.round(
               (official.timeseries[0].operating_profit / official.timeseries[0].revenue) * 1000,
@@ -803,14 +836,18 @@ export async function runD3(input: GeoInput): Promise<GeoOutput> {
 
   // PR043: xlsx POS 경로 폐기 → availableStoreNames 수집 대상 없음.
   // PR053: 영역 매칭·누락 검증 위해 primary 영역 수 + area_sections 조립 수 전달.
+  // PR058: docx metric_id 매핑률 + ftc cross-check conflicts 전달.
   const topicForLint = (input as { topic?: string }).topic ?? null;
   const lintAreaPlan = pickAreas(topicForLint);
+  const mappingStatsForLint = docx ? mappingStats(docx) : null;
   const d3Ctx = {
     availableStoreNames: [] as string[],
     primaryAreaCount: primaryAreas(lintAreaPlan).length,
     areaSectionAssembled: areaSectionsMd.length,
     topic: topicForLint,
     ftcBrandMatched,
+    mappingStats: mappingStatsForLint,
+    crossCheckConflicts,
   };
   const lint = lintForDepth("D3", payload, factsPlus, { canonicalUrl, jsonLd, d3: d3Ctx });
   const bodyAggregate = [

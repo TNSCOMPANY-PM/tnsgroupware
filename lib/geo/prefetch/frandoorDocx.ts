@@ -45,6 +45,10 @@ export type ComparisonRow = {
   kosis_value?: string | null;
   note: string | null;
   unit?: string | null;
+  /** PR058 — 표준 metric ID 매핑. assignMetric 결과. null = 미매핑. */
+  metric_id?: import("@/lib/geo/standardSchema").StandardMetricId | null;
+  /** PR058 — 매핑 신뢰도. "high"/"medium"/"low"/"unmapped". */
+  confidence?: "high" | "medium" | "low" | "unmapped";
 };
 
 export type ComparisonTable = {
@@ -303,6 +307,8 @@ function synthesizeComparisonTables(
       brochure_value: null,
       note: null,
       unit: "만원",
+      metric_id: "franchise_fee",
+      confidence: "high",
     });
   }
   if (od.cost_total != null) {
@@ -317,6 +323,8 @@ function synthesizeComparisonTables(
             ? "일치"
             : null,
       unit: "만원",
+      metric_id: "cost_total",
+      confidence: "high",
     });
   }
   if (costRows.length > 0) {
@@ -342,6 +350,8 @@ function synthesizeComparisonTables(
           brochure_value: `${hp.stores_count_self}호점`,
           note: diff !== 0 ? `${diff > 0 ? "+" : ""}${diff}개 차이` : "일치",
           unit: "개",
+          metric_id: "stores_total",
+          confidence: "high",
         },
       ],
     });
@@ -362,6 +372,8 @@ function synthesizeComparisonTables(
               : `${fmtMan(Math.abs(od.avg_monthly_revenue - hp.avg_monthly_revenue_homepage))} 차이`
             : null,
         unit: "만원",
+        metric_id: "monthly_avg_sales",
+        confidence: "high",
       },
     ];
     if (od.industry_avg_revenue != null) {
@@ -371,6 +383,8 @@ function synthesizeComparisonTables(
         brochure_value: null,
         note: "공정위 가맹사업 현황 통계",
         unit: "만원",
+        metric_id: "monthly_avg_sales",
+        confidence: "medium",
       });
     }
     tables.push({
@@ -393,6 +407,8 @@ function synthesizeComparisonTables(
           official_value: "공시 항목 별도",
           brochure_value: `${hp.legal_disputes_self}건`,
           note: hp.legal_disputes_self === 0 ? "본사 자료 무분쟁" : null,
+          metric_id: "disputes",
+          confidence: "high",
         },
       ],
     });
