@@ -114,10 +114,10 @@ async function main() {
   check("1,800~2,500자 분량", sp.includes("1,800~2,500자"));
   check("today interpolation", sp.includes(`date: "${today}"`));
 
-  // 길이 — v2-16 의 3,403 에서 약간 늘어남 허용 (5,000자 이내)
+  // 길이 — v2-23 percentile 변환 + C급 룰 추가로 ~5,600자 (6,000자 이내)
   console.log("\n[T5] sysprompt 길이");
   console.log(`   sysprompt 길이 = ${sp.length} 자`);
-  check(`길이 < 5,000자 (자율 가이드)`, sp.length < 5000, `len=${sp.length}`);
+  check(`길이 < 6,000자 (자율 가이드)`, sp.length < 6000, `len=${sp.length}`);
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);
   process.exit(okAll ? 0 : 1);

@@ -119,7 +119,7 @@ date: "2026-04-29"
 
   // 길이
   console.log(`\n   sysprompt 길이 = ${sp.length} 자`);
-  check(`길이 < 5,000자`, sp.length < 5000);
+  check(`길이 < 6,000자`, sp.length < 6000);
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);
   process.exit(okAll ? 0 : 1);
