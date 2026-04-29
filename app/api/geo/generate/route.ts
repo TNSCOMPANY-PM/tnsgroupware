@@ -22,16 +22,25 @@ const TIER_VALUES: ReadonlySet<"A" | "B" | "C"> = new Set(["A", "B", "C"]);
 function parseInput(raw: unknown): GenerateV2Input | { error: string } {
   if (!raw || typeof raw !== "object") return { error: "INVALID_INPUT" };
   const r = raw as Record<string, unknown>;
-  const brandId = typeof r.brandId === "string" ? r.brandId : "";
   const topic = typeof r.topic === "string" ? r.topic.trim() : "";
   const tiersRaw = Array.isArray(r.tiers) ? r.tiers : [];
   const tiers = tiersRaw.filter((t): t is "A" | "B" | "C" =>
     typeof t === "string" && TIER_VALUES.has(t as "A" | "B" | "C"),
   );
-  if (!brandId) return { error: "brandId 필수" };
   if (!topic) return { error: "topic 필수" };
   if (tiers.length === 0) return { error: "tiers 1개 이상 필수" };
-  return { brandId, topic, tiers };
+
+  // v2-18: mode 분기
+  const mode = r.mode === "industry" ? "industry" : "brand";
+  if (mode === "industry") {
+    const industry = typeof r.industry === "string" ? r.industry.trim() : "";
+    if (!industry) return { error: "industry 필수" };
+    return { mode: "industry", industry, topic, tiers };
+  }
+
+  const brandId = typeof r.brandId === "string" ? r.brandId : "";
+  if (!brandId) return { error: "brandId 필수" };
+  return { mode: "brand", brandId, topic, tiers };
 }
 
 export async function POST(req: Request) {

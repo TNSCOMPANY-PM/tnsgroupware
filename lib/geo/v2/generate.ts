@@ -7,16 +7,34 @@
 import "server-only";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createFrandoorClient } from "@/utils/supabase/frandoor";
-import { buildSystemPrompt, normalizeFrontmatter, type FactPoolItem } from "./sysprompt";
+import {
+  buildSystemPrompt,
+  buildIndustrySystemPrompt,
+  normalizeFrontmatter,
+  type FactPoolItem,
+} from "./sysprompt";
 import { crosscheckV2 } from "./crosscheck";
 import { lintV2, lintV2Faq } from "./lint";
 import { callSonnetV2 } from "./sonnet";
 
-export type GenerateV2Input = {
-  brandId: string;
-  topic: string;
-  tiers: ("A" | "B" | "C")[];
-};
+/**
+ * v2-18 — brand vs industry 모드 discriminated union.
+ *  · brand: 기존 ftc 9,552 brand 단위 (brand_facts + industry_facts)
+ *  · industry: 외식 15 업종 단위 (industry_facts 만 — A 데이터)
+ */
+export type GenerateV2Input =
+  | {
+      mode?: "brand";
+      brandId: string;
+      topic: string;
+      tiers: ("A" | "B" | "C")[];
+    }
+  | {
+      mode: "industry";
+      industry: string;
+      topic: string;
+      tiers: ("A" | "B" | "C")[];
+    };
 
 export type GenerateV2Output = {
   draftId: string | null;
@@ -135,6 +153,18 @@ function parseFrontmatter(raw: string): {
 }
 
 export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Output> {
+  // v2-18: mode 분기 — industry mode 면 generateIndustry, 그 외 brand
+  if (input.mode === "industry") {
+    return generateIndustry(input);
+  }
+  return generateBrand(input);
+}
+
+async function generateBrand(input: {
+  brandId: string;
+  topic: string;
+  tiers: ("A" | "B" | "C")[];
+}): Promise<GenerateV2Output> {
   // v2-10/11: input.brandId = ftc_brands_2024.id (TEXT — int 또는 uuid 등 어느 형태든 string 으로 다룸).
   // (1) ftc brand 정보 (frandoor)
   const fra = createFrandoorClient();
@@ -326,6 +356,160 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
     draftId,
     saveError,
     title: title || `${brandName} ${input.topic}`,
+    content: bodyMd,
+    frontmatter,
+    factsUsed: factsPool.length,
+    unmatchedRetries,
+    lintWarnings: allWarnings,
+  };
+}
+
+/**
+ * v2-18 — industry-only 모드 (외식 15 업종 단위 통계 분석).
+ * facts pool = industry_facts (A급) 만. brand-specific 정보 없음.
+ */
+async function generateIndustry(input: {
+  industry: string;
+  topic: string;
+  tiers: ("A" | "B" | "C")[];
+}): Promise<GenerateV2Output> {
+  const fra = createFrandoorClient();
+
+  // (1) industry_facts retrieve
+  const { data: industryFacts, error: ifErr } = await fra
+    .from("industry_facts")
+    .select(
+      "metric_id, metric_label, value_num, unit, period, n, agg_method, source_label, industry",
+    )
+    .eq("industry", input.industry);
+  if (ifErr) throw new Error(`industry_facts fetch: ${ifErr.message}`);
+
+  const factsPool: FactPoolItem[] = (industryFacts ?? []).map((f) => ({
+    metric_id: String(f.metric_id),
+    metric_label: String(f.metric_label),
+    value_num: f.value_num as number | null,
+    value_text: null,
+    unit: f.unit as string | null,
+    period: f.period as string | null,
+    source_tier: "A" as const,
+    source_label: f.source_label as string | null,
+    formula: null,
+    industry: f.industry as string | null,
+    n: f.n as number | null,
+    agg_method: f.agg_method as string | null,
+  }));
+
+  console.log(
+    `[v2.gen.industry] industry=${input.industry} facts=${factsPool.length} (industry_facts only)`,
+  );
+
+  if (factsPool.length < MIN_FACTS_REQUIRED) {
+    throw new InsufficientDataError({
+      factsCount: factsPool.length,
+      required: MIN_FACTS_REQUIRED,
+    });
+  }
+
+  // (2) sonnet 1차 호출 — industry sysprompt
+  const today = new Date().toISOString().slice(0, 10);
+  const sysPrompt = buildIndustrySystemPrompt({
+    industry: input.industry,
+    factsPool,
+    topic: input.topic,
+    today,
+  });
+
+  console.log(`[v2.gen.industry] sonnet 1차 호출...`);
+  let raw = await callSonnetV2({ system: sysPrompt, user: input.topic });
+  let unmatchedRetries = 0;
+
+  // (3) crosscheck (brand 모드와 동일)
+  let cc = crosscheckV2(raw, factsPool);
+  console.log(`[v2.gen.industry] cc(1) matched=${cc.matched} unmatched=${cc.unmatched.length}`);
+
+  if (!cc.ok) {
+    unmatchedRetries = 1;
+    const retryUser = [
+      input.topic,
+      "",
+      "[검증 실패] 다음 숫자/출처가 facts pool 에 없습니다.",
+      "본문에서 해당 값을 제거하거나 facts pool 에 있는 값으로 교체하세요:",
+      ...cc.unmatched.slice(0, 30).map((u) => `  - ${u}`),
+    ].join("\n");
+    console.log(`[v2.gen.industry] sonnet 재호출 (unmatched ${cc.unmatched.length}건)...`);
+    raw = await callSonnetV2({ system: sysPrompt, user: retryUser });
+    cc = crosscheckV2(raw, factsPool);
+    console.log(
+      `[v2.gen.industry] cc(2) matched=${cc.matched} unmatched=${cc.unmatched.length}`,
+    );
+    if (!cc.ok) {
+      throw new HallucinationDetectedError(cc.unmatched);
+    }
+  }
+
+  // (4) hard lint v2
+  const lintRes = lintV2(raw);
+  if (lintRes.errors.length > 0) {
+    console.log(`[v2.gen.industry] lint errors: ${lintRes.errors.join(" | ")}`);
+    throw new LintV2Error(lintRes.errors);
+  }
+
+  // (5) frontmatter 파싱 + date 강제
+  const { title, frontmatter: rawFm, bodyMd } = parseFrontmatter(raw);
+  const frontmatter = normalizeFrontmatter(rawFm, today);
+  const faqLint = lintV2Faq(frontmatter.faq);
+  const allWarnings = [...lintRes.warnings, ...faqLint.warnings];
+  if (faqLint.errors.length > 0) {
+    throw new LintV2Error(faqLint.errors);
+  }
+
+  // (6) draft 저장 — brand_id / ftc_brand_id 모두 null + industry 컬럼
+  const finalContent = raw.replace(
+    /^(---\s*\n[\s\S]*?\n---)/,
+    (block) =>
+      block
+        .replace(/^date:\s*"?[^"\n]+"?$/m, `date: "${today}"`)
+        .replace(/^dateModified:\s*"?[^"\n]+"?$/m, `dateModified: "${today}"`),
+  );
+
+  const tns = createAdminClient();
+  let draftId: string | null = null;
+  let saveError: string | null = null;
+  try {
+    const { data: ins, error: dErr } = await tns
+      .from("frandoor_blog_drafts")
+      .insert({
+        brand_id: null,
+        ftc_brand_id: null,
+        industry: input.industry,
+        channel: "frandoor",
+        title: title || `${input.industry} 업종 — ${input.topic}`,
+        content: finalContent,
+        faq: frontmatter.faq ?? [],
+        meta: {
+          tags: frontmatter.tags ?? [],
+          description: frontmatter.description ?? null,
+          frontmatter,
+          mode: "industry",
+        },
+        content_type: "industry",
+        status: "draft",
+        target_date: new Date().toISOString().slice(0, 10),
+      })
+      .select("id")
+      .single();
+    if (dErr) saveError = dErr.message;
+    else draftId = ins?.id ?? null;
+  } catch (e) {
+    saveError = e instanceof Error ? e.message : String(e);
+  }
+
+  console.log(`[v2.gen.industry] ✓ draftId=${draftId} unmatchedRetries=${unmatchedRetries}`);
+
+  return {
+    draftId,
+    saveError,
+    title: title || `${input.industry} 업종 — ${input.topic}`,
     content: bodyMd,
     frontmatter,
     factsUsed: factsPool.length,

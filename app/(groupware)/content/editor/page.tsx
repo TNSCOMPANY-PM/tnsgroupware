@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { INDUSTRIES_15 } from "@/lib/geo/v2/industries";
 
 type Tier = "A" | "B" | "C";
+type Mode = "brand" | "industry";
 
 type FtcBrand = {
   id: string;
@@ -24,6 +26,10 @@ type GenerateV2Response = {
 };
 
 export default function EditorPage() {
+  // v2-18: brand vs industry 모드 토글
+  const [mode, setMode] = useState<Mode>("brand");
+  const [industry, setIndustry] = useState<string>("");
+
   const [tiers, setTiers] = useState<Set<Tier>>(new Set(["A", "B", "C"]));
   const [topic, setTopic] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -77,11 +83,20 @@ export default function EditorPage() {
     setResult(null);
     setLoading(true);
     try {
-      const body = {
-        brandId: selectedBrand?.id ?? "",
-        topic,
-        tiers: Array.from(tiers),
-      };
+      const body =
+        mode === "brand"
+          ? {
+              mode: "brand" as const,
+              brandId: selectedBrand?.id ?? "",
+              topic,
+              tiers: Array.from(tiers),
+            }
+          : {
+              mode: "industry" as const,
+              industry,
+              topic,
+              tiers: Array.from(tiers),
+            };
       const res = await fetch("/api/geo/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,9 +121,13 @@ export default function EditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBrand, topic, tiers]);
+  }, [mode, selectedBrand, industry, topic, tiers]);
 
-  const isGenerateDisabled = loading || !topic.trim() || !selectedBrand || tiers.size === 0;
+  const isGenerateDisabled =
+    loading ||
+    !topic.trim() ||
+    tiers.size === 0 ||
+    (mode === "brand" ? !selectedBrand : !industry);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -142,71 +161,114 @@ export default function EditorPage() {
         </p>
       </div>
 
-      {/* 2. 브랜드 선택 (ftc 9,552 brand 검색) */}
+      {/* 2. 모드 + 브랜드/업종 선택 */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-sm font-semibold text-slate-800 mb-4">
-          2. 브랜드 선택 (ftc 9,552 brand 중)
-        </h2>
-        <div className="space-y-3 relative">
-          {selectedBrand ? (
-            <div className="flex items-center gap-2 p-3 border border-blue-200 bg-blue-50 rounded-lg">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-slate-900">{selectedBrand.name}</p>
-                <p className="text-xs text-slate-500">
-                  {selectedBrand.corp ?? "-"}
-                  {selectedBrand.industry ? ` · ${selectedBrand.industry}` : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedBrand(null);
-                  setSearchTerm("");
-                }}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                변경
-              </button>
-            </div>
-          ) : (
-            <>
-              <input
-                type="text"
-                placeholder="브랜드명 검색 (예: 오공김밥)"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {searching && (
-                <p className="text-xs text-slate-400">검색 중...</p>
-              )}
-              {!searching && searchResults.length > 0 && (
-                <ul className="border border-slate-200 rounded-lg max-h-72 overflow-y-auto bg-white">
-                  {searchResults.map((b) => (
-                    <li
-                      key={b.id}
-                      onClick={() => {
-                        setSelectedBrand(b);
-                        setSearchTerm("");
-                        setSearchResults([]);
-                      }}
-                      className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
-                    >
-                      <p className="text-sm font-medium text-slate-800">{b.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {b.corp ?? "-"}
-                        {b.industry ? ` · ${b.industry}` : ""}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!searching && searchTerm.trim() && searchResults.length === 0 && (
-                <p className="text-xs text-slate-400">검색 결과 없음</p>
-              )}
-            </>
-          )}
+        <h2 className="text-sm font-semibold text-slate-800 mb-4">2. 분석 단위 선택</h2>
+        {/* 모드 토글 */}
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setMode("brand")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+              mode === "brand"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-slate-200 text-slate-600"
+            }`}
+          >
+            브랜드 단위
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("industry")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+              mode === "industry"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-slate-200 text-slate-600"
+            }`}
+          >
+            업종 단위 (A 데이터만)
+          </button>
         </div>
+
+        {mode === "brand" && (
+          <div className="space-y-3 relative">
+            <p className="text-xs text-slate-500">ftc 9,552 brand 중 선택</p>
+            {selectedBrand ? (
+              <div className="flex items-center gap-2 p-3 border border-blue-200 bg-blue-50 rounded-lg">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-900">{selectedBrand.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {selectedBrand.corp ?? "-"}
+                    {selectedBrand.industry ? ` · ${selectedBrand.industry}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBrand(null);
+                    setSearchTerm("");
+                  }}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  변경
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  placeholder="브랜드명 검색 (예: 오공김밥)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searching && <p className="text-xs text-slate-400">검색 중...</p>}
+                {!searching && searchResults.length > 0 && (
+                  <ul className="border border-slate-200 rounded-lg max-h-72 overflow-y-auto bg-white">
+                    {searchResults.map((b) => (
+                      <li
+                        key={b.id}
+                        onClick={() => {
+                          setSelectedBrand(b);
+                          setSearchTerm("");
+                          setSearchResults([]);
+                        }}
+                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
+                      >
+                        <p className="text-sm font-medium text-slate-800">{b.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {b.corp ?? "-"}
+                          {b.industry ? ` · ${b.industry}` : ""}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!searching && searchTerm.trim() && searchResults.length === 0 && (
+                  <p className="text-xs text-slate-400">검색 결과 없음</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {mode === "industry" && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500">외식 15 업종 중 선택. 글은 industry_facts (A급) 만 활용.</p>
+            <select
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">업종 선택</option>
+              {INDUSTRIES_15.map((ind) => (
+                <option key={ind} value={ind}>
+                  {ind}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* 3. 주제 입력 */}
