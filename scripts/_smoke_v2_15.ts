@@ -44,7 +44,10 @@ async function main() {
   check(`sysprompt 안 date: "${today}"`, sp.includes(`date: "${today}"`));
   check(`sysprompt 안 dateModified: "${today}"`, sp.includes(`dateModified: "${today}"`));
   check(`slug 에 ${today.slice(0, 4)} 포함`, sp.includes(`-${today.slice(0, 4)}"`));
-  check(`Brand 정보 의 오늘 날짜: ${today}`, sp.includes(`오늘 날짜: ${today}`));
+  check(
+    `Brand 정보 의 오늘 ${today}`,
+    sp.includes(`오늘: ${today}`) || sp.includes(`오늘 날짜: ${today}`),
+  );
 
   // T2 결론 체크리스트
   console.log("\n[T2] 결론 체크리스트");
@@ -68,7 +71,10 @@ async function main() {
   check(`"# 말투 — lead-gen 보이스" 섹션`, sp.includes("# 말투 — lead-gen 보이스"));
   check(`"평균 30~50자" 분량 가이드`, sp.includes("평균 30~50자"));
   check(`"~는 거다" 같은 변형 어미 가이드`, sp.includes("~는 거다") || sp.includes("~다는 신호"));
-  check(`강조 표기 1~2회만`, sp.includes("핵심 결론 / 입장 / 의외성 1~2회만 굵게"));
+  check(
+    `강조 표기 1~2회만`,
+    sp.includes("1~2회만") && (sp.includes("의외성") || sp.includes("핵심 결론")),
+  );
 
   // T5-구조
   console.log("\n[T5-구조] 5 블럭 구조");

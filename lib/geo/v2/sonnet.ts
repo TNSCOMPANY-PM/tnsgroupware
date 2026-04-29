@@ -23,11 +23,12 @@ export type SonnetCallArgs = {
 
 export async function callSonnetV2(args: SonnetCallArgs): Promise<string> {
   const client = getClient();
-  // v2-12: max_tokens 16000 → 4000. 한국어 4000 tokens ≈ 3,000자 (T2 medium 충분).
-  // sonnet 처리시간 30~60초 (Hobby 120초 안전 범위 내).
+  // v2-12: max_tokens 16000 → 4000.
+  // v2-16: 4000 → 3000. v2-15 sysprompt 강화 (입력 token +3k) 로 처리시간 60~120초+ → Hobby 120초 초과.
+  //        한국어 3000 tokens ≈ 2,200자 = T2 medium 1,800~2,500자 타겟 안. 처리시간 30~60초.
   const res = await client.messages.create({
     model: args.model ?? "claude-sonnet-4-6",
-    max_tokens: args.maxTokens ?? 4000,
+    max_tokens: args.maxTokens ?? 3000,
     system: args.system,
     messages: [{ role: "user", content: args.user }],
   });
