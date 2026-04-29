@@ -112,12 +112,31 @@ export function normalizeKoreanNumbers(text: string): string {
 }
 
 /**
+ * v2-22 — 산술 결과 + 100/1000/10000 round variant 추가.
+ * LLM 이 "20,292" 산출 후 round 표기 "20,000" 으로 자연스럽게 쓰는 케이스 통과.
+ */
+function addWithRound(set: Set<string>, n: number) {
+  if (!Number.isFinite(n) || n <= 1 || n >= 1e9) return;
+  set.add(String(n));
+  set.add(n.toLocaleString("en-US"));
+  set.add(n.toLocaleString("ko-KR"));
+  for (const factor of [100, 1000, 10000]) {
+    const rounded = Math.round(n / factor) * factor;
+    if (rounded > 1 && rounded < 1e9 && rounded !== n) {
+      set.add(String(rounded));
+      set.add(rounded.toLocaleString("en-US"));
+    }
+  }
+}
+
+/**
  * v2-14 T3 — facts pool 의 두 value_num 으로 +/- 산술해서 만들 수 있는 값 set.
  * LLM 이 즉석 산출하는 derived ratio/diff 통과시킴 (false positive 차단).
  *
  * O(n²) — facts 200개 시 40k 조합 (수ms 수준).
  *
  * v2-14 T4 — 흔한 비율 산술 (×/÷ 12, 100, 10, 4, 365) 도 포함.
+ * v2-22 — sum/diff/|diff|/multiplier 모두 round variant (100/1000/10000) 포함.
  */
 function buildArithmeticPool(factsPool: FactPoolItem[]): Set<string> {
   const allowed = new Set<string>();
@@ -129,19 +148,9 @@ function buildArithmeticPool(factsPool: FactPoolItem[]): Set<string> {
   for (let i = 0; i < nums.length; i++) {
     for (let j = 0; j < nums.length; j++) {
       if (i === j) continue;
-      const sum = nums[i] + nums[j];
-      const diff = nums[i] - nums[j];
-      const absDiff = Math.abs(diff);
-      const add = (n: number) => {
-        if (n > 1 && n < 1e9 && Number.isFinite(n)) {
-          allowed.add(String(n));
-          allowed.add(n.toLocaleString("en-US"));
-          allowed.add(n.toLocaleString("ko-KR"));
-        }
-      };
-      add(sum);
-      add(diff);
-      add(absDiff);
+      addWithRound(allowed, nums[i] + nums[j]);
+      addWithRound(allowed, nums[i] - nums[j]);
+      addWithRound(allowed, Math.abs(nums[i] - nums[j]));
     }
   }
 
@@ -149,16 +158,8 @@ function buildArithmeticPool(factsPool: FactPoolItem[]): Set<string> {
   const COMMON_DIVISORS = [12, 100, 10, 4, 365];
   for (const n of nums) {
     for (const d of COMMON_DIVISORS) {
-      const div = Math.round(n / d);
-      if (div > 1 && div < 1e9) {
-        allowed.add(String(div));
-        allowed.add(div.toLocaleString("en-US"));
-      }
-      const mul = n * d;
-      if (mul > 1 && mul < 1e9) {
-        allowed.add(String(mul));
-        allowed.add(mul.toLocaleString("en-US"));
-      }
+      addWithRound(allowed, Math.round(n / d));
+      addWithRound(allowed, n * d);
     }
   }
 
