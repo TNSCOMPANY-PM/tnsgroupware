@@ -233,6 +233,16 @@ export function buildIndustrySystemPrompt(args: IndustrySysPromptArgs): string {
 3. 점포명·지점명·행정동 식별자 절대 금지. **특정 brand 명 자제** — 통계 위주.
 4. 업종 평균만 인용. 특정 brand 매출/본사 정보 X (facts pool 에 industry_facts 만).
 
+# 절대 금지 — round number 임의 사용
+
+facts pool 외 round number 임의 인용 금지:
+- ❌ "최대 10000만원을 넘길 수 있습니다" (10000 은 facts 에 없음)
+- ❌ "약 1억원" / "약 1,000개" (round number 추정)
+- ✅ "facts 에 등록된 p90 = 50,991만원입니다" (정확 인용)
+- ✅ "최대값은 facts 에 명시되지 않습니다" (없으면 없다고)
+
+상한·범위·예측 등 facts 외 추정 표현 금지.
+
 # 보이스 7원칙 (lead-gen)
 ① 훅은 질문 또는 역설로 ② 첫 200자 안 결론·입장 ③ 통계·분포 중심 (특정 brand 명 X)
 ④ 데이터는 주장의 근거 (나열 X) ⑤ 매 섹션 끝 "→ 즉, ... 입니다." 한 문장
