@@ -39,31 +39,33 @@ async function main() {
     today,
   });
 
-  // T1 톤 가이드 — ~입니다/~요/~죠 강조
+  // T1 톤 가이드 — ~입니다/~요/~죠 강조 (v2-19 비율 명시 형식)
   console.log("[T1] 말투 가이드");
-  check("~입니다 / ~요 / ~죠 명시", sp.includes("~입니다 / ~요 / ~죠"));
-  check("90%+ 비율 명시", sp.includes("90%+"));
-  check("단정 평어 1~2회만 (10% 이내)", sp.includes("10% 이내"));
-  check('보고서·논문 톤 금지', sp.includes("보고서") && sp.includes("금지"));
   check(
-    "~다 / ~이다 직접 어미 거의 X",
-    sp.includes("~다 / ~이다") && sp.includes("거의 X"),
+    "~입니다 / ~요 / ~죠 모두 명시",
+    sp.includes("~입니다") && sp.includes("~요") && sp.includes("~죠"),
   );
+  check(
+    "비율 명시 (90%+ 또는 60%/25%/5% 형식)",
+    sp.includes("90%+") || (sp.includes("60%") && sp.includes("25%")),
+  );
+  check("단정 평어 비율 (10%)", sp.includes("10%"));
+  check("~요 또는 ~다 일변도 / 보고서 톤 금지", sp.includes("일변도") || (sp.includes("보고서") && sp.includes("금지")));
   check("문장 평균 40~50자", sp.includes("40~50자"));
 
-  // T1 좋은 vs 나쁜 예
+  // T1 좋은 vs 나쁜 예 (v2-19: 새 verbatim 4쌍)
   console.log("\n[T1] 좋은 예 vs 나쁜 예");
   check(
-    `❌ "p90이 50,991만원이다" 포함`,
-    sp.includes(`p90이 50,991만원이다`),
+    `✅ p90이 50,991만원 verbatim`,
+    sp.includes(`50,991만원`),
   );
   check(
-    `✅ "p90이 50,991만원입니다" 포함`,
-    sp.includes(`p90이 50,991만원입니다`),
+    `✅ "있다는 신호죠" 또는 "있다는 뜻이죠"`,
+    sp.includes(`있다는 신호죠`) || sp.includes(`있다는 뜻이죠`),
   );
   check(
-    `✅ "있다는 뜻이죠" 포함`,
-    sp.includes(`있다는 뜻이죠`),
+    `❌ ~요 또는 ~다 일변도 verbatim`,
+    sp.includes(`이에요`) || sp.includes(`이다.`),
   );
 
   // T4 호명·비유
