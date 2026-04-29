@@ -36,8 +36,7 @@ const FORBIDDEN_SYS_LEAK = /데이터\s*부재|산출\s*불가|현재\s*입력\s
 const STORE_LIKE = /(?<![상하위본직영가맹점\d명])[가-힣]{2,5}점(?:\s|[,.\)])(?!포)/g;
 const DONG_LIKE = /[가-힣]{2,5}동(?:\s|[,.\)])(?!네|료|반|시|기간)/g;
 
-// L7 — 입장 명시 (voice_spec §2)
-const STANCE_KEYWORDS = ["진입 가능", "조건부 가능", "조건부", "판단 유보", "유보", "비권장"];
+// L7 — 입장 명시 폐기 (v2-21): 프랜도어는 데이터 제공자, 판단 강제 X.
 
 // L6 — FAQ 개수 (frontmatter 안 / 본문 별개)
 //   호출자가 frontmatter 파싱 후 별도 검증 — 본 함수에선 본문 마크다운만 확인.
@@ -77,13 +76,7 @@ export function lintV2(body: string): LintV2Result {
     warnings.push(`L1 점포명·행정동 의심 ${totalLike}건: "${samples.join(", ")}"`);
   }
 
-  // L7 입장 명시 — ERROR
-  const stancePresent = STANCE_KEYWORDS.some((k) => body.includes(k));
-  if (!stancePresent) {
-    errors.push(
-      `L7 입장 키워드 누락 — '진입 가능' / '조건부 가능' / '판단 유보' / '비권장' 중 하나 필수`,
-    );
-  }
+  // L7 입장 명시 폐기 (v2-21): 프랜도어는 데이터 제공자, 판단 강제 X.
 
   // L-void 공허 문구 — WARN
   const voidM = body.match(FORBIDDEN_VOID);

@@ -50,7 +50,8 @@ async function main() {
   // 핵심 instruction 보존
   console.log("\n[regression] 핵심 instruction 보존");
   check("절대 규칙 1 (facts 외 숫자 금지)", sp.includes("facts pool 외 숫자"));
-  check("입장 4분면 (✅⚠️🤔❌)", sp.includes("✅") && sp.includes("⚠️") && sp.includes("🤔") && sp.includes("❌"));
+  // v2-21: 입장 4분면 폐기 → 데이터 제공자 톤 확인
+  check("데이터 제공자 톤 (입장 4분면 폐기)", sp.includes("데이터 제공자") && !sp.includes("⚠️ 조건부"));
   check("점포명 익명화", sp.includes("점포명") && sp.includes("절대 금지"));
   check("보이스 7원칙", sp.includes("보이스 7원칙"));
   check(

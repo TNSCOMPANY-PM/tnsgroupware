@@ -97,10 +97,10 @@ async function main() {
   const lr2 = lintV2(hedgeBody);
   check(`lint 헤지 검출 (L3)`, lr2.errors.some((e) => e.startsWith("L3")));
 
-  // 입장 누락
+  // v2-21: L7 입장 강제 폐기 — 입장 키워드 없어도 errors X
   const noStanceBody = "오공김밥은 공정위 정보공개서 2024 기준 21개입니다.";
   const lr3 = lintV2(noStanceBody);
-  check(`lint 입장 누락 검출 (L7)`, lr3.errors.some((e) => e.startsWith("L7")));
+  check(`lint L7 입장 강제 폐기 (errors 에 L7 X)`, !lr3.errors.some((e) => e.startsWith("L7")));
 
   // 시스템 누출
   const sysLeakBody = "facts pool 에 다음 데이터가 있습니다. 진입 가능.";
@@ -140,7 +140,8 @@ async function main() {
   });
   check(`sysprompt 길이 > 2000`, sp.length > 2000, `len=${sp.length}`);
   check(`sysprompt 'facts pool' 포함`, sp.includes("Facts pool"));
-  check(`sysprompt '입장' 명시`, sp.includes("진입 가능") && sp.includes("판단 유보"));
+  // v2-21: 입장 4분면 폐기 — 데이터 제공자 톤 확인
+  check(`sysprompt '데이터 제공자' 톤`, sp.includes("데이터 제공자") && !sp.includes("⚠️ 조건부"));
   check(`sysprompt 'frandoor 산출' 가이드`, sp.includes("frandoor 산출"));
 
   // 5. factLabelMap
