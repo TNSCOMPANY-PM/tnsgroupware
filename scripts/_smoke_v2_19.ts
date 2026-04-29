@@ -106,7 +106,8 @@ date: "2026-04-29"
   // regression — 기존 voice / 5블럭 / 분량 보존
   console.log("\n[regression]");
   check("절대 규칙", sp.includes("facts pool 외 숫자"));
-  check("입장 4분면", sp.includes("✅") && sp.includes("⚠️") && sp.includes("🤔") && sp.includes("❌"));
+  // v2-21: 입장 4분면 폐기 → 데이터 제공자 톤 확인
+  check("데이터 제공자 톤 (입장 4분면 폐기)", sp.includes("데이터 제공자") && !sp.includes("⚠️ 조건부"));
   check("점포명 익명화", sp.includes("점포명") && sp.includes("절대 금지"));
   check("[블럭 A]~[E]", sp.includes("[블럭 A]") && sp.includes("[블럭 E]"));
   check("결론 체크리스트", sp.includes("## 결론 체크리스트"));

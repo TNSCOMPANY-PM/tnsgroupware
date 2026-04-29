@@ -103,8 +103,9 @@ async function main() {
     check(`L4 본사 홍보 보존`, r.errors.some((e) => e.startsWith("L4")));
   }
   {
+    // v2-21: L7 입장 강제 폐기 — 입장 키워드 없어도 errors 비어야 함
     const r = lintV2("월매출 5,000만원입니다.");
-    check(`L7 입장 누락 보존`, r.errors.some((e) => e.startsWith("L7")));
+    check(`L7 입장 강제 폐기 (errors 에 L7 X)`, !r.errors.some((e) => e.startsWith("L7")));
   }
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);
