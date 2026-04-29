@@ -9,7 +9,17 @@ export type LintV2Result = {
 };
 
 // L3 — 헤지 표현 (voice_spec §3.6, §11)
-const FORBIDDEN_HEDGE = /약\s*\d|대략(?:\s|적인)|정도(?:로|입니다|이며|쯤)|아마도|~할\s*수도\s*있/g;
+// v2-20 hotfix — "약 2배" 통상 표기 통과. (가량|정도|쯤) 또는 (대략|아마도) 동반시만 차단.
+const HEDGE_UNITS = "(?:만원|원|개|건|호|점|회|일|월|년|시간|분|초|배|%|평|㎡)";
+const FORBIDDEN_HEDGE = new RegExp(
+  [
+    `약\\s*\\d[\\d,]*\\s*${HEDGE_UNITS}?\\s*(?:가량|정도|쯤)`,
+    `\\d[\\d,]*\\s*${HEDGE_UNITS}?\\s*(?:가량|쯤)`,
+    `(?:대략|아마도)\\s*\\d`,
+    `~?할\\s*수도\\s*있`,
+  ].join("|"),
+  "g",
+);
 
 // L-void — 공허 문구 (voice_spec §11)
 const FORBIDDEN_VOID = /다양한\s*각도|살펴보자|알아보자|많은\s*전문가|업계\s*관계자에\s*따르면/g;
