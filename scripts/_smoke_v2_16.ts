@@ -53,7 +53,10 @@ async function main() {
   check("입장 4분면 (✅⚠️🤔❌)", sp.includes("✅") && sp.includes("⚠️") && sp.includes("🤔") && sp.includes("❌"));
   check("점포명 익명화", sp.includes("점포명") && sp.includes("절대 금지"));
   check("보이스 7원칙", sp.includes("보이스 7원칙"));
-  check("말투 lead-gen", sp.includes("lead-gen 보이스") || sp.includes("말투 — lead-gen"));
+  check(
+    "말투 섹션",
+    sp.includes("# 말투") || sp.includes("말투 — lead-gen"),
+  );
   check("양면 제시", sp.includes("양면 제시"));
   check("시점 정직성", sp.includes("시점 정직성"));
   check("금지 표현", sp.includes("금지 표현"));

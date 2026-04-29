@@ -66,11 +66,11 @@ async function main() {
   check(`markdown table 형식 (| 지표 | 값 | 산식 | 단위 |)`, sp.includes("| 지표 | 값 | 산식 | 단위 |"));
   check(`raw vs derived 분리 가이드`, sp.includes("raw fact") && sp.includes("derived fact"));
 
-  // T5-말투
-  console.log("\n[T5-말투] lead-gen 보이스");
-  check(`"# 말투 — lead-gen 보이스" 섹션`, sp.includes("# 말투 — lead-gen 보이스"));
-  check(`"평균 30~50자" 분량 가이드`, sp.includes("평균 30~50자"));
-  check(`"~는 거다" 같은 변형 어미 가이드`, sp.includes("~는 거다") || sp.includes("~다는 신호"));
+  // T5-말투 (v2-17 update — ~입니다/~요/~죠 톤 가이드)
+  console.log("\n[T5-말투] 톤 가이드 (v2-17 ~입니다 체)");
+  check(`"# 말투" 섹션`, sp.includes("# 말투"));
+  check(`문장 평균 길이 가이드 (40~50자)`, sp.includes("40~50자") || sp.includes("30~50자"));
+  check(`종결어미 가이드 (~입니다 / ~요 / ~죠)`, sp.includes("~입니다 / ~요 / ~죠"));
   check(
     `강조 표기 1~2회만`,
     sp.includes("1~2회만") && (sp.includes("의외성") || sp.includes("핵심 결론")),
