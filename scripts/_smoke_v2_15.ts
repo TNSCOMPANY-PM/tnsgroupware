@@ -70,7 +70,10 @@ async function main() {
   console.log("\n[T5-말투] 톤 가이드 (v2-17 ~입니다 체)");
   check(`"# 말투" 섹션`, sp.includes("# 말투"));
   check(`문장 평균 길이 가이드 (40~50자)`, sp.includes("40~50자") || sp.includes("30~50자"));
-  check(`종결어미 가이드 (~입니다 / ~요 / ~죠)`, sp.includes("~입니다 / ~요 / ~죠"));
+  check(
+    `종결어미 가이드 (~입니다 / ~요 / ~죠 모두 명시)`,
+    sp.includes("~입니다") && sp.includes("~요") && sp.includes("~죠"),
+  );
   check(
     `강조 표기 1~2회만`,
     sp.includes("1~2회만") && (sp.includes("의외성") || sp.includes("핵심 결론")),
