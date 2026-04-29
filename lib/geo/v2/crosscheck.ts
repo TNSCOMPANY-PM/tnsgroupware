@@ -71,11 +71,108 @@ function stripFrontmatter(raw: string): string {
 }
 
 /**
+ * v2-14 T1 — 한국식 큰 숫자 표기를 만원 기준 정수로 치환.
+ *  · "6억 9,430만" → "69430만"
+ *  · "3억"        → "30000만"
+ *  · "6만2,518"   → "62518"
+ *  · "5만991"     → "50991"
+ *  · "5만 991"    → "50991"
+ * LLM 이 본문에 한국식 분할 표기를 쓸 때 facts pool 의 raw 정수와 매칭 가능.
+ */
+export function normalizeKoreanNumbers(text: string): string {
+  return text
+    // "N억 M만" → "(N*10000+M)만"
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*억\s*(\d{1,3}(?:,\d{3})*|\d+)\s*만/gu,
+      (_, eok: string, man: string) => {
+        const eokN = parseInt(eok.replace(/,/g, ""), 10);
+        const manN = parseInt(man.replace(/,/g, ""), 10);
+        return `${eokN * 10000 + manN}만`;
+      },
+    )
+    // "N억" (뒤 숫자 없는) → "(N*10000)만"
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*억(?!\s*\d)/gu,
+      (_, eok: string) => `${parseInt(eok.replace(/,/g, ""), 10) * 10000}만`,
+    )
+    // "N만M,MMM" / "N만 M,MMM" / "6만2,518만원" → "(N*10000+M)" — rest < 10000 일 때만
+    // 주의: rest 가 "M,MMM" 형태일 때 alternation 의 greedy 가 작동하도록
+    //       후행 lookahead 는 (?![\d,]) 로 — 다음 문자가 digit/comma 면 부분 매칭 방지.
+    .replace(
+      /(\d{1,3}(?:,\d{3})*|\d+)\s*만\s*(\d{1,3}(?:,\d{3})*|\d+)(?![\d,])/gu,
+      (_, man: string, rest: string) => {
+        const manN = parseInt(man.replace(/,/g, ""), 10);
+        const restN = parseInt(rest.replace(/,/g, ""), 10);
+        if (restN < 10000) {
+          return `${manN * 10000 + restN}`;
+        }
+        return _;
+      },
+    );
+}
+
+/**
+ * v2-14 T3 — facts pool 의 두 value_num 으로 +/- 산술해서 만들 수 있는 값 set.
+ * LLM 이 즉석 산출하는 derived ratio/diff 통과시킴 (false positive 차단).
+ *
+ * O(n²) — facts 200개 시 40k 조합 (수ms 수준).
+ *
+ * v2-14 T4 — 흔한 비율 산술 (×/÷ 12, 100, 10, 4, 365) 도 포함.
+ */
+function buildArithmeticPool(factsPool: FactPoolItem[]): Set<string> {
+  const allowed = new Set<string>();
+  const nums = factsPool
+    .map((f) => f.value_num)
+    .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n !== 0);
+
+  // 1) +/- 조합
+  for (let i = 0; i < nums.length; i++) {
+    for (let j = 0; j < nums.length; j++) {
+      if (i === j) continue;
+      const sum = nums[i] + nums[j];
+      const diff = nums[i] - nums[j];
+      const absDiff = Math.abs(diff);
+      const add = (n: number) => {
+        if (n > 1 && n < 1e9 && Number.isFinite(n)) {
+          allowed.add(String(n));
+          allowed.add(n.toLocaleString("en-US"));
+          allowed.add(n.toLocaleString("ko-KR"));
+        }
+      };
+      add(sum);
+      add(diff);
+      add(absDiff);
+    }
+  }
+
+  // 2) 흔한 단일 산술 (×/÷ 12, 100, 10, 4, 365)
+  const COMMON_DIVISORS = [12, 100, 10, 4, 365];
+  for (const n of nums) {
+    for (const d of COMMON_DIVISORS) {
+      const div = Math.round(n / d);
+      if (div > 1 && div < 1e9) {
+        allowed.add(String(div));
+        allowed.add(div.toLocaleString("en-US"));
+      }
+      const mul = n * d;
+      if (mul > 1 && mul < 1e9) {
+        allowed.add(String(mul));
+        allowed.add(mul.toLocaleString("en-US"));
+      }
+    }
+  }
+
+  return allowed;
+}
+
+/**
  * 본문 숫자·출처 라벨 vs facts pool 매칭.
  */
 export function crosscheckV2(rawBody: string, factsPool: FactPoolItem[]): CrossCheckV2Result {
   // v2-13 T1 — frontmatter 영역 검증 제외
-  const body = stripFrontmatter(rawBody);
+  // v2-14 T2 — 한국식 큰 숫자 정규화 ("6만2,518만원" → "62518만원")
+  const stripped = stripFrontmatter(rawBody);
+  const body = normalizeKoreanNumbers(stripped);
 
   const unmatched: string[] = [];
   let matched = 0;
@@ -113,6 +210,10 @@ export function crosscheckV2(rawBody: string, factsPool: FactPoolItem[]): CrossC
       allowedNumbers.add(String(f.n));
     }
   }
+
+  // v2-14 T3+T4 — facts +/- 산술 + 흔한 비율 산술 (×/÷ 12, 100, 10, 4, 365) 등록
+  const arithmeticPool = buildArithmeticPool(factsPool);
+  for (const v of arithmeticPool) allowedNumbers.add(v);
 
   // 2. 본문 숫자 추출 + 검증
   const bodyMatches = body.matchAll(NUMBER_RE);
