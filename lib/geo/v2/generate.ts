@@ -7,7 +7,7 @@
 import "server-only";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createFrandoorClient } from "@/utils/supabase/frandoor";
-import { buildSystemPrompt, type FactPoolItem } from "./sysprompt";
+import { buildSystemPrompt, normalizeFrontmatter, type FactPoolItem } from "./sysprompt";
 import { crosscheckV2 } from "./crosscheck";
 import { lintV2, lintV2Faq } from "./lint";
 import { callSonnetV2 } from "./sonnet";
@@ -222,7 +222,8 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
     });
   }
 
-  // (5) sonnet 1차 호출
+  // (5) sonnet 1차 호출 — v2-15: today 주입 (sysprompt date / dateModified)
+  const today = new Date().toISOString().slice(0, 10);
   const sysPrompt = buildSystemPrompt({
     brand: {
       id: ftcBrand.id != null ? String(ftcBrand.id) : input.brandId,
@@ -232,6 +233,7 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
     },
     factsPool,
     topic: input.topic,
+    today,
   });
 
   console.log(`[v2.gen] sonnet 1차 호출...`);
@@ -268,8 +270,9 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
     throw new LintV2Error(lintRes.errors);
   }
 
-  // (7) frontmatter 파싱
-  const { title, frontmatter, bodyMd } = parseFrontmatter(raw);
+  // (7) frontmatter 파싱 + v2-15 date 정규화 (오늘 강제, LLM 임의 날짜 안전망)
+  const { title, frontmatter: rawFm, bodyMd } = parseFrontmatter(raw);
+  const frontmatter = normalizeFrontmatter(rawFm, today);
 
   // (7b) FAQ lint (frontmatter 파싱 후)
   const faqLint = lintV2Faq(frontmatter.faq);
@@ -279,7 +282,13 @@ export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Outp
   }
 
   // (8) draft 저장 (frontmatter YAML + 본문 prepend)
-  const finalContent = raw; // sonnet 응답 그대로 (frontmatter 포함)
+  // v2-15: raw 안 frontmatter date / dateModified 를 today 로 강제 치환 (LLM 임의 날짜 안전망)
+  const finalContent = raw.replace(
+    /^(---\s*\n[\s\S]*?\n---)/,
+    (block) => block
+      .replace(/^date:\s*"?[^"\n]+"?$/m, `date: "${today}"`)
+      .replace(/^dateModified:\s*"?[^"\n]+"?$/m, `dateModified: "${today}"`),
+  );
   let draftId: string | null = null;
   let saveError: string | null = null;
   try {
