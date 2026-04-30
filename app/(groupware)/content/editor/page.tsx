@@ -525,7 +525,6 @@ export default function EditorPage() {
 
 function PhaseBPreview({ result, onReset }: { result: PhaseBResponse; onReset: () => void }) {
   const detailHref = `/content/posts/${result.draftId}`;
-  const excerpt = result.content.slice(0, 800);
 
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
@@ -553,9 +552,9 @@ function PhaseBPreview({ result, onReset }: { result: PhaseBResponse; onReset: (
         </div>
 
         <div>
-          <p className="text-xs text-slate-500 mb-1">본문 발췌</p>
-          <pre className="text-xs text-slate-600 whitespace-pre-wrap bg-white/60 rounded p-2 max-h-64 overflow-y-auto">
-            {excerpt}
+          <p className="text-xs text-slate-500 mb-1">최종 본문 ({result.content.length.toLocaleString()}자)</p>
+          <pre className="text-xs text-slate-700 whitespace-pre-wrap break-words bg-white rounded p-3 max-h-[600px] overflow-y-auto border border-slate-200">
+            {result.content}
           </pre>
         </div>
 
