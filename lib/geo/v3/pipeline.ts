@@ -1,7 +1,9 @@
 /**
- * v3-01 pipeline — 4 step orchestrator.
- *  Step 1 (Plan, haiku) → Step 2 (Structure, haiku) → Step 3 (Write, sonnet) → Step 4 (Polish, post + haiku)
- *  → crosscheck + lint → unmatched/errors > 0 시 Step 3 재시도 (max 2회).
+ * v3-03 — 2단계 분할 파이프라인.
+ *  Phase A (콘텐츠 생성): Step 1 Plan (haiku) + Step 2 Structure (haiku) → DB INSERT (stage='plan_done')
+ *  Phase B (블로그 글 발행): Step 3 Write (sonnet) + Step 4 Polish (haiku + post) → DB UPDATE (stage='write_done')
+ *
+ * 각 phase 60s 안 안전 (Phase A ~20s / Phase B ~40s).
  */
 
 import "server-only";
@@ -13,10 +15,13 @@ import { runWrite } from "./steps/write";
 import { runPolish } from "./steps/polish";
 import { crosscheckV3 } from "./crosscheck";
 import { lintV3, lintV3Faq } from "./lint";
-import type { Fact, GenerateInput, GenerateResult, OutlineResult, PlanResult } from "./types";
+import type { Fact, GenerateInput, OutlineResult, PlanResult } from "./types";
 
 const MIN_FACTS_REQUIRED = 5;
-const MAX_WRITE_RETRIES = 2;
+
+// =============================================================================
+// Errors
+// =============================================================================
 
 export class InsufficientDataError extends Error {
   code = "INSUFFICIENT_DATA";
@@ -42,26 +47,51 @@ export class LintErrorV3 extends Error {
   }
 }
 
-export type V3GenerateOutput = {
-  draftId: string | null;
-  saveError: string | null;
+export class DraftNotFoundError extends Error {
+  code = "DRAFT_NOT_FOUND";
+  constructor(public draftId: string) {
+    super(`draft not found: ${draftId}`);
+    this.name = "DraftNotFoundError";
+  }
+}
+
+export class InvalidStageError extends Error {
+  code = "INVALID_STAGE";
+  constructor(public draftId: string, public currentStage: string | null) {
+    super(`Phase B 호출 가능 stage='plan_done' 필요. 현재: ${currentStage}`);
+    this.name = "InvalidStageError";
+  }
+}
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export type PhaseAResult = {
+  draftId: string;
+  plan: PlanResult;
+  outline: OutlineResult;
+  factsCount: number;
+};
+
+export type PhaseBResult = {
+  draftId: string;
   title: string;
   content: string;
   frontmatter: Record<string, unknown>;
-  factsUsed: number;
-  retryCount: number;
   polishLog: string[];
   lintWarnings: string[];
-  plan: GenerateResult["plan"];
-  outline: GenerateResult["outline"];
 };
+
+// =============================================================================
+// Frontmatter helpers
+// =============================================================================
 
 function parseFrontmatter(raw: string): {
   title: string;
   frontmatter: Record<string, unknown>;
   bodyMd: string;
 } {
-  // 외부 ``` 코드펜스 strip
   let trimmed = raw.replace(/^﻿/, "").replace(/^\s+/, "");
   const fence = trimmed.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n```\s*$/);
   if (fence) trimmed = fence[1].trim();
@@ -138,17 +168,23 @@ function normalizeFrontmatter(
   return { ...fm, date: today, dateModified: today };
 }
 
-async function fetchBrandFacts(input: {
-  brandId: string;
-  tiers: ("A" | "B" | "C")[];
-}): Promise<{
+// =============================================================================
+// Facts pool fetch (brand + industry)
+// =============================================================================
+
+type BrandContext = {
   factsPool: Fact[];
   brandName: string;
   industryMain: string | null;
   industrySub: string | null;
   geoBrandId: string | null;
   isCustomer: boolean;
-}> {
+};
+
+async function fetchBrandFacts(input: {
+  brandId: string;
+  tiers: ("A" | "B" | "C")[];
+}): Promise<BrandContext> {
   const fra = createFrandoorClient();
   const { data: ftcBrand, error: bErr } = await fra
     .from("ftc_brands_2024")
@@ -188,7 +224,7 @@ async function fetchBrandFacts(input: {
         "metric_id, metric_label, value_num, unit, period, n, agg_method, source_label, industry",
       )
       .in("industry", industries);
-    if (ifErr) console.warn(`[v3.gen] industry_facts: ${ifErr.message}`);
+    if (ifErr) console.warn(`[v3] industry_facts: ${ifErr.message}`);
     industryFacts = (ifData ?? []) as Record<string, unknown>[];
   }
 
@@ -256,10 +292,10 @@ async function fetchIndustryFacts(input: { industry: string }): Promise<Fact[]> 
   }));
 }
 
-/**
- * v3-02 — Step 1/2 JSON parse 실패 시 1회 재시도.
- * haiku 가 max_tokens 초과로 잘리거나 일시적 출력 깨짐 대응.
- */
+// =============================================================================
+// Step 1/2 retry wrappers (v3-02)
+// =============================================================================
+
 async function runPlanWithRetry(args: Parameters<typeof runPlan>[0]): Promise<PlanResult> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -267,7 +303,7 @@ async function runPlanWithRetry(args: Parameters<typeof runPlan>[0]): Promise<Pl
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (attempt === 0 && /json|parse|expected/i.test(msg)) {
-        console.warn(`[v3.gen] Step 1 Plan JSON parse 실패 — 1회 재시도: ${msg}`);
+        console.warn(`[v3] Step 1 Plan JSON parse 실패 — 1회 재시도: ${msg}`);
         continue;
       }
       throw new Error(`Step 1 Plan failed: ${msg}`);
@@ -285,7 +321,7 @@ async function runStructureWithRetry(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (attempt === 0 && /json|parse|expected/i.test(msg)) {
-        console.warn(`[v3.gen] Step 2 Structure JSON parse 실패 — 1회 재시도: ${msg}`);
+        console.warn(`[v3] Step 2 Structure JSON parse 실패 — 1회 재시도: ${msg}`);
         continue;
       }
       throw new Error(`Step 2 Structure failed: ${msg}`);
@@ -294,10 +330,15 @@ async function runStructureWithRetry(
   throw new Error("Step 2 Structure: unreachable");
 }
 
-export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput> {
-  const today = new Date().toISOString().slice(0, 10);
+// =============================================================================
+// Phase A — Plan + Structure → DB INSERT (stage='plan_done')
+// =============================================================================
 
-  // (A) facts pool fetch
+export async function runPhaseA(input: GenerateInput): Promise<PhaseAResult> {
+  const today = new Date().toISOString().slice(0, 10);
+  const t0 = Date.now();
+
+  // (1) facts pool fetch
   let factsPool: Fact[];
   let brandName: string | undefined;
   let industryMain: string | null = null;
@@ -318,7 +359,7 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
   }
 
   console.log(
-    `[v3.gen] mode=${input.mode} facts=${factsPool.length} subject=${
+    `[v3.A] mode=${input.mode} facts=${factsPool.length} subject=${
       input.mode === "brand" ? brandName : input.industry
     }`,
   );
@@ -330,8 +371,9 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
     });
   }
 
-  // (1) Step 1 — Plan (v3-02: JSON parse 실패 시 1회 재시도)
-  console.log(`[v3.gen] step 1 — plan (haiku)...`);
+  // (2) Step 1 — Plan
+  console.log(`[v3.A] step 1 — plan (haiku)...`);
+  const tStep1 = Date.now();
   const plan = await runPlanWithRetry({
     mode: input.mode,
     brandName,
@@ -340,100 +382,205 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
     factsPool,
   });
   console.log(
-    `[v3.gen] plan: selected_facts=${plan.selected_facts.length} outliers=${plan.outliers.length}`,
+    `[v3.A] step 1 done: ${Date.now() - tStep1}ms, selected_facts=${plan.selected_facts.length} outliers=${plan.outliers.length}`,
   );
 
-  // (2) Step 2 — Structure (v3-02: JSON parse 실패 시 1회 재시도)
-  console.log(`[v3.gen] step 2 — structure (haiku)...`);
+  // (3) Step 2 — Structure
+  console.log(`[v3.A] step 2 — structure (haiku)...`);
+  const tStep2 = Date.now();
   const outline = await runStructureWithRetry({
     mode: input.mode,
     topic: input.topic,
     plan,
   });
-  console.log(`[v3.gen] outline: blocks=${outline.blocks.length}`);
+  console.log(`[v3.A] step 2 done: ${Date.now() - tStep2}ms, blocks=${outline.blocks.length}`);
 
-  // (3) Step 3 — Write (with retry on cc/lint failure)
-  let draftBody = "";
-  let polishedBody = "";
-  let polishLog: string[] = [];
-  let retryCount = 0;
-  let lastUnmatched: string[] = [];
-  let lastLintErrors: string[] = [];
-  let retryNote: string | undefined = undefined;
+  // (4) DB INSERT — stage='plan_done', content=null
+  const tns = createAdminClient();
+  const placeholderTitle =
+    input.mode === "brand"
+      ? `[1단계 완료] ${brandName ?? "?"} — ${input.topic}`
+      : `[1단계 완료] ${input.industry} 업종 — ${input.topic}`;
 
-  while (retryCount <= MAX_WRITE_RETRIES) {
-    console.log(`[v3.gen] step 3 — write (sonnet) retry=${retryCount}...`);
-    const draft = await runWrite({
+  const insertObj: Record<string, unknown> = {
+    brand_id: geoBrandId,
+    ftc_brand_id: input.mode === "brand" ? input.brandId : null,
+    industry: input.mode === "industry" ? input.industry : null,
+    channel: "frandoor",
+    title: placeholderTitle,
+    content: null,
+    faq: [],
+    meta: {
       mode: input.mode,
-      brandName,
-      industry: input.mode === "industry" ? input.industry : industrySub ?? industryMain ?? undefined,
-      industrySub: industrySub ?? undefined,
-      isCustomer,
       topic: input.topic,
-      today,
-      plan,
-      outline,
-      retryNote,
-    });
-    draftBody = draft.body;
+      tiers: input.tiers,
+      isCustomer,
+      brandName: brandName ?? null,
+      industryMain,
+      industrySub,
+    },
+    content_type: input.mode,
+    status: "draft",
+    target_date: today,
+    pipeline_version: "v3",
+    debug_plan_json: plan,
+    debug_outline_json: outline,
+    polish_log: null,
+    stage: "plan_done",
+  };
 
-    console.log(`[v3.gen] step 4 — polish (post + haiku)...`);
-    const polished = await runPolish({ body: draftBody });
-    polishedBody = polished.body;
-    polishLog = polished.log;
-    console.log(`[v3.gen] polish log: ${polishLog.join(" | ")}`);
+  const { data: ins, error: dErr } = await tns
+    .from("frandoor_blog_drafts")
+    .insert(insertObj)
+    .select("id")
+    .single();
 
-    // 4-C validate
-    const cc = crosscheckV3(polishedBody, factsPool);
-    const lint = lintV3(polishedBody);
-    lastUnmatched = cc.unmatched;
-    lastLintErrors = lint.errors;
-    console.log(
-      `[v3.gen] validate: matched=${cc.matched} unmatched=${cc.unmatched.length} lintErrors=${lint.errors.length}`,
-    );
-
-    if (cc.ok && lint.errors.length === 0) {
-      break; // 통과
-    }
-
-    if (retryCount >= MAX_WRITE_RETRIES) {
-      // 더 이상 retry 안 함
-      if (!cc.ok) throw new HallucinationDetectedError(cc.unmatched);
-      if (lint.errors.length > 0) throw new LintErrorV3(lint.errors);
-    }
-
-    // retryNote 작성 — Step 3 만 재시도
-    const noteParts: string[] = [];
-    if (cc.unmatched.length > 0) {
-      noteParts.push(
-        `[검증 실패] 다음 숫자/출처가 facts pool 에 없습니다. 본문에서 제거하거나 facts 의 값으로 교체:`,
-        ...cc.unmatched.slice(0, 20).map((u) => `  - ${u}`),
-      );
-    }
-    if (lint.errors.length > 0) {
-      noteParts.push(
-        `[lint 실패] 다음 룰 위반:`,
-        ...lint.errors.slice(0, 10).map((e) => `  - ${e}`),
-      );
-    }
-    retryNote = noteParts.join("\n");
-    retryCount++;
+  if (dErr || !ins) {
+    throw new Error(`Phase A INSERT failed: ${dErr?.message ?? "no row"}`);
   }
 
-  // (4) frontmatter 파싱 + date 강제
-  const { title, frontmatter: rawFm, bodyMd } = parseFrontmatter(polishedBody);
+  console.log(
+    `[v3.A] ✓ TOTAL ${Date.now() - t0}ms, draftId=${ins.id} stage=plan_done`,
+  );
+
+  return {
+    draftId: ins.id as string,
+    plan,
+    outline,
+    factsCount: factsPool.length,
+  };
+}
+
+// =============================================================================
+// Phase B — Write + Polish + Validate → DB UPDATE (stage='write_done')
+// =============================================================================
+
+type DraftRow = {
+  id: string;
+  brand_id: string | null;
+  ftc_brand_id: string | null;
+  industry: string | null;
+  content_type: string | null;
+  meta: Record<string, unknown> | null;
+  debug_plan_json: PlanResult | null;
+  debug_outline_json: OutlineResult | null;
+  stage: string | null;
+};
+
+async function loadDraft(draftId: string): Promise<DraftRow> {
+  const tns = createAdminClient();
+  const { data, error } = await tns
+    .from("frandoor_blog_drafts")
+    .select(
+      "id, brand_id, ftc_brand_id, industry, content_type, meta, debug_plan_json, debug_outline_json, stage",
+    )
+    .eq("id", draftId)
+    .maybeSingle();
+  if (error) throw new Error(`draft load: ${error.message}`);
+  if (!data) throw new DraftNotFoundError(draftId);
+  return data as DraftRow;
+}
+
+function reconstructInput(draft: DraftRow): GenerateInput {
+  const meta = (draft.meta ?? {}) as Record<string, unknown>;
+  const topic = typeof meta.topic === "string" ? meta.topic : "";
+  const tiersRaw = Array.isArray(meta.tiers) ? meta.tiers : [];
+  const tiers = tiersRaw.filter(
+    (t): t is "A" | "B" | "C" => t === "A" || t === "B" || t === "C",
+  );
+  const mode = draft.content_type === "industry" ? "industry" : "brand";
+
+  if (mode === "industry") {
+    if (!draft.industry) throw new Error("draft.industry 누락");
+    return { mode: "industry", industry: draft.industry, topic, tiers };
+  }
+  if (!draft.ftc_brand_id) throw new Error("draft.ftc_brand_id 누락");
+  return { mode: "brand", brandId: draft.ftc_brand_id, topic, tiers };
+}
+
+export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
+  const today = new Date().toISOString().slice(0, 10);
+  const t0 = Date.now();
+
+  // (1) draft load + stage 검증
+  const draft = await loadDraft(draftId);
+  if (draft.stage !== "plan_done") {
+    throw new InvalidStageError(draftId, draft.stage);
+  }
+  if (!draft.debug_plan_json || !draft.debug_outline_json) {
+    throw new Error(`draft ${draftId}: plan/outline JSON 누락`);
+  }
+
+  // (2) input 재구성
+  const input = reconstructInput(draft);
+  const plan = draft.debug_plan_json as PlanResult;
+  const outline = draft.debug_outline_json as OutlineResult;
+
+  // (3) facts pool 재 fetch (crosscheck 용)
+  let factsPool: Fact[];
+  let brandName: string | undefined;
+  let industryMain: string | null = null;
+  let industrySub: string | null = null;
+  let isCustomer = false;
+
+  if (input.mode === "industry") {
+    factsPool = await fetchIndustryFacts({ industry: input.industry });
+  } else {
+    const r = await fetchBrandFacts({ brandId: input.brandId, tiers: input.tiers });
+    factsPool = r.factsPool;
+    brandName = r.brandName;
+    industryMain = r.industryMain;
+    industrySub = r.industrySub;
+    isCustomer = r.isCustomer;
+  }
+
+  console.log(
+    `[v3.B] draft=${draftId} mode=${input.mode} facts=${factsPool.length} subject=${
+      input.mode === "brand" ? brandName : input.industry
+    }`,
+  );
+
+  // (4) Step 3 — Write
+  console.log(`[v3.B] step 3 — write (sonnet)...`);
+  const tStep3 = Date.now();
+  const draftBody = await runWrite({
+    mode: input.mode,
+    brandName,
+    industry: input.mode === "industry" ? input.industry : industrySub ?? industryMain ?? undefined,
+    industrySub: industrySub ?? undefined,
+    isCustomer,
+    topic: input.topic,
+    today,
+    plan,
+    outline,
+  });
+  console.log(`[v3.B] step 3 done: ${Date.now() - tStep3}ms, len=${draftBody.body.length}`);
+
+  // (5) Step 4 — Polish (post-process + haiku)
+  console.log(`[v3.B] step 4 — polish (post + haiku)...`);
+  const tStep4 = Date.now();
+  const polished = await runPolish({ body: draftBody.body });
+  console.log(
+    `[v3.B] step 4 done: ${Date.now() - tStep4}ms, log: ${polished.log.join(" | ")}`,
+  );
+
+  // (6) crosscheck + lint (v3-03 단순화: Phase B retry 없음 — timeout 위험)
+  const cc = crosscheckV3(polished.body, factsPool);
+  const lintRes = lintV3(polished.body);
+  console.log(
+    `[v3.B] validate: matched=${cc.matched} unmatched=${cc.unmatched.length} lintErrors=${lintRes.errors.length}`,
+  );
+  if (!cc.ok) throw new HallucinationDetectedError(cc.unmatched);
+  if (lintRes.errors.length > 0) throw new LintErrorV3(lintRes.errors);
+
+  // (7) frontmatter 파싱 + date 강제 + FAQ lint
+  const { title, frontmatter: rawFm } = parseFrontmatter(polished.body);
   const frontmatter = normalizeFrontmatter(rawFm, today);
-
-  // FAQ lint
   const faqLint = lintV3Faq(frontmatter.faq);
-  const lintRes = lintV3(polishedBody);
   const allWarnings = [...lintRes.warnings, ...faqLint.warnings];
-  if (faqLint.errors.length > 0) {
-    throw new LintErrorV3(faqLint.errors);
-  }
+  if (faqLint.errors.length > 0) throw new LintErrorV3(faqLint.errors);
 
-  // (5) draft 저장 — date / dateModified 강제 치환
-  const finalContent = polishedBody.replace(
+  const finalContent = polished.body.replace(
     /^(---\s*\n[\s\S]*?\n---)/,
     (block) =>
       block
@@ -441,65 +588,46 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
         .replace(/^dateModified:\s*"?[^"\n]+"?$/m, `dateModified: "${today}"`),
   );
 
+  // (8) DB UPDATE — stage='write_done', content + faq + polish_log + meta 갱신
   const tns = createAdminClient();
-  let draftId: string | null = null;
-  let saveError: string | null = null;
-  try {
-    const insertObj: Record<string, unknown> = {
-      brand_id: geoBrandId,
-      ftc_brand_id: input.mode === "brand" ? input.brandId : null,
-      industry: input.mode === "industry" ? input.industry : null,
-      channel: "frandoor",
-      title:
-        title ||
-        (input.mode === "brand"
-          ? `${brandName} ${input.topic}`
-          : `${input.industry} 업종 — ${input.topic}`),
-      content: finalContent,
-      faq: frontmatter.faq ?? [],
-      meta: {
-        tags: frontmatter.tags ?? [],
-        description: frontmatter.description ?? null,
-        frontmatter,
-        mode: input.mode,
-        isCustomer,
-      },
-      content_type: input.mode,
-      status: "draft",
-      target_date: today,
-      pipeline_version: "v3",
-      debug_plan_json: plan,
-      debug_outline_json: outline,
-      polish_log: polishLog,
-    };
-    const { data: ins, error: dErr } = await tns
-      .from("frandoor_blog_drafts")
-      .insert(insertObj)
-      .select("id")
-      .single();
-    if (dErr) saveError = dErr.message;
-    else draftId = ins?.id ?? null;
-  } catch (e) {
-    saveError = e instanceof Error ? e.message : String(e);
+  const finalTitle =
+    title ||
+    (input.mode === "brand"
+      ? `${brandName} ${input.topic}`
+      : `${input.industry} 업종 — ${input.topic}`);
+
+  const existingMeta = (draft.meta ?? {}) as Record<string, unknown>;
+  const updateObj: Record<string, unknown> = {
+    title: finalTitle,
+    content: finalContent,
+    faq: frontmatter.faq ?? [],
+    meta: {
+      ...existingMeta,
+      tags: frontmatter.tags ?? [],
+      description: frontmatter.description ?? null,
+      frontmatter,
+    },
+    polish_log: polished.log,
+    stage: "write_done",
+  };
+
+  const { error: uErr } = await tns
+    .from("frandoor_blog_drafts")
+    .update(updateObj)
+    .eq("id", draftId);
+
+  if (uErr) {
+    throw new Error(`Phase B UPDATE failed: ${uErr.message}`);
   }
 
-  console.log(`[v3.gen] ✓ draftId=${draftId} retry=${retryCount}`);
+  console.log(`[v3.B] ✓ TOTAL ${Date.now() - t0}ms, draftId=${draftId} stage=write_done`);
 
   return {
     draftId,
-    saveError,
-    title:
-      title ||
-      (input.mode === "brand"
-        ? `${brandName} ${input.topic}`
-        : `${input.industry} 업종 — ${input.topic}`),
-    content: bodyMd,
+    title: finalTitle,
+    content: finalContent,
     frontmatter,
-    factsUsed: factsPool.length,
-    retryCount,
-    polishLog,
+    polishLog: polished.log,
     lintWarnings: allWarnings,
-    plan,
-    outline,
   };
 }

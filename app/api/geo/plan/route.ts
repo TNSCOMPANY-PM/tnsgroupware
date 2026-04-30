@@ -1,21 +1,21 @@
 /**
- * v3-01: /api/geo/generate — generateV3 호출.
- * 4 step pipeline (Plan → Structure → Write → Polish + Validate).
- * brand / industry mode 분기 내부.
+ * v3-03 Phase A — Plan + Outline → DB INSERT (stage='plan_done').
+ * 입력: { mode, brandId|industry, topic, tiers }
+ * 출력: { draftId, plan, outline, factsCount }
  */
 
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import {
-  generateV3,
+  runPhaseA,
   InsufficientDataError,
-  HallucinationDetectedError,
-  LintErrorV3,
 } from "@/lib/geo/v3/pipeline";
 import type { GenerateInput } from "@/lib/geo/v3/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// Vercel Hobby 60s 한도. Phase A 는 ~20s 안 안전.
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 const TIER_VALUES: ReadonlySet<"A" | "B" | "C"> = new Set(["A", "B", "C"]);
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const out = await generateV3(parsed);
+    const out = await runPhaseA(parsed);
     return NextResponse.json(out);
   } catch (e) {
     if (e instanceof InsufficientDataError) {
@@ -62,20 +62,8 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (e instanceof HallucinationDetectedError) {
-      return NextResponse.json(
-        { error: e.code, message: e.message, unmatched: e.unmatched },
-        { status: 400 },
-      );
-    }
-    if (e instanceof LintErrorV3) {
-      return NextResponse.json(
-        { error: e.code, message: e.message, lintErrors: e.lintErrors },
-        { status: 400 },
-      );
-    }
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[v3.gen] failed:", msg);
-    return NextResponse.json({ error: "GENERATE_FAILED", message: msg }, { status: 500 });
+    console.error("[v3.A] failed:", msg);
+    return NextResponse.json({ error: "PLAN_FAILED", message: msg }, { status: 500 });
   }
 }
