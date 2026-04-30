@@ -20,7 +20,22 @@ import { buildSysprompt, buildUserPrompt } from "./sysprompt";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
+import { selectColumns } from "./steps/select_columns";
 import type { RawInputBundle, V4Input, V4Result } from "./types";
+
+/** v4-01 — docx 너무 길면 head + tail 만 남김 (~8000 token 한도). */
+function truncateDocxIfLarge(markdown: string | null, maxTokens = 8000): string | null {
+  if (!markdown) return null;
+  // 한국어 대략 char/2.5 ≈ token
+  const approxTokens = markdown.length / 2.5;
+  if (approxTokens <= maxTokens) return markdown;
+  const halfChars = Math.floor((maxTokens * 2.5) / 2); // half of maxTokens 분량
+  return (
+    markdown.slice(0, halfChars) +
+    "\n\n... [중략 — docx 가 길어 일부 생략. 핵심 narrative 만 인용하세요] ...\n\n" +
+    markdown.slice(-halfChars)
+  );
+}
 
 export class FtcBrandIdMissingError extends Error {
   code = "FTC_BRAND_ID_MISSING";
@@ -151,12 +166,38 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   // (1~4) raw 데이터 fetch
   const bundle = await fetchBundle(input);
   console.log(
-    `[v4.gen] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols=${
+    `[v4.gen] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols(raw)=${
       Object.keys(bundle.ftc_row).length
     } docx=${bundle.docx_markdown ? bundle.docx_markdown.length + "자" : "없음"} industry_facts=${
       bundle.industry_facts.length
     }`,
   );
+
+  // (4.5) v4-01 Step 0 — 토픽 유관 컬럼 동적 선택 (haiku ~3s)
+  const tCol = Date.now();
+  const colSelection = await selectColumns({
+    topic: input.topic,
+    brand_label: bundle.brand_label,
+    industry: bundle.industry,
+  });
+  console.log(
+    `[v4-01] selectColumns ${Date.now() - tCol}ms: ${colSelection.columns.length}개 — ${colSelection.columns.slice(0, 5).join(", ")}...`,
+  );
+  console.log(`[v4-01] rationale: ${colSelection.rationale}`);
+
+  // ftc_row 를 선택된 컬럼만으로 필터 (sonnet input 단축)
+  const filteredFtcRow: Record<string, unknown> = {};
+  for (const col of colSelection.columns) {
+    if (col in bundle.ftc_row) filteredFtcRow[col] = bundle.ftc_row[col];
+  }
+
+  // docx truncate (8000 token 한도)
+  const truncatedDocx = truncateDocxIfLarge(bundle.docx_markdown);
+  if (truncatedDocx && bundle.docx_markdown && truncatedDocx.length < bundle.docx_markdown.length) {
+    console.log(
+      `[v4-01] docx truncate: ${bundle.docx_markdown.length} → ${truncatedDocx.length}자`,
+    );
+  }
 
   // (5) sonnet 1회 호출
   const sysprompt = buildSysprompt({
@@ -169,8 +210,8 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   });
   const userPrompt = buildUserPrompt({
     topic: input.topic,
-    ftc_row: bundle.ftc_row,
-    docx_markdown: bundle.docx_markdown,
+    ftc_row: filteredFtcRow,
+    docx_markdown: truncatedDocx,
     industry_facts: bundle.industry_facts,
   });
 
@@ -181,7 +222,9 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   const draftRaw = await callSonnet({
     system: sysprompt,
     user: userPrompt,
-    maxTokens: 4000,
+    // v4-01: 4000 → 3500. Step 0 column selector 추가로 input 단축됐고, output ~3000 token 충분.
+    // 응답 ~28s. 총 ~37s (60s 안 안전).
+    maxTokens: 3500,
   });
   console.log(`[v4.gen] sonnet done: ${Date.now() - tStart}ms, len=${draftRaw.length}`);
 
@@ -189,10 +232,10 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   const processed = postProcess(draftRaw);
   console.log(`[v4.gen] post_process: ${processed.log.join(" | ")}`);
 
-  // (7) crosscheck + lint
+  // (7) crosscheck + lint — sonnet 에게 전달한 데이터 기준
   const allowedNumbers = collectAllowedNumbers({
-    ftc_row: bundle.ftc_row,
-    docx_markdown: bundle.docx_markdown,
+    ftc_row: filteredFtcRow,
+    docx_markdown: truncatedDocx,
     industry_facts: bundle.industry_facts,
   });
   const cc = crosscheckV4(processed.body, allowedNumbers);
