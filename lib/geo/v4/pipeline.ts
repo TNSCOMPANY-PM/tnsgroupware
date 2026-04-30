@@ -224,10 +224,9 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   const draftRaw = await callSonnet({
     system: sysprompt,
     user: userPrompt,
-    // v4-04: 3500 → 2000. Sonnet 4.6 복귀 (haiku quality 부족) + 60s 안 처리.
-    // sonnet output ~50 tok/s × 2000 = ~40s. 본문 4블럭 4,000자 한도 내 압축.
-    // 합 ~47s (60s 안 13s margin).
-    maxTokens: 2000,
+    // v4-06: 2000 → 2200. 본문 잘림 빈발 (5블럭 중 ③④⑤ 누락) → +200 token margin.
+    // sonnet output ~50 tok/s × 2200 = ~44s. 합 ~52s (60s 안 8s margin).
+    maxTokens: 2200,
   });
   console.log(`[v4.gen] sonnet done: ${Date.now() - tStart}ms, len=${draftRaw.length}`);
 
