@@ -38,11 +38,11 @@ export async function runPlan(args: {
     model: HAIKU_MODEL,
     system: sys,
     user,
-    maxTokens: 1500,
+    // v3-02: 1500 → 4000. selected_facts 15~20개 × ~150 token = 3000 + overhead.
+    maxTokens: 4000,
   });
 
-  const json = extractJson(raw);
-  const parsed = JSON.parse(json) as PlanResult;
+  const parsed = extractJson(raw) as PlanResult;
 
   if (!Array.isArray(parsed.selected_facts)) {
     throw new Error("Plan: selected_facts not array");

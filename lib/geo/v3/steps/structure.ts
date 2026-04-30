@@ -19,11 +19,11 @@ export async function runStructure(args: {
     model: HAIKU_MODEL,
     system: sys,
     user,
-    maxTokens: 1500,
+    // v3-02: 1500 → 2500. blocks 5개 × fact_ids 6~8개 + summary_line.
+    maxTokens: 2500,
   });
 
-  const json = extractJson(raw);
-  const parsed = JSON.parse(json) as OutlineResult;
+  const parsed = extractJson(raw) as OutlineResult;
 
   if (!Array.isArray(parsed.blocks)) {
     throw new Error("Structure: blocks not array");

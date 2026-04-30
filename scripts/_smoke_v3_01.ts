@@ -183,16 +183,18 @@ async function main() {
   check(`Polish sysprompt — 메타 코멘트 교체`, polishSp.includes("메타 코멘트"));
   check(`Polish sysprompt — 그 외 변경 금지`, polishSp.includes("그 외"));
 
-  // T5 — types & extractJson
+  // T5 — types & extractJson (v3-02: extractJson 이 unknown 반환)
   console.log("\n[T5] claude.ts extractJson");
   const { extractJson } = await import("../lib/geo/v3/claude");
   {
     const raw = "```json\n{\"a\": 1}\n```";
-    check(`code fence 안 JSON 추출`, JSON.parse(extractJson(raw)).a === 1);
+    const parsed = extractJson(raw) as { a: number };
+    check(`code fence 안 JSON 추출`, parsed.a === 1);
   }
   {
     const raw = '여기 결과: {"key": "value"} 입니다.';
-    check(`텍스트 안 JSON 추출`, JSON.parse(extractJson(raw)).key === "value");
+    const parsed = extractJson(raw) as { key: string };
+    check(`텍스트 안 JSON 추출`, parsed.key === "value");
   }
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);

@@ -13,7 +13,7 @@ import { runWrite } from "./steps/write";
 import { runPolish } from "./steps/polish";
 import { crosscheckV3 } from "./crosscheck";
 import { lintV3, lintV3Faq } from "./lint";
-import type { Fact, GenerateInput, GenerateResult } from "./types";
+import type { Fact, GenerateInput, GenerateResult, OutlineResult, PlanResult } from "./types";
 
 const MIN_FACTS_REQUIRED = 5;
 const MAX_WRITE_RETRIES = 2;
@@ -256,6 +256,44 @@ async function fetchIndustryFacts(input: { industry: string }): Promise<Fact[]> 
   }));
 }
 
+/**
+ * v3-02 — Step 1/2 JSON parse 실패 시 1회 재시도.
+ * haiku 가 max_tokens 초과로 잘리거나 일시적 출력 깨짐 대응.
+ */
+async function runPlanWithRetry(args: Parameters<typeof runPlan>[0]): Promise<PlanResult> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await runPlan(args);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (attempt === 0 && /json|parse|expected/i.test(msg)) {
+        console.warn(`[v3.gen] Step 1 Plan JSON parse 실패 — 1회 재시도: ${msg}`);
+        continue;
+      }
+      throw new Error(`Step 1 Plan failed: ${msg}`);
+    }
+  }
+  throw new Error("Step 1 Plan: unreachable");
+}
+
+async function runStructureWithRetry(
+  args: Parameters<typeof runStructure>[0],
+): Promise<OutlineResult> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await runStructure(args);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (attempt === 0 && /json|parse|expected/i.test(msg)) {
+        console.warn(`[v3.gen] Step 2 Structure JSON parse 실패 — 1회 재시도: ${msg}`);
+        continue;
+      }
+      throw new Error(`Step 2 Structure failed: ${msg}`);
+    }
+  }
+  throw new Error("Step 2 Structure: unreachable");
+}
+
 export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput> {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -292,9 +330,9 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
     });
   }
 
-  // (1) Step 1 — Plan
+  // (1) Step 1 — Plan (v3-02: JSON parse 실패 시 1회 재시도)
   console.log(`[v3.gen] step 1 — plan (haiku)...`);
-  const plan = await runPlan({
+  const plan = await runPlanWithRetry({
     mode: input.mode,
     brandName,
     industry: input.mode === "industry" ? input.industry : industrySub ?? industryMain ?? undefined,
@@ -305,9 +343,9 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
     `[v3.gen] plan: selected_facts=${plan.selected_facts.length} outliers=${plan.outliers.length}`,
   );
 
-  // (2) Step 2 — Structure
+  // (2) Step 2 — Structure (v3-02: JSON parse 실패 시 1회 재시도)
   console.log(`[v3.gen] step 2 — structure (haiku)...`);
-  const outline = await runStructure({
+  const outline = await runStructureWithRetry({
     mode: input.mode,
     topic: input.topic,
     plan,
