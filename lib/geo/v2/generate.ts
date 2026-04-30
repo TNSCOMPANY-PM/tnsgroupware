@@ -80,14 +80,14 @@ const MIN_FACTS_REQUIRED = 5;
 function parseFrontmatter(raw: string): {
   title: string;
   frontmatter: Record<string, unknown>;
-  bodyMd: string;
+  content: string;
 } {
   const m = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!m) {
-    return { title: "", frontmatter: {}, bodyMd: raw.trim() };
+    return { title: "", frontmatter: {}, content: raw.trim() };
   }
   const yaml = m[1];
-  const bodyMd = m[2].trim();
+  const content = m[2].trim();
   const fm: Record<string, unknown> = {};
 
   // 단순 key: "value" 또는 key: [a, b, c] 또는 key: \n  - q: ... \n    a: ...
@@ -149,7 +149,7 @@ function parseFrontmatter(raw: string): {
   }
 
   const title = typeof fm.title === "string" ? fm.title : "";
-  return { title, frontmatter: fm, bodyMd };
+  return { title, frontmatter: fm, content };
 }
 
 export async function generateV2(input: GenerateV2Input): Promise<GenerateV2Output> {
@@ -301,7 +301,7 @@ async function generateBrand(input: {
   }
 
   // (7) frontmatter 파싱 + v2-15 date 정규화 (오늘 강제, LLM 임의 날짜 안전망)
-  const { title, frontmatter: rawFm, bodyMd } = parseFrontmatter(raw);
+  const { title, frontmatter: rawFm, content } = parseFrontmatter(raw);
   const frontmatter = normalizeFrontmatter(rawFm, today);
 
   // (7b) FAQ lint (frontmatter 파싱 후)
@@ -356,7 +356,7 @@ async function generateBrand(input: {
     draftId,
     saveError,
     title: title || `${brandName} ${input.topic}`,
-    content: bodyMd,
+    content,
     frontmatter,
     factsUsed: factsPool.length,
     unmatchedRetries,
@@ -455,7 +455,7 @@ async function generateIndustry(input: {
   }
 
   // (5) frontmatter 파싱 + date 강제
-  const { title, frontmatter: rawFm, bodyMd } = parseFrontmatter(raw);
+  const { title, frontmatter: rawFm, content } = parseFrontmatter(raw);
   const frontmatter = normalizeFrontmatter(rawFm, today);
   const faqLint = lintV2Faq(frontmatter.faq);
   const allWarnings = [...lintRes.warnings, ...faqLint.warnings];
@@ -510,7 +510,7 @@ async function generateIndustry(input: {
     draftId,
     saveError,
     title: title || `${input.industry} 업종 — ${input.topic}`,
-    content: bodyMd,
+    content,
     frontmatter,
     factsUsed: factsPool.length,
     unmatchedRetries,

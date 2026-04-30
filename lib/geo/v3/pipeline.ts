@@ -90,7 +90,7 @@ export type PhaseBResult = {
 function parseFrontmatter(raw: string): {
   title: string;
   frontmatter: Record<string, unknown>;
-  bodyMd: string;
+  content: string;
 } {
   let trimmed = raw.replace(/^﻿/, "").replace(/^\s+/, "");
   const fence = trimmed.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n```\s*$/);
@@ -98,10 +98,10 @@ function parseFrontmatter(raw: string): {
 
   const m = trimmed.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!m) {
-    return { title: "", frontmatter: {}, bodyMd: trimmed };
+    return { title: "", frontmatter: {}, content: trimmed };
   }
   const yaml = m[1];
-  const bodyMd = m[2].trim();
+  const content = m[2].trim();
   const fm: Record<string, unknown> = {};
 
   const lines = yaml.split(/\r?\n/);
@@ -158,7 +158,7 @@ function parseFrontmatter(raw: string): {
   }
 
   const title = typeof fm.title === "string" ? fm.title : "";
-  return { title, frontmatter: fm, bodyMd };
+  return { title, frontmatter: fm, content };
 }
 
 function normalizeFrontmatter(
