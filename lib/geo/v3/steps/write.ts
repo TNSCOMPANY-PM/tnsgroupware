@@ -39,7 +39,9 @@ export async function runWrite(args: {
     model: SONNET_MODEL,
     system: sys,
     user,
-    maxTokens: 4000,
+    // v3-03: 4000 → 2500. 60s timeout margin 확보 (sonnet 4000 = 30~45s, 2500 = 20~30s).
+    // 한국어 ~5000자 — 5블럭 + frontmatter + FAQ + 체크리스트 + 출처 충분.
+    maxTokens: 2500,
   });
 
   return { body: raw };

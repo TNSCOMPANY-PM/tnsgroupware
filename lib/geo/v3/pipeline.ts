@@ -296,6 +296,8 @@ async function runStructureWithRetry(
 
 export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput> {
   const today = new Date().toISOString().slice(0, 10);
+  // v3-03: step 별 elapsed ms 로그 — vercel logs 에서 timeout 원인 식별
+  const t0 = Date.now();
 
   // (A) facts pool fetch
   let factsPool: Fact[];
@@ -332,6 +334,7 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
 
   // (1) Step 1 — Plan (v3-02: JSON parse 실패 시 1회 재시도)
   console.log(`[v3.gen] step 1 — plan (haiku)...`);
+  const tStep1Start = Date.now();
   const plan = await runPlanWithRetry({
     mode: input.mode,
     brandName,
@@ -340,17 +343,18 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
     factsPool,
   });
   console.log(
-    `[v3.gen] plan: selected_facts=${plan.selected_facts.length} outliers=${plan.outliers.length}`,
+    `[v3.gen] step 1 done: ${Date.now() - tStep1Start}ms, selected_facts=${plan.selected_facts.length} outliers=${plan.outliers.length}`,
   );
 
   // (2) Step 2 — Structure (v3-02: JSON parse 실패 시 1회 재시도)
   console.log(`[v3.gen] step 2 — structure (haiku)...`);
+  const tStep2Start = Date.now();
   const outline = await runStructureWithRetry({
     mode: input.mode,
     topic: input.topic,
     plan,
   });
-  console.log(`[v3.gen] outline: blocks=${outline.blocks.length}`);
+  console.log(`[v3.gen] step 2 done: ${Date.now() - tStep2Start}ms, blocks=${outline.blocks.length}`);
 
   // (3) Step 3 — Write (with retry on cc/lint failure)
   let draftBody = "";
@@ -363,6 +367,7 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
 
   while (retryCount <= MAX_WRITE_RETRIES) {
     console.log(`[v3.gen] step 3 — write (sonnet) retry=${retryCount}...`);
+    const tStep3Start = Date.now();
     const draft = await runWrite({
       mode: input.mode,
       brandName,
@@ -376,12 +381,16 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
       retryNote,
     });
     draftBody = draft.body;
+    console.log(`[v3.gen] step 3 done: ${Date.now() - tStep3Start}ms, len=${draftBody.length}`);
 
     console.log(`[v3.gen] step 4 — polish (post + haiku)...`);
+    const tStep4Start = Date.now();
     const polished = await runPolish({ body: draftBody });
     polishedBody = polished.body;
     polishLog = polished.log;
-    console.log(`[v3.gen] polish log: ${polishLog.join(" | ")}`);
+    console.log(
+      `[v3.gen] step 4 done: ${Date.now() - tStep4Start}ms, log: ${polishLog.join(" | ")}`,
+    );
 
     // 4-C validate
     const cc = crosscheckV3(polishedBody, factsPool);
@@ -483,7 +492,9 @@ export async function generateV3(input: GenerateInput): Promise<V3GenerateOutput
     saveError = e instanceof Error ? e.message : String(e);
   }
 
-  console.log(`[v3.gen] ✓ draftId=${draftId} retry=${retryCount}`);
+  console.log(
+    `[v3.gen] ✓ TOTAL ${Date.now() - t0}ms, draftId=${draftId} retry=${retryCount}`,
+  );
 
   return {
     draftId,

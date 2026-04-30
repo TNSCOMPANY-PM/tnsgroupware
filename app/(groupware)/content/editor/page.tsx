@@ -82,6 +82,9 @@ export default function EditorPage() {
     setError("");
     setResult(null);
     setLoading(true);
+    // v3-03: AbortController — 서버 maxDuration 60s + 5s margin
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 65000);
     try {
       const body =
         mode === "brand"
@@ -101,24 +104,37 @@ export default function EditorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!res.ok) {
-        const errData = await res.json();
-        const msg = errData.message
-          ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}`
-          : errData.error || "생성 실패";
-        setError(msg);
-        if (Array.isArray(errData.unmatched) && errData.unmatched.length > 0) {
-          setError(`${msg}\n\nunmatched 샘플:\n${errData.unmatched.slice(0, 5).join("\n")}`);
+        // v3-03: JSON 파싱 실패 가능성 (504 / HTML body) → text fallback
+        let msg: string;
+        try {
+          const errData = await res.json();
+          msg = errData.message
+            ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}`
+            : errData.error || `API ${res.status}`;
+          if (Array.isArray(errData.unmatched) && errData.unmatched.length > 0) {
+            msg = `${msg}\n\nunmatched 샘플:\n${errData.unmatched.slice(0, 5).join("\n")}`;
+          }
+        } catch {
+          const text = await res.text().catch(() => "");
+          msg = `API ${res.status} ${res.statusText}: ${text.slice(0, 300)}`;
         }
-        setLoading(false);
+        setError(msg);
         return;
       }
       const data = (await res.json()) as GenerateV2Response;
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "오류 발생");
+      // v3-03: AbortError 명시적 메시지
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("타임아웃 (65초 초과). 서버 응답이 너무 늦습니다 — 다시 시도해 주세요.");
+      } else {
+        setError(err instanceof Error ? err.message : "오류 발생");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [mode, selectedBrand, industry, topic, tiers]);
@@ -309,15 +325,26 @@ export default function EditorPage() {
 
       {/* 에러 */}
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-          <pre className="text-sm text-red-800 whitespace-pre-wrap">{error}</pre>
+        <div className="rounded-lg bg-red-50 border-2 border-red-200 p-4 space-y-1">
+          <div className="text-sm font-semibold text-red-700">⚠️ 생성 실패</div>
+          <pre className="text-sm text-red-800 whitespace-pre-wrap break-words">{error}</pre>
+        </div>
+      )}
+
+      {/* 생성 중 안내 */}
+      {loading && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
+          <div className="font-semibold">⏳ 생성 중...</div>
+          <div className="text-xs text-blue-700 mt-1">
+            4-step 파이프라인 (Plan → Structure → Write → Polish). 약 40~60초 소요.
+          </div>
         </div>
       )}
 
       {/* Generate 버튼 */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <Button onClick={handleGenerate} disabled={isGenerateDisabled} className="w-full" size="lg">
-          {loading ? "생성 중..." : "콘텐츠 생성 (v2 RAG)"}
+          {loading ? "생성 중..." : "콘텐츠 생성 (v3 4-step)"}
         </Button>
       </div>
 

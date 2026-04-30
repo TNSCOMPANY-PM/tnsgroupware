@@ -15,7 +15,9 @@ import {
 import type { GenerateInput } from "@/lib/geo/v3/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// v3-03: Vercel Hobby plan 60s 한도. 명시적으로 60 으로 설정 (default 보다 명확).
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 const TIER_VALUES: ReadonlySet<"A" | "B" | "C"> = new Set(["A", "B", "C"]);
 
