@@ -39,9 +39,9 @@ export async function runWrite(args: {
     model: SONNET_MODEL,
     system: sys,
     user,
-    // v3-08: 3000 → 5000. 5블럭 + frontmatter + FAQ + 분포표 + A vs C 표 + 출처표 + 결론 ~4500 token.
-    // 응답 ~35s, Phase B 합계 ~37s (60s 안).
-    maxTokens: 5000,
+    // v3-09: 5000 → 4000. input 단축 (filteredPlan) + output ~3500 token 충분.
+    // 응답 ~22s, Phase B 합계 ~36s (60s 안 안전 margin).
+    maxTokens: 4000,
   });
 
   return { body: raw };
