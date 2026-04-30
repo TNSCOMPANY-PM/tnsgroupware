@@ -7,13 +7,23 @@ export type V4Input = {
   topic: string;
 };
 
+/** v4-02: docx 정제 fact (brand_fact_data row). */
+export type DocxFact = {
+  label: string; // 본사 docx 한글 라벨 (예: "월평균매출")
+  value_num: number | null;
+  value_text: string | null; // free-form (예: "1금융권 최대 5,000만원 + 무이자 3,000만원")
+  unit: string | null;
+  source_label: string | null;
+  source_type: string | null;
+};
+
 export type RawInputBundle = {
   brand_label: string;
   industry: string;
   industry_sub?: string | null;
   ftc_brand_id: string;
   ftc_row: Record<string, unknown>; // ftc_brands_2024 152 컬럼 raw
-  docx_markdown: string | null; // brand_source_doc.markdown_text
+  docx_facts: DocxFact[]; // v4-02: brand_fact_data WHERE provenance='docx'
   industry_facts: Array<Record<string, unknown>>; // industry_facts 분포
 };
 

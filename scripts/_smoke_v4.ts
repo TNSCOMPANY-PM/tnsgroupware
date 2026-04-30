@@ -53,7 +53,7 @@ async function main() {
   check(`sysprompt 점포명 익명화`, sp.includes("점포명") && sp.includes("절대 금지"));
   check(`sysprompt 억 단위`, sp.includes("X억 Y,YYY만원"));
   check(`sysprompt percentile 자연어`, sp.includes("상위 10%"));
-  check(`sysprompt C급 강제 (hasDocx=true)`, sp.includes("C급 (본사 docx) 활용"));
+  check(`sysprompt C급 강제 (hasDocx=true)`, sp.includes("C급 (본사 docx_facts) 활용"));
   check(`sysprompt brand→브랜드`, sp.includes("\"brand\" → \"브랜드\""));
   check(`sysprompt 메타 코멘트 금지`, sp.includes("이 글의 주제입니다"));
 
@@ -64,37 +64,51 @@ async function main() {
     today: "2026-04-30",
     hasDocx: false,
   });
-  check(`sysprompt hasDocx=false → C급 섹션 X`, !spNoDocx.includes("# C급 (본사 docx) 활용"));
+  check(`sysprompt hasDocx=false → C급 섹션 X`, !spNoDocx.includes("# C급 (본사 docx_facts) 활용"));
 
   // T3 — buildUserPrompt
-  console.log("\n[T3] buildUserPrompt");
+  console.log("\n[T3] buildUserPrompt (v4-02 docx_facts)");
   const userP = sysprompt.buildUserPrompt({
     topic: "테스트",
     ftc_row: { id: 1, brand_nm: "오공김밥", monthly_avg_revenue: 5210 },
-    docx_markdown: "본사 자료",
+    docx_facts: [
+      {
+        label: "월평균매출",
+        value_num: 5210,
+        value_text: null,
+        unit: "만원",
+        source_label: "본사 발표",
+        source_type: "본사_브로셔",
+      },
+    ],
     industry_facts: [{ metric: "p50", value: 34704 }],
   });
-  check(`user prompt 152 컬럼 + docx + industry`, userP.includes("정보공개서") && userP.includes("docx") && userP.includes("industry"));
+  check(`user prompt 정보공개서 + docx_facts + industry`, userP.includes("정보공개서") && userP.includes("docx_facts") && userP.includes("industry"));
   check(`user prompt JSON dump`, userP.includes('"id": 1'));
+  check(`user prompt docx_facts label`, userP.includes('"label": "월평균매출"'));
 
   const userPNoDocx = sysprompt.buildUserPrompt({
     topic: "테스트",
     ftc_row: { id: 1 },
-    docx_markdown: null,
+    docx_facts: [],
     industry_facts: [],
   });
-  check(`user prompt docx null → "(없음" 표기`, userPNoDocx.includes("(없음"));
+  check(`user prompt docx_facts 빈 배열 → "(없음" 표기`, userPNoDocx.includes("(없음"));
 
-  // T4 — collectAllowedNumbers
-  console.log("\n[T4] collectAllowedNumbers");
+  // T4 — collectAllowedNumbers (v4-02)
+  console.log("\n[T4] collectAllowedNumbers (v4-02 docx_facts)");
   const allowed = cc.collectAllowedNumbers({
     ftc_row: { revenue: 5210, stores: 21, op_margin: 1.8 },
-    docx_markdown: "본사 발표 6,949만원",
+    docx_facts: [
+      { value_num: 6949, value_text: "최대 5,000만원 + 본사 무이자 3,000만원" },
+    ],
     industry_facts: [{ p50: 34704, n: 238 }],
   });
   check(`ftc raw 5210 포함`, allowed.has("5210"));
   check(`ftc raw 21 포함`, allowed.has("21"));
-  check(`docx 6949 추출`, allowed.has("6949"));
+  check(`docx_facts value_num 6949 포함`, allowed.has("6949"));
+  check(`docx_facts value_text 안 5000 추출`, allowed.has("5000"));
+  check(`docx_facts value_text 안 3000 추출`, allowed.has("3000"));
   check(`industry p50 34704 포함`, allowed.has("34704"));
   check(`industry n=238 포함`, allowed.has("238"));
   check(`산술 derived (5210*12=62520) 포함`, allowed.has("62520"));

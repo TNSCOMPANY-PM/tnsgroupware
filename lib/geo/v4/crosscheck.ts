@@ -1,6 +1,7 @@
 /**
- * v4 crosscheck — raw 데이터 (ftc_row 152 컬럼 + docx_markdown 안 숫자 + industry_facts 분포 값)
+ * v4 crosscheck — raw 데이터 (ftc_row + docx_facts.value_num/value_text + industry_facts)
  * 으로부터 allowedNumbers 빌드 후 본문 numeric token 매칭.
+ * v4-02: docx_markdown (raw markdown) 폐기 → docx_facts (정제 facts).
  */
 
 import { normalizeKoreanNumbers } from "../v3/crosscheck";
@@ -53,7 +54,7 @@ function addWithRound(set: Set<string>, n: number) {
  */
 export function collectAllowedNumbers(args: {
   ftc_row: Record<string, unknown>;
-  docx_markdown: string | null;
+  docx_facts: Array<{ value_num: number | null; value_text: string | null }>;
   industry_facts: Array<Record<string, unknown>>;
 }): Set<string> {
   const allowed = new Set<string>();
@@ -79,15 +80,18 @@ export function collectAllowedNumbers(args: {
     }
   }
 
-  // 1. ftc_row 152 컬럼
+  // 1. ftc_row 컬럼
   for (const v of Object.values(args.ftc_row)) addNumber(v);
 
-  // 2. docx markdown 안 숫자
-  if (args.docx_markdown) {
-    const matches = args.docx_markdown.match(NUMBER_RE) ?? [];
-    for (const m of matches) {
-      const num = Number(normalizeNum(m));
-      if (Number.isFinite(num) && num > 1) addNumber(num);
+  // 2. docx_facts (v4-02) — value_num + value_text 안 숫자 모두
+  for (const f of args.docx_facts) {
+    if (f.value_num != null) addNumber(f.value_num);
+    if (f.value_text) {
+      const matches = f.value_text.match(NUMBER_RE) ?? [];
+      for (const m of matches) {
+        const num = Number(normalizeNum(m));
+        if (Number.isFinite(num) && num > 1) addNumber(num);
+      }
     }
   }
 
