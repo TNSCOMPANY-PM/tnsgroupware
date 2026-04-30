@@ -17,6 +17,15 @@ function getClient(): Anthropic {
 export const SONNET_MODEL = "claude-sonnet-4-6";
 export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
+/**
+ * v4-03 — 본문 작성 모델 sonnet → haiku 4.5 전환.
+ * 함수명 callSonnet 유지 (호출자 변경 최소화). 실제 모델은 HAIKU_MODEL.
+ *
+ * 근거:
+ *  - sonnet 4.6 output ~50 tokens/s × 3500 token = ~70s (60s 초과)
+ *  - haiku 4.5 output ~250 tokens/s × 3500 token = ~14s
+ *  - voice spec 강도 ↑ + post_process 안전망 + crosscheck/lint 검증으로 quality 보장
+ */
 export async function callSonnet(args: {
   system: string;
   user: string;
@@ -24,13 +33,13 @@ export async function callSonnet(args: {
 }): Promise<string> {
   const client = getClient();
   const res = await client.messages.create({
-    model: SONNET_MODEL,
+    model: HAIKU_MODEL,
     max_tokens: args.maxTokens,
     system: args.system,
     messages: [{ role: "user", content: args.user }],
   });
   const block = res.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") throw new Error("Sonnet: no text block");
+  if (!block || block.type !== "text") throw new Error("Writer (haiku): no text block");
   return block.text;
 }
 
