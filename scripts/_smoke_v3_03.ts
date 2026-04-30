@@ -75,11 +75,10 @@ async function main() {
   const planSp = await import("../lib/geo/v3/sysprompts/plan");
   const structSp = await import("../lib/geo/v3/sysprompts/structure");
   const writeSp = await import("../lib/geo/v3/sysprompts/write");
-  const polishSp = await import("../lib/geo/v3/sysprompts/polish");
+  // v3-05: buildPolishSysprompt 폐기 (Step 4-B haiku 제거)
   check(`buildPlanSysprompt`, typeof planSp.buildPlanSysprompt === "function");
   check(`buildStructureSysprompt`, typeof structSp.buildStructureSysprompt === "function");
   check(`buildWriteSysprompt`, typeof writeSp.buildWriteSysprompt === "function");
-  check(`buildPolishSysprompt`, typeof polishSp.buildPolishSysprompt === "function");
 
   // T5 — post_process / crosscheck / lint 무영향 (v3-01 기능 보존)
   console.log("\n[T5] post_process / crosscheck / lint 무영향");

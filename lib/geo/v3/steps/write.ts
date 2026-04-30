@@ -39,7 +39,9 @@ export async function runWrite(args: {
     model: SONNET_MODEL,
     system: sys,
     user,
-    maxTokens: 4000,
+    // v3-05: 4000 → 2000. Vercel 60s 안 안전 (sonnet ~15~20s).
+    // 한국어 ~4000자 — 5블럭 + frontmatter + FAQ + 결론 충분.
+    maxTokens: 2000,
   });
 
   return { body: raw };
