@@ -80,7 +80,7 @@ async function main() {
     hasDocx: true,
   });
   check(`sysprompt 톤 60%`, text2.includes("60%"));
-  check(`sysprompt C급 강제`, text2.includes("C급 (본사 docx) 활용"));
+  check(`sysprompt C급 강제 (docx_facts)`, text2.includes("C급 (본사 docx_facts) 활용"));
   check(`sysprompt 점포명 익명화`, text2.includes("점포명") && text2.includes("절대 금지"));
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);

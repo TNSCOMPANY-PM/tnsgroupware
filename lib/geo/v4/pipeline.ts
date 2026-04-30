@@ -21,21 +21,9 @@ import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
 import { selectColumns } from "./steps/select_columns";
-import type { RawInputBundle, V4Input, V4Result } from "./types";
+import type { DocxFact, RawInputBundle, V4Input, V4Result } from "./types";
 
-/** v4-01 — docx 너무 길면 head + tail 만 남김 (~8000 token 한도). */
-function truncateDocxIfLarge(markdown: string | null, maxTokens = 8000): string | null {
-  if (!markdown) return null;
-  // 한국어 대략 char/2.5 ≈ token
-  const approxTokens = markdown.length / 2.5;
-  if (approxTokens <= maxTokens) return markdown;
-  const halfChars = Math.floor((maxTokens * 2.5) / 2); // half of maxTokens 분량
-  return (
-    markdown.slice(0, halfChars) +
-    "\n\n... [중략 — docx 가 길어 일부 생략. 핵심 narrative 만 인용하세요] ...\n\n" +
-    markdown.slice(-halfChars)
-  );
-}
+// v4-02: markdown 통째 폐기 → fetchDocxFacts 사용. truncateDocxIfLarge 함수 제거.
 
 export class FtcBrandIdMissingError extends Error {
   code = "FTC_BRAND_ID_MISSING";
@@ -81,17 +69,26 @@ async function fetchBundle(input: V4Input): Promise<RawInputBundle> {
   if (fErr) throw new Error(`ftc_brands_2024 fetch: ${fErr.message}`);
   if (!ftcRow) throw new FtcRowNotFoundError(ftcBrandId);
 
-  // 3. brand_source_doc (있으면)
-  let docxMarkdown: string | null = null;
+  // 3. v4-02: docx 정제 facts (brand_fact_data WHERE provenance='docx')
+  // markdown 통째 폐기 — GPT 가 추출한 라벨/value_num 만 사용.
+  let docxFacts: DocxFact[] = [];
   try {
-    const { data: doc } = await tns
-      .from("brand_source_doc")
-      .select("markdown_text")
+    const { data: rows } = await tns
+      .from("brand_fact_data")
+      .select("label, value_num, value_text, unit, source_label, source_type")
       .eq("brand_id", input.brand_id)
-      .maybeSingle();
-    docxMarkdown = (doc?.markdown_text as string | null) ?? null;
-  } catch {
-    docxMarkdown = null;
+      .eq("provenance", "docx");
+    docxFacts = (rows ?? []).map((r) => ({
+      label: String(r.label ?? ""),
+      value_num: typeof r.value_num === "number" ? r.value_num : null,
+      value_text: (r.value_text as string | null) ?? null,
+      unit: (r.unit as string | null) ?? null,
+      source_label: (r.source_label as string | null) ?? null,
+      source_type: (r.source_type as string | null) ?? null,
+    }));
+  } catch (e) {
+    console.warn(`[v4.gen] docx_facts fetch 실패: ${e instanceof Error ? e.message : e}`);
+    docxFacts = [];
   }
 
   // 4. industry_facts (해당 industry — 한식/분식 등)
@@ -114,7 +111,7 @@ async function fetchBundle(input: V4Input): Promise<RawInputBundle> {
     industry_sub: industrySub,
     ftc_brand_id: ftcBrandId,
     ftc_row: ftcRow as Record<string, unknown>,
-    docx_markdown: docxMarkdown,
+    docx_facts: docxFacts,
     industry_facts: industryFacts,
   };
 }
@@ -168,9 +165,7 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   console.log(
     `[v4.gen] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols(raw)=${
       Object.keys(bundle.ftc_row).length
-    } docx=${bundle.docx_markdown ? bundle.docx_markdown.length + "자" : "없음"} industry_facts=${
-      bundle.industry_facts.length
-    }`,
+    } docx_facts=${bundle.docx_facts.length} industry_facts=${bundle.industry_facts.length}`,
   );
 
   // (4.5) v4-01 Step 0 — 토픽 유관 컬럼 동적 선택 (haiku ~3s)
@@ -191,13 +186,7 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
     if (col in bundle.ftc_row) filteredFtcRow[col] = bundle.ftc_row[col];
   }
 
-  // docx truncate (8000 token 한도)
-  const truncatedDocx = truncateDocxIfLarge(bundle.docx_markdown);
-  if (truncatedDocx && bundle.docx_markdown && truncatedDocx.length < bundle.docx_markdown.length) {
-    console.log(
-      `[v4-01] docx truncate: ${bundle.docx_markdown.length} → ${truncatedDocx.length}자`,
-    );
-  }
+  const hasDocx = bundle.docx_facts.length > 0;
 
   // (5) sonnet 1회 호출
   const sysprompt = buildSysprompt({
@@ -206,12 +195,12 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
     industry_sub: bundle.industry_sub,
     topic: input.topic,
     today,
-    hasDocx: !!bundle.docx_markdown,
+    hasDocx,
   });
   const userPrompt = buildUserPrompt({
     topic: input.topic,
     ftc_row: filteredFtcRow,
-    docx_markdown: truncatedDocx,
+    docx_facts: bundle.docx_facts,
     industry_facts: bundle.industry_facts,
   });
 
@@ -235,12 +224,12 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
   // (7) crosscheck + lint — sonnet 에게 전달한 데이터 기준
   const allowedNumbers = collectAllowedNumbers({
     ftc_row: filteredFtcRow,
-    docx_markdown: truncatedDocx,
+    docx_facts: bundle.docx_facts,
     industry_facts: bundle.industry_facts,
   });
   const cc = crosscheckV4(processed.body, allowedNumbers);
   const lint = lintV4(processed.body, {
-    hasC: !!bundle.docx_markdown,
+    hasC: hasDocx,
     topic: input.topic,
   });
   console.log(
