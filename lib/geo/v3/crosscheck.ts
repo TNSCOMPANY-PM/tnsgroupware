@@ -3,7 +3,8 @@
  * 본문 숫자·출처 라벨 vs facts pool 매칭. unmatched 0건 정책.
  */
 
-import type { Fact } from "./types";
+import type { Fact, PlanResult } from "./types";
+import { formatToDisplay } from "./plan_format";
 
 export type CrossCheckResult = {
   ok: boolean;
@@ -224,4 +225,67 @@ export function crosscheckV3(rawBody: string, factsPool: Fact[]): CrossCheckResu
   }
 
   return { ok: unmatched.length === 0, matched, unmatched };
+}
+
+/**
+ * v3-08 — Plan output 의 display 자릿수 검증.
+ * haiku 가 display 를 출력해도 후처리 결정론과 일치해야 (드물게 raw 와 display 불일치 시 검출).
+ */
+export function verifyDisplayConversion(plan: PlanResult): string[] {
+  const warnings: string[] = [];
+  for (const [metricId, group] of Object.entries(plan.fact_groups ?? {})) {
+    if (group.A) {
+      const expected = formatToDisplay(group.A.raw_value, group.A.unit);
+      if (group.A.display !== expected) {
+        warnings.push(
+          `[자릿수 mismatch] ${metricId} A급: display="${group.A.display}" vs raw=${group.A.raw_value} → 예상 "${expected}"`,
+        );
+      }
+    }
+    if (group.C) {
+      const expected = formatToDisplay(group.C.raw_value, group.C.unit);
+      if (group.C.display !== expected) {
+        warnings.push(
+          `[자릿수 mismatch] ${metricId} C급: display="${group.C.display}" vs raw=${group.C.raw_value} → 예상 "${expected}"`,
+        );
+      }
+    }
+  }
+  return warnings;
+}
+
+/**
+ * v3-08 — A급 활용도 검증. fact_groups 의 A 가 본문에 등장하는 비율.
+ *  · 50% 미만 → warning
+ *  · A 가 0개면 검사 skip
+ */
+export function verifyAFactsUsage(body: string, plan: PlanResult): string | null {
+  const aGroups = Object.entries(plan.fact_groups ?? {}).filter(([, g]) => g.A);
+  if (aGroups.length === 0) return null;
+  const used = aGroups.filter(([, g]) => g.A && body.includes(g.A.display));
+  const ratio = used.length / aGroups.length;
+  if (ratio < 0.5) {
+    return `[A급 활용도 낮음] ${used.length}/${aGroups.length} (${Math.round(ratio * 100)}%) — 50% 미만`;
+  }
+  return null;
+}
+
+/**
+ * v3-08 — C급 인용 검증. fact_groups 에 C 가 있으면 본문에 display 등장 강제.
+ *  · C 0개 → skip
+ *  · C ≥ 1 + 인용 0건 → warning
+ *  · C ≥ 2 + 인용 < 2 → warning (수치 부족)
+ */
+export function verifyCFactsUsage(body: string, plan: PlanResult): string | null {
+  const cGroups = Object.entries(plan.fact_groups ?? {}).filter(([, g]) => g.C);
+  if (cGroups.length === 0) return null;
+  const used = cGroups.filter(([, g]) => g.C && body.includes(g.C.display));
+  if (used.length === 0) {
+    return `[C급 미인용] fact_groups 에 C급 ${cGroups.length}건 있는데 본문 display 인용 0건`;
+  }
+  const target = Math.min(2, cGroups.length);
+  if (used.length < target) {
+    return `[C급 수치 부족] fact_groups 에 C급 ${cGroups.length}건 / 본문 인용 ${used.length}건 (목표 ≥${target})`;
+  }
+  return null;
 }

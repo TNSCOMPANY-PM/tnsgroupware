@@ -27,7 +27,7 @@ export async function runWrite(args: {
     isCustomer: args.isCustomer,
     topic: args.topic,
     today: args.today,
-    population_n: args.plan.population_n ?? {},
+    population_n: args.plan.population_info ?? {},
   });
 
   let user = buildWriteUser({ plan: args.plan, outline: args.outline });
@@ -39,9 +39,9 @@ export async function runWrite(args: {
     model: SONNET_MODEL,
     system: sys,
     user,
-    // v3-06: 2000 → 3000. 2000 에서 본문 잘림 빈발 (5블럭 + FAQ + 출처 합계 부족).
-    // 응답 ~22s, Phase B 합계 ~32s (60s 안 안전).
-    maxTokens: 3000,
+    // v3-08: 3000 → 5000. 5블럭 + frontmatter + FAQ + 분포표 + A vs C 표 + 출처표 + 결론 ~4500 token.
+    // 응답 ~35s, Phase B 합계 ~37s (60s 안).
+    maxTokens: 5000,
   });
 
   return { body: raw };

@@ -16,24 +16,37 @@ type FtcBrand = {
   industry: string | null;
 };
 
+// v3-08: fact_groups 재설계
+type FactGroup = {
+  label: string;
+  A?: { display: string; raw_value: number; unit: string; period: string | null; source_label: string; n_population?: number };
+  C?: { display: string; raw_value: number; unit: string; period: string | null; source_label: string };
+  distribution?: {
+    p25?: { display: string; raw: number };
+    p50?: { display: string; raw: number };
+    p75?: { display: string; raw: number };
+    p90?: { display: string; raw: number };
+    p95?: { display: string; raw: number };
+    n_population: number;
+    brand_position: string;
+  };
+  ac_diff_analysis?: string;
+  outlier_note?: string;
+};
+
 type PlanResult = {
-  selected_facts: Array<{
-    metric_id: string;
-    value: number | string | null;
-    source_tier: "A" | "B" | "C";
-    label: string;
-    unit: string | null;
-  }>;
-  outliers: Array<{ metric_id: string; value: number | null; reason: string }>;
-  population_n: Record<string, number>;
+  brand_label: string;
+  industry: string;
   key_angle: string;
+  fact_groups: Record<string, FactGroup>;
+  population_info: Record<string, number>;
 };
 
 type OutlineResult = {
   blocks: Array<{
     h2: string;
-    fact_ids: string[];
-    format: "table" | "prose";
+    metric_ids: string[];
+    format: "table" | "prose" | "distribution_table";
     summary_line: string;
   }>;
 };
@@ -461,9 +474,9 @@ export default function EditorPage() {
               ✓ 1단계 완료 — facts + outline (draft={draftId?.slice(0, 8)})
             </h3>
             <div className="flex items-center gap-3 text-[11px] text-emerald-800">
-              <span>facts={factsCount}</span>
+              <span>facts pool={factsCount}</span>
               <span>·</span>
-              <span>selected={planResult.selected_facts.length}</span>
+              <span>fact_groups={Object.keys(planResult.fact_groups ?? {}).length}</span>
               <span>·</span>
               <span>blocks={outline.blocks.length}</span>
             </div>
@@ -478,7 +491,7 @@ export default function EditorPage() {
 
           <details className="rounded-lg border border-emerald-200 bg-white px-4 py-3 text-xs">
             <summary className="cursor-pointer font-semibold text-slate-700">
-              선별된 facts ({planResult.selected_facts.length}개) + outliers ({planResult.outliers.length}개)
+              fact_groups ({Object.keys(planResult.fact_groups ?? {}).length}개) — A/C 묶음 + 분포 + ac_diff
             </summary>
             <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-slate-700 max-h-72 overflow-y-auto">
               {JSON.stringify(planResult, null, 2)}
