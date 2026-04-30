@@ -60,6 +60,21 @@ export function lintV4(
     }
   }
 
+  // v4-06 L11 — 자릿수 mixed 표기 (단위 일관성 검토)
+  // 같은 raw value 가 본문에 두 가지 다른 표기로 등장 시 단위 일관성 문제 가능성
+  // 예: "6,251만 7,800원" + "6억 2,517만 8,000원" 동시 등장 → warning
+  const MIXED_PATTERN_1 = /(\d{1,3}(?:,\d{3})*)만\s+(\d{1,3}(?:,\d{3})*)원/g;
+  const MIXED_PATTERN_2 = /\d+억\s+(\d{1,3}(?:,\d{3})*)만\s+(\d{1,3}(?:,\d{3})*)원/g;
+  const m1 = [...body.matchAll(MIXED_PATTERN_1)];
+  const m2 = [...body.matchAll(MIXED_PATTERN_2)];
+  // m1 (X만 Y원) 은 m2 (Z억 X만 Y원) 의 부분 매칭이므로, m1 - m2 가 양수면 "억 없는" mixed
+  const m1Only = m1.length - m2.length;
+  if (m1Only > 0 && m2.length > 0) {
+    warnings.push(
+      `L11 자릿수 mixed — "X만 Y원" ${m1Only}건 + "Z억 X만 Y원" ${m2.length}건 혼재. 단위 일관성 검토 (post_process 회귀 또는 sonnet 자체 변환 의심).`,
+    );
+  }
+
   return { errors, warnings };
 }
 

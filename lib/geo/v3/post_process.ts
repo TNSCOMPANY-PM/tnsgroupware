@@ -27,17 +27,31 @@ export function postProcess(input: string): PostProcessResult {
   });
   if (brandCount > 0) log.push(`brand→브랜드 ${brandCount}건`);
 
-  // 2. 억 단위 변환 — 만원 ≥ 10,000
+  // 2. 억 단위 변환 — 만원 ≥ 10,000 (v4-06: 소수점 지원)
+  //    "62,517만원"   → "6억 2,517만원"
+  //    "62517만원"    → "6억 2,517만원"
+  //    "62,517.8만원" → "6억 2,517만 8,000원"  (소수점 → 원 단위로 풀어냄)
+  //    "62,517.85만원" → "6억 2,517만 8,500원"
   let eokCount = 0;
-  body = body.replace(/(\d{1,3}(?:,\d{3})+|\d{5,})만원/g, (match, num: string) => {
-    const n = parseInt(num.replace(/,/g, ""), 10);
-    if (!Number.isFinite(n) || n < 10000) return match;
-    const eok = Math.floor(n / 10000);
-    const man = n % 10000;
-    eokCount++;
-    if (man === 0) return `${eok}억원`;
-    return `${eok}억 ${man.toLocaleString("en-US")}만원`;
-  });
+  body = body.replace(
+    /(\d{1,3}(?:,\d{3})+|\d{5,})(?:\.(\d+))?만원/g,
+    (match, intStr: string, decStr?: string) => {
+      const intPart = parseInt(intStr.replace(/,/g, ""), 10);
+      if (!Number.isFinite(intPart) || intPart < 10000) return match;
+      const eok = Math.floor(intPart / 10000);
+      const manRemainInt = intPart - eok * 10000;
+      // 소수점 → 원 단위 (0.8 만원 = 8,000원)
+      const decimal = decStr ? parseFloat("0." + decStr) : 0;
+      const wonFromDecimal = Math.round(decimal * 10000);
+      eokCount++;
+      if (manRemainInt === 0 && wonFromDecimal === 0) return `${eok}억원`;
+      if (wonFromDecimal === 0) return `${eok}억 ${manRemainInt.toLocaleString("en-US")}만원`;
+      if (manRemainInt === 0) {
+        return `${eok}억 ${wonFromDecimal.toLocaleString("en-US")}원`;
+      }
+      return `${eok}억 ${manRemainInt.toLocaleString("en-US")}만 ${wonFromDecimal.toLocaleString("en-US")}원`;
+    },
+  );
   if (eokCount > 0) log.push(`억단위 변환 ${eokCount}건`);
 
   // 3. percentile 약어 → 자연어
