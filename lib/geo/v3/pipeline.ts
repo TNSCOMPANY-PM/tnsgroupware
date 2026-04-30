@@ -579,6 +579,20 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     ? [`[lint errors] ${lintRes.errors.slice(0, 3).join(" | ")}`]
     : [];
 
+  // v3-06: C급 (본사 docx) facts 가 있는데 본문에 "본사" 키워드 0건이면 lint warning
+  const cTierFacts = factsPool.filter((f) => f.source_tier === "C");
+  const cTierWarnings: string[] = [];
+  if (cTierFacts.length > 0) {
+    const headOfficeMentions = (polished.body.match(/본사\s*(?:측|발표|자료|docx)/g) ?? []).length;
+    if (headOfficeMentions === 0) {
+      cTierWarnings.push(
+        `[C급 미인용] facts pool 에 C급(본사 docx) ${cTierFacts.length}건 있으나 본문에 "본사 측/발표/자료" 키워드 0건. C급 활용 부족.`,
+      );
+    } else {
+      console.log(`[v3.B] C급 인용 ${headOfficeMentions}회 (facts ${cTierFacts.length}건)`);
+    }
+  }
+
   // (7) frontmatter 파싱 + date 강제 + FAQ lint
   const { title, frontmatter: rawFm } = parseFrontmatter(polished.body);
   const frontmatter = normalizeFrontmatter(rawFm, today);
@@ -588,6 +602,7 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     ...faqLint.warnings,
     ...ccWarnings,
     ...lintErrorWarnings,
+    ...cTierWarnings,
   ];
   // FAQ count error (구조적 위반) 는 발행 차단 — 그대로 throw 유지
   if (faqLint.errors.length > 0) throw new LintErrorV3(faqLint.errors);
@@ -618,6 +633,7 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
       tags: frontmatter.tags ?? [],
       description: frontmatter.description ?? null,
       frontmatter,
+      lintWarnings: allWarnings,
     },
     polish_log: polished.log,
     stage: "write_done",
