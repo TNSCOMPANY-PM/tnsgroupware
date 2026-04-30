@@ -33,30 +33,53 @@ export type GenerateInput =
       tiers: Tier[];
     };
 
-/** Step 1 output. */
-export type PlanResult = {
-  selected_facts: Array<{
-    metric_id: string;
-    value: number | string | null;
-    source_tier: Tier;
-    label: string;
-    unit: string | null;
-  }>;
-  outliers: Array<{
-    metric_id: string;
-    value: number | null;
-    reason: string;
-  }>;
-  population_n: Record<string, number>;
-  key_angle: string;
+/**
+ * v3-08 — Step 1 (haiku) raw output. display 값은 plan_format.ts 의 post-process 가 채움.
+ * haiku 가 출력 시 display/ac_diff_analysis/brand_position 은 비워둠 (재계산 위험 방지).
+ */
+export type FactGroupTier = {
+  display: string; // post-process 결정론 — "6억 2,518만원" 같이
+  raw_value: number;
+  unit: string;
+  period: string | null;
+  source_label: string;
+  n_population?: number;
 };
 
-/** Step 2 output. */
+export type FactGroupDistribution = {
+  p25?: { display: string; raw: number };
+  p50?: { display: string; raw: number };
+  p75?: { display: string; raw: number };
+  p90?: { display: string; raw: number };
+  p95?: { display: string; raw: number };
+  n_population: number;
+  brand_position: string; // post-process 결정론 — "상위 10% 기준선 초과"
+};
+
+export type FactGroup = {
+  label: string;
+  A?: FactGroupTier;
+  C?: FactGroupTier;
+  distribution?: FactGroupDistribution;
+  ac_diff_analysis?: string; // post-process 결정론 — "본사 발표가 5,614만원(8.9%) 높음"
+  outlier_note?: string;
+};
+
+/** Step 1 output. */
+export type PlanResult = {
+  brand_label: string;
+  industry: string;
+  key_angle: string;
+  fact_groups: Record<string, FactGroup>;
+  population_info: Record<string, number>;
+};
+
+/** Step 2 output — block.metric_ids 가 fact_groups 의 key 와 매칭. */
 export type OutlineResult = {
   blocks: Array<{
     h2: string;
-    fact_ids: string[];
-    format: "table" | "prose";
+    metric_ids: string[];
+    format: "table" | "prose" | "distribution_table";
     summary_line: string;
   }>;
 };

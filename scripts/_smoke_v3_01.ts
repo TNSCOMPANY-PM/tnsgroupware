@@ -143,7 +143,8 @@ async function main() {
 
   const planSp = buildPlanSysprompt();
   check(`Plan sysprompt — "JSON 만"`, planSp.includes("JSON 만"));
-  check(`Plan sysprompt — outliers 룰`, planSp.includes("outliers"));
+  // v3-08: outliers → outlier_note
+  check(`Plan sysprompt — outlier_note 룰`, planSp.includes("outlier_note"));
 
   const structSp = buildStructureSysprompt({ mode: "brand" });
   check(`Structure sysprompt — H2 5개`, structSp.includes("H2 정확히 5개"));

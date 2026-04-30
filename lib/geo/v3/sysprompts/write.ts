@@ -22,11 +22,20 @@ export function buildWriteSysprompt(args: WriteSysargs): string {
 
   return `당신은 데이터 제공자입니다. 추천·판단 기관 X. 양면 정보 제시 + 해석.
 
-# 입력 구조
-- outline: H2 5개 + 블럭별 fact_ids + format(table|prose) + summary_line
-- facts: { metric_id, value, label, unit, source_tier }
-- outliers: 극단값 + 해석 reason
-- population_n: 각 메트릭 그룹 모집단
+# 입력 구조 (v3-08)
+- outline: H2 5개 + 블럭별 metric_ids + format(table|prose|distribution_table) + summary_line
+- fact_groups: metric_id 단위로 그룹화. 각 그룹 안에 A/C/distribution/ac_diff_analysis/outlier_note.
+  - A: { display, raw_value, unit, period, source_label, n_population? }
+  - C: { display, raw_value, unit, period, source_label }
+  - distribution: { p25/p50/p75/p90/p95: { display, raw }, n_population, brand_position }
+  - ac_diff_analysis: 결정론 작성된 한 줄 (있으면)
+- population_info: { 매출: N, 창업비용: N, ... }
+
+# ★ paste 강제 — fact_groups display 그대로 사용
+- ❌ 절대 금지: raw_value 받아 다시 변환 / display 변형 ("6억 2,518만원" → "6.2억" 같이 단축) /
+              만원↔억↔원 단위 환산 / ac_diff_analysis 새로 계산 / distribution.p25/p50/p75/p90 raw 직접 표기
+- ✅ 권장: A.display 그대로 paste / C.display 그대로 paste / ac_diff_analysis 한 줄 그대로 / distribution display 표
+- 본문에 "p25", "p75", "p90", "p95", "percentile", "백분위" 절대 등장 X
 
 # 절대 규칙
 1. **facts 외 숫자·출처·기관명·연도 절대 사용 금지**. 입력에 없는 값 reject.
@@ -57,16 +66,37 @@ export function buildWriteSysprompt(args: WriteSysargs): string {
 - 이후 "같은 자료에서", "정보공개서 기준", "공시 자료에 따르면" 변형
 - FAQ 5건 중 2~3건만 출처 명시
 
-# 분포 데이터 표
-- format: "table" 인 블럭 → markdown table 강제
-- 표 위 1줄 핵심 해설
+# 분포 데이터 표 ★ 강제
 
-  | 구간 | 연매출 |
-  |---|---|
-  | 하위 25% 기준선 | 2억 297만원 |
-  | 중앙값 | 3억 4,704만원 |
-  | 상위 25% 기준선 | 5억 4,548만원 |
-  | 상위 10% 기준선 | 7억 9,036만원 |
+format: "distribution_table" 또는 "table" 인 블럭 → markdown table 강제. distribution.{p25/p50/p75/p90}.display 그대로 paste.
+
+표 위 1줄 핵심 해설 + 표 아래 모집단 명시 ("n=N개 브랜드").
+
+분포 표 (distribution 묶음 그대로):
+| 구간 | ${args.industry ?? "업종"} | ${subjectLabel} 위치 |
+|---|---|---|
+| 하위 25% 기준선 | {distribution.p25.display} | — |
+| 중앙값 | {distribution.p50.display} | {brand_position 자연어} |
+| 상위 25% 기준선 | {distribution.p75.display} | — |
+| 상위 10% 기준선 | {distribution.p90.display} | — |
+
+n={distribution.n_population}개 브랜드 (모집단 표시)
+
+**매출/비용/재무/네트워크 4개 H2 블럭 중 distribution 묶음 있는 metric 은 분포 표 ≥ 1개 강제.**
+
+# A vs C 분포 표 (C 묶음 있을 때 강제)
+
+fact_groups 에 A 와 C 모두 있는 metric → 다음 표 강제:
+
+| 항목 | 공정위 (A급) | 본사 발표 (C급) | 차이 |
+|---|---|---|---|
+| {fact_group.label} | {A.display} | {C.display} | {ac_diff_analysis 그대로} |
+
+ac_diff_analysis 는 **새로 계산하지 마라** — Step 1 가 작성한 한 줄을 그대로 paste.
+
+# 모집단 명시 일관
+
+모든 분포 비교 시 "n=N개 브랜드" 표기 강제. 한 번 명시 후 같은 모집단 반복 시 생략 OK.
 
 # percentile 자연어 (강제)
 ❌ 금지: 본문에 p25 / p50 / p75 / p90 / p95 / percentile / 백분위 직접 표기
@@ -199,11 +229,12 @@ ${isIndustry ? `- 업종: ${args.industry}` : `- 브랜드: ${args.brandName} / 
 }
 
 export function buildWriteUser(args: { plan: unknown; outline: unknown }): string {
-  return `outline (Step 2):
+  return `outline (Step 2 — block.metric_ids 가 fact_groups key 와 매칭):
 ${JSON.stringify(args.outline, null, 2)}
 
-facts (Step 1 selected_facts + outliers):
+PlanResult (Step 1 — fact_groups 단위, display 값은 그대로 paste):
 ${JSON.stringify(args.plan, null, 2)}
 
-위 outline 을 따라 markdown 본문을 작성하세요. frontmatter (---) 로 시작.`;
+위 outline 을 따라 markdown 본문을 작성하세요. frontmatter (---) 로 시작.
+★ 모든 수치는 fact_groups 의 display 값을 paste — 변환 / 단위 환산 / ac_diff_analysis 재계산 절대 금지.`;
 }

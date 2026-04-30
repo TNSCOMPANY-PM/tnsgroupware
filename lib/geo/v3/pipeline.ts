@@ -13,7 +13,12 @@ import { runPlan } from "./steps/plan";
 import { runStructure } from "./steps/structure";
 import { runWrite } from "./steps/write";
 import { runPolish } from "./steps/polish";
-import { crosscheckV3 } from "./crosscheck";
+import {
+  crosscheckV3,
+  verifyAFactsUsage,
+  verifyCFactsUsage,
+  verifyDisplayConversion,
+} from "./crosscheck";
 import { lintV3, lintV3Faq } from "./lint";
 import type { Fact, GenerateInput, OutlineResult, PlanResult } from "./types";
 
@@ -382,7 +387,7 @@ export async function runPhaseA(input: GenerateInput): Promise<PhaseAResult> {
     factsPool,
   });
   console.log(
-    `[v3.A] step 1 done: ${Date.now() - tStep1}ms, selected_facts=${plan.selected_facts.length} outliers=${plan.outliers.length}`,
+    `[v3.A] step 1 done: ${Date.now() - tStep1}ms, fact_groups=${Object.keys(plan.fact_groups ?? {}).length}`,
   );
 
   // (3) Step 2 — Structure
@@ -579,33 +584,16 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     ? [`[lint errors] ${lintRes.errors.slice(0, 3).join(" | ")}`]
     : [];
 
-  // v3-07: C급 (본사 docx) facts 활용도 검사 — 키워드 + 수치 인용 모두 검증
-  const cTierFacts = factsPool.filter((f) => f.source_tier === "C");
-  const cTierWarnings: string[] = [];
-  if (cTierFacts.length > 0) {
-    const headOfficeMentions = (polished.body.match(/본사\s*(?:측|발표|자료|docx)/g) ?? []).length;
-    // C급 raw 수치가 본문에 등장하는지 확인 (정확 일치 또는 ko-KR comma 포맷)
-    const cValues = cTierFacts
-      .map((f) => f.value_num)
-      .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
-    let cValueMentions = 0;
-    for (const n of cValues) {
-      const variants = [String(n), n.toLocaleString("en-US"), n.toLocaleString("ko-KR")];
-      if (variants.some((v) => polished.body.includes(v))) cValueMentions++;
-    }
-    if (headOfficeMentions === 0) {
-      cTierWarnings.push(
-        `[C급 미인용] facts pool 에 C급(본사 docx) ${cTierFacts.length}건 있으나 본문에 "본사 측/발표/자료" 키워드 0건. 수치 직접 인용 필수.`,
-      );
-    } else if (cValueMentions < Math.min(2, cValues.length)) {
-      cTierWarnings.push(
-        `[C급 수치 부족] 본사 키워드 ${headOfficeMentions}회 / C급 raw 수치 ${cValueMentions}건 등장 (목표 ≥${Math.min(2, cValues.length)}). 단순 reference 만 인용된 가능성. raw 수치 + A vs C 비교 강화 필요.`,
-      );
-    } else {
-      console.log(
-        `[v3.B] C급 활용 OK: 키워드 ${headOfficeMentions}회 / 수치 ${cValueMentions}건 (facts ${cTierFacts.length}건)`,
-      );
-    }
+  // v3-08: fact_groups 기반 검증 — display 자릿수 / A급 활용도 / C급 인용
+  const v8Warnings: string[] = [];
+  v8Warnings.push(...verifyDisplayConversion(plan));
+  const aWarn = verifyAFactsUsage(polished.body, plan);
+  if (aWarn) v8Warnings.push(aWarn);
+  const cWarn = verifyCFactsUsage(polished.body, plan);
+  if (cWarn) v8Warnings.push(cWarn);
+  if (v8Warnings.length > 0) {
+    console.warn(`[v3.B] v3-08 warnings: ${v8Warnings.length}건`);
+    for (const w of v8Warnings) console.warn(`  - ${w}`);
   }
 
   // (7) frontmatter 파싱 + date 강제 + FAQ lint
@@ -617,7 +605,7 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     ...faqLint.warnings,
     ...ccWarnings,
     ...lintErrorWarnings,
-    ...cTierWarnings,
+    ...v8Warnings,
   ];
   // FAQ count error (구조적 위반) 는 발행 차단 — 그대로 throw 유지
   if (faqLint.errors.length > 0) throw new LintErrorV3(faqLint.errors);
