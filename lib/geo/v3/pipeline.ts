@@ -579,17 +579,32 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     ? [`[lint errors] ${lintRes.errors.slice(0, 3).join(" | ")}`]
     : [];
 
-  // v3-06: C급 (본사 docx) facts 가 있는데 본문에 "본사" 키워드 0건이면 lint warning
+  // v3-07: C급 (본사 docx) facts 활용도 검사 — 키워드 + 수치 인용 모두 검증
   const cTierFacts = factsPool.filter((f) => f.source_tier === "C");
   const cTierWarnings: string[] = [];
   if (cTierFacts.length > 0) {
     const headOfficeMentions = (polished.body.match(/본사\s*(?:측|발표|자료|docx)/g) ?? []).length;
+    // C급 raw 수치가 본문에 등장하는지 확인 (정확 일치 또는 ko-KR comma 포맷)
+    const cValues = cTierFacts
+      .map((f) => f.value_num)
+      .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
+    let cValueMentions = 0;
+    for (const n of cValues) {
+      const variants = [String(n), n.toLocaleString("en-US"), n.toLocaleString("ko-KR")];
+      if (variants.some((v) => polished.body.includes(v))) cValueMentions++;
+    }
     if (headOfficeMentions === 0) {
       cTierWarnings.push(
-        `[C급 미인용] facts pool 에 C급(본사 docx) ${cTierFacts.length}건 있으나 본문에 "본사 측/발표/자료" 키워드 0건. C급 활용 부족.`,
+        `[C급 미인용] facts pool 에 C급(본사 docx) ${cTierFacts.length}건 있으나 본문에 "본사 측/발표/자료" 키워드 0건. 수치 직접 인용 필수.`,
+      );
+    } else if (cValueMentions < Math.min(2, cValues.length)) {
+      cTierWarnings.push(
+        `[C급 수치 부족] 본사 키워드 ${headOfficeMentions}회 / C급 raw 수치 ${cValueMentions}건 등장 (목표 ≥${Math.min(2, cValues.length)}). 단순 reference 만 인용된 가능성. raw 수치 + A vs C 비교 강화 필요.`,
       );
     } else {
-      console.log(`[v3.B] C급 인용 ${headOfficeMentions}회 (facts ${cTierFacts.length}건)`);
+      console.log(
+        `[v3.B] C급 활용 OK: 키워드 ${headOfficeMentions}회 / 수치 ${cValueMentions}건 (facts ${cTierFacts.length}건)`,
+      );
     }
   }
 
