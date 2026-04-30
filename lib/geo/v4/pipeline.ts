@@ -16,12 +16,26 @@ import "server-only";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createFrandoorClient } from "@/utils/supabase/frandoor";
 import { callSonnet } from "./claude";
-import { buildSysprompt, buildUserPrompt } from "./sysprompt";
+import {
+  buildSysprompt,
+  buildSyspromptPart1,
+  buildSyspromptPart2,
+  buildUserPrompt,
+  buildPart2UserPrompt,
+} from "./sysprompt";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
 import { selectColumns } from "./steps/select_columns";
-import type { DocxFact, RawInputBundle, V4Input, V4Result } from "./types";
+import type {
+  DocxFact,
+  RawInputBundle,
+  V4Input,
+  V4Result,
+  V4PhaseAResult,
+  V4PartResult,
+  V4PlanJson,
+} from "./types";
 
 // v4-02: markdown 통째 폐기 → fetchDocxFacts 사용. truncateDocxIfLarge 함수 제거.
 
@@ -40,6 +54,22 @@ export class FtcRowNotFoundError extends Error {
   constructor(public ftcBrandId: string) {
     super(`ftc_brands_2024 row not found: id=${ftcBrandId}`);
     this.name = "FtcRowNotFoundError";
+  }
+}
+
+export class DraftNotFoundError extends Error {
+  code = "DRAFT_NOT_FOUND";
+  constructor(public draftId: string) {
+    super(`draft not found: ${draftId}`);
+    this.name = "DraftNotFoundError";
+  }
+}
+
+export class InvalidStageError extends Error {
+  code = "INVALID_STAGE";
+  constructor(public draftId: string, public expected: string, public actual: string | null) {
+    super(`stage mismatch: expected '${expected}', actual '${actual ?? "null"}' (draftId=${draftId})`);
+    this.name = "InvalidStageError";
   }
 }
 
@@ -169,19 +199,44 @@ function parseFaq(body: string): Array<{ q: string; a: string }> {
   return faq;
 }
 
-export async function generateV4(input: V4Input): Promise<V4Result> {
+// =============================================================================
+// v4-07 — Phase 분할 (Phase A / Part1 / Part2)
+// =============================================================================
+
+type DraftRowMin = {
+  id: string;
+  brand_id: string | null;
+  ftc_brand_id: string | null;
+  meta: Record<string, unknown> | null;
+  stage: string | null;
+};
+
+async function loadDraft(draftId: string): Promise<DraftRowMin> {
+  const tns = createAdminClient();
+  const { data, error } = await tns
+    .from("frandoor_blog_drafts")
+    .select("id, brand_id, ftc_brand_id, meta, stage")
+    .eq("id", draftId)
+    .maybeSingle();
+  if (error) throw new Error(`draft load: ${error.message}`);
+  if (!data) throw new DraftNotFoundError(draftId);
+  return data as DraftRowMin;
+}
+
+/**
+ * v4-07 Phase A — Step 0 + fetch + plan storage. ~25s.
+ */
+export async function runPhaseA(input: V4Input): Promise<V4PhaseAResult> {
   const today = new Date().toISOString().slice(0, 10);
   const t0 = Date.now();
 
-  // (1~4) raw 데이터 fetch
   const bundle = await fetchBundle(input);
   console.log(
-    `[v4.gen] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols(raw)=${
+    `[v4-07.A] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols=${
       Object.keys(bundle.ftc_row).length
     } docx_facts=${bundle.docx_facts.length} industry_facts=${bundle.industry_facts.length}`,
   );
 
-  // (4.5) v4-01 Step 0 — 토픽 유관 컬럼 동적 선택 (haiku ~3s)
   const tCol = Date.now();
   const colSelection = await selectColumns({
     topic: input.topic,
@@ -189,67 +244,175 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
     industry: bundle.industry,
   });
   console.log(
-    `[v4-01] selectColumns ${Date.now() - tCol}ms: ${colSelection.columns.length}개 — ${colSelection.columns.slice(0, 5).join(", ")}...`,
+    `[v4-07.A] selectColumns ${Date.now() - tCol}ms: ${colSelection.columns.length}개`,
   );
-  console.log(`[v4-01] rationale: ${colSelection.rationale}`);
 
-  // ftc_row 를 선택된 컬럼만으로 필터 (sonnet input 단축)
   const filteredFtcRow: Record<string, unknown> = {};
   for (const col of colSelection.columns) {
     if (col in bundle.ftc_row) filteredFtcRow[col] = bundle.ftc_row[col];
   }
 
   const hasDocx = bundle.docx_facts.length > 0;
-
-  // (5) sonnet 1회 호출
-  const sysprompt = buildSysprompt({
+  const plan: V4PlanJson = {
     brand_label: bundle.brand_label,
     industry: bundle.industry,
-    industry_sub: bundle.industry_sub,
+    industry_sub: bundle.industry_sub ?? null,
+    ftc_brand_id: bundle.ftc_brand_id,
+    filtered_ftc_row: filteredFtcRow,
+    docx_facts: bundle.docx_facts,
+    industry_facts: bundle.industry_facts,
+    selected_columns: colSelection.columns,
     topic: input.topic,
     today,
     hasDocx,
+  };
+
+  const tns = createAdminClient();
+  const placeholderTitle = `[1/3 Plan] ${bundle.brand_label} — ${input.topic}`;
+  const { data: ins, error: dErr } = await tns
+    .from("frandoor_blog_drafts")
+    .insert({
+      brand_id: input.brand_id,
+      ftc_brand_id: bundle.ftc_brand_id,
+      industry: bundle.industry,
+      channel: "frandoor",
+      title: placeholderTitle,
+      content: null,
+      faq: [],
+      meta: {
+        mode: "brand",
+        topic: input.topic,
+        plan_json: plan,
+      },
+      content_type: "brand",
+      status: "draft",
+      target_date: today,
+      pipeline_version: "v4-07",
+      stage: "plan_done",
+    })
+    .select("id")
+    .single();
+  if (dErr || !ins) {
+    throw new Error(`Phase A INSERT failed: ${dErr?.message ?? "no row"}`);
+  }
+
+  console.log(`[v4-07.A] ✓ ${Date.now() - t0}ms, draftId=${ins.id} stage=plan_done`);
+  return { draftId: ins.id as string, plan };
+}
+
+/**
+ * v4-07 Phase B-Part1 — Sonnet frontmatter + [블럭 A]+[B]+[C]. max_tokens 1500.
+ */
+export async function runPhaseBPart1(draftId: string): Promise<V4PartResult> {
+  const t0 = Date.now();
+  const draft = await loadDraft(draftId);
+  if (draft.stage !== "plan_done") {
+    throw new InvalidStageError(draftId, "plan_done", draft.stage);
+  }
+  const meta = (draft.meta ?? {}) as Record<string, unknown>;
+  const plan = meta.plan_json as V4PlanJson | undefined;
+  if (!plan) throw new Error(`draft ${draftId}: meta.plan_json 누락`);
+
+  const sysprompt = buildSyspromptPart1({
+    brand_label: plan.brand_label,
+    industry: plan.industry,
+    industry_sub: plan.industry_sub,
+    topic: plan.topic,
+    today: plan.today,
+    hasDocx: plan.hasDocx,
   });
   const userPrompt = buildUserPrompt({
-    topic: input.topic,
-    ftc_row: filteredFtcRow,
-    docx_facts: bundle.docx_facts,
-    industry_facts: bundle.industry_facts,
+    topic: plan.topic,
+    ftc_row: plan.filtered_ftc_row,
+    docx_facts: plan.docx_facts,
+    industry_facts: plan.industry_facts,
   });
 
   console.log(
-    `[v4.gen] sonnet 호출 (sys=${sysprompt.length}자, user=${userPrompt.length}자)...`,
+    `[v4-07.B1] sonnet 호출 (sys=${sysprompt.length}자, user=${userPrompt.length}자)...`,
   );
   const tStart = Date.now();
-  const draftRaw = await callSonnet({
+  const part1 = await callSonnet({
     system: sysprompt,
     user: userPrompt,
-    // v4-06: 2000 → 2200. 본문 잘림 빈발 (5블럭 중 ③④⑤ 누락) → +200 token margin.
-    // sonnet output ~50 tok/s × 2200 = ~44s. 합 ~52s (60s 안 8s margin).
-    maxTokens: 2200,
+    maxTokens: 1500,
   });
-  console.log(`[v4.gen] sonnet done: ${Date.now() - tStart}ms, len=${draftRaw.length}`);
+  console.log(`[v4-07.B1] sonnet done: ${Date.now() - tStart}ms, len=${part1.length}`);
 
-  // (6) post_process
-  const processed = postProcess(draftRaw);
-  console.log(`[v4.gen] post_process: ${processed.log.join(" | ")}`);
+  const tns = createAdminClient();
+  const { error: uErr } = await tns
+    .from("frandoor_blog_drafts")
+    .update({
+      meta: { ...meta, content_part1: part1 },
+      stage: "part1_done",
+    })
+    .eq("id", draftId);
+  if (uErr) throw new Error(`Part1 UPDATE failed: ${uErr.message}`);
 
-  // (7) crosscheck + lint — sonnet 에게 전달한 데이터 기준
+  console.log(`[v4-07.B1] ✓ ${Date.now() - t0}ms, stage=part1_done`);
+  return { draftId, content_part: part1 };
+}
+
+/**
+ * v4-07 Phase B-Part2 — Sonnet 이어쓰기 [블럭 D]+[E]. post_process+cc+lint+UPDATE.
+ */
+export async function runPhaseBPart2(draftId: string): Promise<V4Result> {
+  const t0 = Date.now();
+  const draft = await loadDraft(draftId);
+  if (draft.stage !== "part1_done") {
+    throw new InvalidStageError(draftId, "part1_done", draft.stage);
+  }
+  const meta = (draft.meta ?? {}) as Record<string, unknown>;
+  const plan = meta.plan_json as V4PlanJson | undefined;
+  const content_part1 = meta.content_part1 as string | undefined;
+  if (!plan) throw new Error(`draft ${draftId}: meta.plan_json 누락`);
+  if (!content_part1) throw new Error(`draft ${draftId}: meta.content_part1 누락`);
+
+  const sysprompt = buildSyspromptPart2({
+    brand_label: plan.brand_label,
+    industry: plan.industry,
+    industry_sub: plan.industry_sub,
+    topic: plan.topic,
+    today: plan.today,
+    hasDocx: plan.hasDocx,
+  });
+  const userPrompt = buildPart2UserPrompt({
+    topic: plan.topic,
+    ftc_row: plan.filtered_ftc_row,
+    docx_facts: plan.docx_facts,
+    industry_facts: plan.industry_facts,
+    content_part1,
+  });
+
+  console.log(
+    `[v4-07.B2] sonnet 호출 (sys=${sysprompt.length}자, user=${userPrompt.length}자)...`,
+  );
+  const tStart = Date.now();
+  const part2 = await callSonnet({
+    system: sysprompt,
+    user: userPrompt,
+    maxTokens: 1100,
+  });
+  console.log(`[v4-07.B2] sonnet done: ${Date.now() - tStart}ms, len=${part2.length}`);
+
+  const combined = content_part1.trimEnd() + "\n\n" + part2.trimStart();
+  const processed = postProcess(combined);
+  console.log(`[v4-07.B2] post_process: ${processed.log.join(" | ")}`);
+
   const allowedNumbers = collectAllowedNumbers({
-    ftc_row: filteredFtcRow,
-    docx_facts: bundle.docx_facts,
-    industry_facts: bundle.industry_facts,
+    ftc_row: plan.filtered_ftc_row,
+    docx_facts: plan.docx_facts,
+    industry_facts: plan.industry_facts,
   });
   const cc = crosscheckV4(processed.body, allowedNumbers);
   const lint = lintV4(processed.body, {
-    hasC: hasDocx,
-    topic: input.topic,
+    hasC: plan.hasDocx,
+    topic: plan.topic,
   });
   console.log(
-    `[v4.gen] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
+    `[v4-07.B2] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
   );
 
-  // FAQ count lint
   const title = parseTitle(processed.body);
   const faq = parseFaq(processed.body);
   const faqLint = lintV4Faq(faq);
@@ -261,54 +424,40 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
     ...faqLint.errors.map((e) => `[faq lint error] ${e}`),
   ];
 
-  // (8) DB INSERT — frandoor_blog_drafts
-  const tns = createAdminClient();
-  // date / dateModified 강제 치환
   const finalContent = processed.body.replace(
     /^(---\s*\n[\s\S]*?\n---)/,
     (block) =>
       block
-        .replace(/^date:\s*"?[^"\n]+"?$/m, `date: "${today}"`)
-        .replace(/^dateModified:\s*"?[^"\n]+"?$/m, `dateModified: "${today}"`),
+        .replace(/^date:\s*"?[^"\n]+"?$/m, `date: "${plan.today}"`)
+        .replace(/^dateModified:\s*"?[^"\n]+"?$/m, `dateModified: "${plan.today}"`),
   );
-  const finalTitle = title || `${bundle.brand_label} ${input.topic}`;
+  const finalTitle = title || `${plan.brand_label} ${plan.topic}`;
 
-  let draftId: string | null = null;
+  const tns = createAdminClient();
   let saveError: string | null = null;
   try {
-    const { data: ins, error: dErr } = await tns
+    const { error: uErr } = await tns
       .from("frandoor_blog_drafts")
-      .insert({
-        brand_id: input.brand_id,
-        ftc_brand_id: bundle.ftc_brand_id,
-        industry: bundle.industry,
-        channel: "frandoor",
+      .update({
         title: finalTitle,
         content: finalContent,
         faq,
         meta: {
-          mode: "brand",
-          topic: input.topic,
+          ...meta,
           lintWarnings,
           ccUnmatched: cc.unmatched,
           ccMatched: cc.matched,
         },
-        content_type: "brand",
-        status: "draft",
-        target_date: today,
-        pipeline_version: "v4",
         polish_log: processed.log,
         stage: "write_done",
       })
-      .select("id")
-      .single();
-    if (dErr) saveError = dErr.message;
-    else draftId = ins?.id ?? null;
+      .eq("id", draftId);
+    if (uErr) saveError = uErr.message;
   } catch (e) {
     saveError = e instanceof Error ? e.message : String(e);
   }
 
-  console.log(`[v4.gen] ✓ TOTAL ${Date.now() - t0}ms, draftId=${draftId}`);
+  console.log(`[v4-07.B2] ✓ ${Date.now() - t0}ms, stage=write_done`);
 
   return {
     draftId,
@@ -319,3 +468,4 @@ export async function generateV4(input: V4Input): Promise<V4Result> {
     ccUnmatched: cc.unmatched,
   };
 }
+

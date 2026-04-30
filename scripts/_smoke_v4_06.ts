@@ -52,8 +52,9 @@ async function main() {
   console.log("\n[T2] pipeline max_tokens 2200");
   const fs = await import("node:fs/promises");
   const pipelineSrc = await fs.readFile("lib/geo/v4/pipeline.ts", "utf-8");
-  check(`maxTokens: 2200`, pipelineSrc.includes("maxTokens: 2200"));
-  check(`v4-06 주석 명시`, pipelineSrc.includes("v4-06"));
+  // v4-07: maxTokens 2200 단일 → 1500 (Part1) + 1100 (Part2) 분할
+  check(`Part1 maxTokens: 1500`, pipelineSrc.includes("maxTokens: 1500"));
+  check(`Part2 maxTokens: 1100`, pipelineSrc.includes("maxTokens: 1100"));
 
   // T3 — lint L11 mixed detector
   console.log("\n[T3] lint L11 자릿수 mixed");

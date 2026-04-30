@@ -35,3 +35,30 @@ export type V4Result = {
   lintWarnings: string[];
   ccUnmatched: string[];
 };
+
+/**
+ * v4-07 — Phase A 가 DB meta.plan_json 에 저장. Part1/Part2 가 reload 해서 사용.
+ */
+export type V4PlanJson = {
+  brand_label: string;
+  industry: string;
+  industry_sub: string | null;
+  ftc_brand_id: string;
+  filtered_ftc_row: Record<string, unknown>;
+  docx_facts: DocxFact[];
+  industry_facts: Array<Record<string, unknown>>;
+  selected_columns: string[];
+  topic: string;
+  today: string;
+  hasDocx: boolean;
+};
+
+export type V4PhaseAResult = {
+  draftId: string;
+  plan: V4PlanJson;
+};
+
+export type V4PartResult = {
+  draftId: string;
+  content_part: string;
+};

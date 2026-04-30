@@ -1,13 +1,13 @@
 /**
- * v4 — /api/geo/generate. 단일 sonnet call (Plan/Write 분할 폐기).
+ * v4-07 — /api/geo/generate (Phase A 만).
  * 입력: { brand_id, topic }
- * 출력: V4Result { draftId, content, lintWarnings, ccUnmatched, ... }
+ * 출력: { draftId, plan } — 이후 /api/geo/write-part1 + /write-part2 chain 호출.
  */
 
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import {
-  generateV4,
+  runPhaseA,
   FtcBrandIdMissingError,
   FtcRowNotFoundError,
 } from "@/lib/geo/v4/pipeline";
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const out = await generateV4(parsed);
+    const out = await runPhaseA(parsed);
     return NextResponse.json(out);
   } catch (e) {
     if (e instanceof FtcBrandIdMissingError) {

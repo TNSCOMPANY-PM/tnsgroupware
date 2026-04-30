@@ -12,14 +12,16 @@
  *  - 억 단위 자연 표기 / brand→브랜드 / percentile 자연어
  */
 
-export function buildSysprompt(args: {
+export type WriteSysargs = {
   brand_label: string;
   industry: string;
   industry_sub?: string | null;
   topic: string;
   today: string;
   hasDocx: boolean;
-}): string {
+};
+
+export function buildSysprompt(args: WriteSysargs): string {
   const { brand_label, industry, industry_sub, topic, today, hasDocx } = args;
   const subjectLabel = brand_label;
 
@@ -184,6 +186,146 @@ faq:
 - brand: ${brand_label}
 - industry: ${industry}${industry_sub ? ` / ${industry_sub}` : ""}
 - topic: ${topic}`;
+}
+
+/**
+ * v4-07 — Part 1 sysprompt: frontmatter + 블럭 A + B + C 만 작성.
+ * max_chars 2,700자 (A 300 + B 1,200 + C 1,200).
+ */
+export function buildSyspromptPart1(args: WriteSysargsCommon): string {
+  const base = buildSysprompt({ ...args });
+  // 본문 구조 / 마무리 / 분량 섹션을 part1 전용으로 교체
+  const cut = base.indexOf("# 본문 구조 — 4블럭");
+  const head = cut > 0 ? base.slice(0, cut) : base;
+  return `${head}# ★ Part 1/2 — 이 호출에서 작성할 부분
+
+이 호출에서는 frontmatter + [블럭 A] + [블럭 B] + [블럭 C] 만 작성합니다.
+- [블럭 D] 진입 리스크 / [블럭 E] 결론·출처표 는 다음 호출에서 이어 작성됩니다.
+- 본문은 [블럭 C] 의 마지막 문장으로 끝나야 합니다 — "## 진입 전 확인할 리스크" 같은 헤딩 시작 X.
+- 외부 \`\`\` 코드펜스 금지.
+
+# 본문 구조 (Part 1)
+
+[블럭 A] 훅 + 핵심 데이터 한 줄 (~300자) — H2 1
+- 질문/역설. 핵심 수치 2~3개 + 의미.
+- "결론부터 — [입장]" 패턴 폐기. 메타 코멘트 금지.
+
+[블럭 B] 시장 포지션 + 매출 분포 표 (~1,200자) — H2 2
+- industry_facts 와 비교 → markdown table 분포 표.
+- 모집단 명시 ("n=N개 브랜드").
+
+[블럭 C] 본사 재무 + 비용 구조 (~1,200자) — H2 3
+- ftc_row 의 본사 재무 raw 인용 + docx_facts narrative (있을 때).
+- 비용 분포 (가맹비/교육비/보증금/인테리어).
+
+# 분량 / 출력 (Part 1)
+- **본문 한국어 ~2,700자** (블럭 A + B + C 합계)
+- frontmatter (---) 로 시작 → [블럭 C] 끝까지만
+- ❌ [블럭 D]·[블럭 E] 작성 X — 다음 호출 몫
+- 외부 \`\`\` 코드펜스 금지
+
+# frontmatter (Part 1 만 작성)
+\`\`\`
+---
+title: "{40~60자, ${args.brand_label} 키워드 + 토픽}"
+description: "{100자 내외, 핵심 수치 2개 + 출처. 억 단위 변환 적용}"
+slug: "{eng-slug}-{topic-slug}-${args.today.slice(0, 4)}"
+category: "브랜드 분석"
+date: "${args.today}"
+dateModified: "${args.today}"
+tags: ["${args.brand_label}", "${args.industry}", "{topic 키워드}"]
+faq:
+  - q: "..."
+    a: "..."
+  # 5개. 답변 종결어미 ~입니다/~요. ftc_row/docx 의 raw 수치 1개 이상.
+  # 출처 명시는 5건 중 2~3건.
+---
+\`\`\`
+
+# 컨텍스트
+- 오늘: ${args.today}
+- brand: ${args.brand_label}
+- industry: ${args.industry}${args.industry_sub ? ` / ${args.industry_sub}` : ""}
+- topic: ${args.topic}`;
+}
+
+/**
+ * v4-07 — Part 2 sysprompt: 블럭 D + 블럭 E (마무리) 만 작성.
+ * Part 1 본문 컨텍스트 받아 이어쓰기.
+ */
+export function buildSyspromptPart2(args: WriteSysargsCommon): string {
+  const base = buildSysprompt({ ...args });
+  const cut = base.indexOf("# 본문 구조 — 4블럭");
+  const head = cut > 0 ? base.slice(0, cut) : base;
+  return `${head}# ★ Part 2/2 — 이어쓰기
+
+Part 1 본문 (frontmatter + [블럭 A]+[B]+[C]) 이 user 메시지에 포함됩니다.
+이 호출에서는 [블럭 D] + [블럭 E] 만 작성. frontmatter / [A]/[B]/[C] 다시 쓰지 마세요.
+
+# 본문 구조 (Part 2)
+
+[블럭 D] 진입 전 확인할 리스크 ① ② ③ (~1,400자) — H2 4
+- "## 진입 전 확인할 리스크" H2 로 시작.
+- 각 **① 이름** + 근거+수치. **대응:** 행동 1줄. **"비권장" 같은 판단 X**.
+- 3개 권장 (4개 이하). Part 1 의 본사 재무·비용 분석과 연계.
+
+[블럭 E] 결론 + 출처 (~700자) — H2 순서대로
+1. **## 결론 체크리스트** — \`- [ ]\` 4~5개. ${args.brand_label} 고유.
+2. **## 이 글에서 계산한 값 (frandoor 산출)** — derived fact 있을 때만. markdown table.
+3. **## 출처 · 집계 방식** — 표 형식:
+   | 출처 | 등급 | 기준월 | 모집단 / 집계 방식 |
+   |---|---|---|---|
+   | 공정위 정보공개서 | A | 2024-12 | franchise.ftc.go.kr |
+   ${args.hasDocx ? "| 본사 발표 자료 | C | YYYY-MM | docx (날짜·모집단 명시) |" : ""}
+4. 본문 끝 한 줄 — "위 데이터를 본인의 자본·상권·운영 역량과 비교 검토하시기 바랍니다."
+
+# 분량 / 출력 (Part 2)
+- **본문 한국어 ~2,100자** (블럭 D + E 합계)
+- "## 진입 전 확인할 리스크" H2 부터 시작 (Part 1 이어붙이기)
+- ❌ frontmatter / [A]/[B]/[C] 다시 쓰지 마세요
+- 외부 \`\`\` 코드펜스 금지
+
+# 컨텍스트
+- 오늘: ${args.today}
+- brand: ${args.brand_label}
+- topic: ${args.topic}`;
+}
+
+/** Part 1/2 sysprompt 공통 인자 (WriteSysargs subset). */
+export type WriteSysargsCommon = WriteSysargs;
+
+/**
+ * v4-07 — Part 2 user prompt: raw 데이터 + Part 1 본문.
+ */
+export function buildPart2UserPrompt(args: {
+  topic: string;
+  ftc_row: Record<string, unknown>;
+  docx_facts: Array<{
+    label: string;
+    value_num: number | null;
+    value_text: string | null;
+    unit: string | null;
+    source_label: string | null;
+    source_type: string | null;
+  }>;
+  industry_facts: Array<Record<string, unknown>>;
+  content_part1: string;
+}): string {
+  const base = buildUserPrompt({
+    topic: args.topic,
+    ftc_row: args.ftc_row,
+    docx_facts: args.docx_facts,
+    industry_facts: args.industry_facts,
+  });
+  return `${base}
+
+# 4. Part 1 본문 (이어쓰기 컨텍스트)
+
+\`\`\`markdown
+${args.content_part1}
+\`\`\`
+
+위 Part 1 끝에 이어서 [블럭 D] + [블럭 E] 만 작성. "## 진입 전 확인할 리스크" 부터 시작.`;
 }
 
 /**
