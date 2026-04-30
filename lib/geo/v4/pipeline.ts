@@ -69,23 +69,36 @@ async function fetchBundle(input: V4Input): Promise<RawInputBundle> {
   if (fErr) throw new Error(`ftc_brands_2024 fetch: ${fErr.message}`);
   if (!ftcRow) throw new FtcRowNotFoundError(ftcBrandId);
 
-  // 3. v4-02: docx 정제 facts (brand_fact_data WHERE provenance='docx')
-  // markdown 통째 폐기 — GPT 가 추출한 라벨/value_num 만 사용.
+  // 3. v4-02 (v4-05 fix): docx 정제 facts (brand_fact_data WHERE provenance='docx')
+  // ★ 컬럼명 BUG fix — TNS brand_fact_data 의 실제 컬럼은
+  //   value (원문) / value_normalized (숫자) / source_note 이지
+  //   value_text / value_num / source_label 이 아님 (frandoor.brand_facts 와 혼동했음).
   let docxFacts: DocxFact[] = [];
   try {
-    const { data: rows } = await tns
+    const { data: rows, error: dErr } = await tns
       .from("brand_fact_data")
-      .select("label, value_num, value_text, unit, source_label, source_type")
+      .select("label, value, value_normalized, unit, source_note, source_type")
       .eq("brand_id", input.brand_id)
       .eq("provenance", "docx");
-    docxFacts = (rows ?? []).map((r) => ({
-      label: String(r.label ?? ""),
-      value_num: typeof r.value_num === "number" ? r.value_num : null,
-      value_text: (r.value_text as string | null) ?? null,
-      unit: (r.unit as string | null) ?? null,
-      source_label: (r.source_label as string | null) ?? null,
-      source_type: (r.source_type as string | null) ?? null,
-    }));
+    if (dErr) {
+      console.warn(`[v4.gen] docx_facts SELECT 에러: ${dErr.message}`);
+      docxFacts = [];
+    } else {
+      docxFacts = (rows ?? []).map((r) => ({
+        label: String(r.label ?? ""),
+        // brand_fact_data.value_normalized → DocxFact.value_num
+        value_num:
+          typeof r.value_normalized === "number" && Number.isFinite(r.value_normalized)
+            ? r.value_normalized
+            : null,
+        // brand_fact_data.value (원문 문자열) → DocxFact.value_text
+        value_text: (r.value as string | null) ?? null,
+        unit: (r.unit as string | null) ?? null,
+        // brand_fact_data.source_note → DocxFact.source_label
+        source_label: (r.source_note as string | null) ?? null,
+        source_type: (r.source_type as string | null) ?? null,
+      }));
+    }
   } catch (e) {
     console.warn(`[v4.gen] docx_facts fetch 실패: ${e instanceof Error ? e.message : e}`);
     docxFacts = [];
