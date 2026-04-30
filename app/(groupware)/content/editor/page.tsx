@@ -135,26 +135,47 @@ export default function EditorPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-semibold text-slate-800 mb-4">1. 데이터 등급 선택</h2>
         <div className="flex gap-4 items-center flex-wrap">
-          {(["A", "B", "C"] as const).map((tier) => (
-            <label
-              key={tier}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-all ${
-                tiers.has(tier) ? "border-blue-500 bg-blue-50" : "border-slate-200"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={tiers.has(tier)}
-                onChange={() => toggleTier(tier)}
-                className="hidden"
-              />
-              <span className="text-sm font-medium">
-                {tier === "A" && "A급 (공정위 정보공개서)"}
-                {tier === "B" && "B급 (공공API · KOSIS)"}
-                {tier === "C" && "C급 (본사 docx)"}
-              </span>
-            </label>
-          ))}
+          {(["A", "B", "C"] as const).map((tier) => {
+            const active = tiers.has(tier);
+            return (
+              <label
+                key={tier}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                  active
+                    ? "border-blue-500 bg-blue-50 shadow-sm"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => toggleTier(tier)}
+                  className="hidden"
+                />
+                <span
+                  className={`inline-flex items-center justify-center w-4 h-4 rounded border ${
+                    active ? "bg-blue-500 border-blue-500 text-white" : "border-slate-300 bg-white"
+                  }`}
+                  aria-hidden="true"
+                >
+                  {active && (
+                    <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="3 8 7 12 13 4" />
+                    </svg>
+                  )}
+                </span>
+                <span
+                  className={`text-sm ${
+                    active ? "font-semibold text-blue-900" : "font-medium text-slate-600"
+                  }`}
+                >
+                  {tier === "A" && "A급 (공정위 정보공개서)"}
+                  {tier === "B" && "B급 (공공API · KOSIS)"}
+                  {tier === "C" && "C급 (본사 docx)"}
+                </span>
+              </label>
+            );
+          })}
         </div>
         <p className="text-xs text-slate-500 mt-3">
           체크된 tier 의 facts 만 LLM3 에 전달됩니다. 각 tier 는 brand_facts pool 의 source_tier 와 매칭됩니다.
