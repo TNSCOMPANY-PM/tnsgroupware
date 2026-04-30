@@ -1,25 +1,25 @@
 /**
- * v2-05: /api/geo/generate — generateV2 호출.
- * v1 의 D0~D3 분기 + DEPTH_TO_CONTENT_TYPE + serializeDraft 모두 제거됐습니다.
- * 입력: { brandId, topic, tiers }. 출력: GenerateV2Output.
+ * v3-01: /api/geo/generate — generateV3 호출.
+ * 4 step pipeline (Plan → Structure → Write → Polish + Validate).
+ * brand / industry mode 분기 내부.
  */
 
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import {
-  generateV2,
+  generateV3,
   InsufficientDataError,
   HallucinationDetectedError,
-  LintV2Error,
-  type GenerateV2Input,
-} from "@/lib/geo/v2/generate";
+  LintErrorV3,
+} from "@/lib/geo/v3/pipeline";
+import type { GenerateInput } from "@/lib/geo/v3/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const TIER_VALUES: ReadonlySet<"A" | "B" | "C"> = new Set(["A", "B", "C"]);
 
-function parseInput(raw: unknown): GenerateV2Input | { error: string } {
+function parseInput(raw: unknown): GenerateInput | { error: string } {
   if (!raw || typeof raw !== "object") return { error: "INVALID_INPUT" };
   const r = raw as Record<string, unknown>;
   const topic = typeof r.topic === "string" ? r.topic.trim() : "";
@@ -30,7 +30,6 @@ function parseInput(raw: unknown): GenerateV2Input | { error: string } {
   if (!topic) return { error: "topic 필수" };
   if (tiers.length === 0) return { error: "tiers 1개 이상 필수" };
 
-  // v2-18: mode 분기
   const mode = r.mode === "industry" ? "industry" : "brand";
   if (mode === "industry") {
     const industry = typeof r.industry === "string" ? r.industry.trim() : "";
@@ -54,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const out = await generateV2(parsed);
+    const out = await generateV3(parsed);
     return NextResponse.json(out);
   } catch (e) {
     if (e instanceof InsufficientDataError) {
@@ -69,14 +68,14 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (e instanceof LintV2Error) {
+    if (e instanceof LintErrorV3) {
       return NextResponse.json(
         { error: e.code, message: e.message, lintErrors: e.lintErrors },
         { status: 400 },
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[v2.gen] failed:", msg);
+    console.error("[v3.gen] failed:", msg);
     return NextResponse.json({ error: "GENERATE_FAILED", message: msg }, { status: 500 });
   }
 }
