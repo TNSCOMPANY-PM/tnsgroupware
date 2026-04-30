@@ -546,6 +546,27 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
   );
 
   // (4) Step 3 — Write
+  // v3-09: Phase B input 단축 — outline.blocks 의 metric_ids 매핑된 fact_groups 만 sonnet 에 전달.
+  //   fact_groups 41개 × 평균 ~150 token = ~6000 token 입력 → outline 등장한 ~25개로 단축 (~3700).
+  //   fallback: usedMetricIds 가 0건이면 전체 fact_groups 사용 (Step 2 가 metric_ids 비웠을 때 안전).
+  const usedMetricIds = new Set<string>(
+    outline.blocks.flatMap((b) => b.metric_ids ?? []),
+  );
+  const allKeys = Object.keys(plan.fact_groups ?? {});
+  let filteredFactGroups: Record<string, (typeof plan.fact_groups)[string]>;
+  if (usedMetricIds.size === 0) {
+    console.warn(`[v3.B][v3-09] outline metric_ids 0건 — fallback: 전체 fact_groups 사용`);
+    filteredFactGroups = plan.fact_groups;
+  } else {
+    filteredFactGroups = Object.fromEntries(
+      Object.entries(plan.fact_groups ?? {}).filter(([k]) => usedMetricIds.has(k)),
+    );
+    console.log(
+      `[v3.B][v3-09] Phase B input 단축: fact_groups ${allKeys.length} → ${Object.keys(filteredFactGroups).length}`,
+    );
+  }
+  const filteredPlan = { ...plan, fact_groups: filteredFactGroups };
+
   console.log(`[v3.B] step 3 — write (sonnet)...`);
   const tStep3 = Date.now();
   const draftBody = await runWrite({
@@ -556,7 +577,7 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     isCustomer,
     topic: input.topic,
     today,
-    plan,
+    plan: filteredPlan,
     outline,
   });
   console.log(`[v3.B] step 3 done: ${Date.now() - tStep3}ms, len=${draftBody.body.length}`);
@@ -585,11 +606,12 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
     : [];
 
   // v3-08: fact_groups 기반 검증 — display 자릿수 / A급 활용도 / C급 인용
+  // v3-09: 활용도/인용 검증은 filteredPlan 기준 (sonnet 에게 전달된 facts 만)
   const v8Warnings: string[] = [];
   v8Warnings.push(...verifyDisplayConversion(plan));
-  const aWarn = verifyAFactsUsage(polished.body, plan);
+  const aWarn = verifyAFactsUsage(polished.body, filteredPlan);
   if (aWarn) v8Warnings.push(aWarn);
-  const cWarn = verifyCFactsUsage(polished.body, plan);
+  const cWarn = verifyCFactsUsage(polished.body, filteredPlan);
   if (cWarn) v8Warnings.push(cWarn);
   if (v8Warnings.length > 0) {
     console.warn(`[v3.B] v3-08 warnings: ${v8Warnings.length}건`);
