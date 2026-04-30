@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES_15 } from "@/lib/geo/v2/industries";
 
 type Tier = "A" | "B" | "C";
 type Mode = "brand" | "industry";
+type Phase = "idle" | "planning" | "plan_done" | "writing" | "write_done";
 
 type FtcBrand = {
   id: string;
@@ -14,36 +16,67 @@ type FtcBrand = {
   industry: string | null;
 };
 
-type GenerateV2Response = {
-  draftId: string | null;
-  saveError: string | null;
+type PlanResult = {
+  selected_facts: Array<{
+    metric_id: string;
+    value: number | string | null;
+    source_tier: "A" | "B" | "C";
+    label: string;
+    unit: string | null;
+  }>;
+  outliers: Array<{ metric_id: string; value: number | null; reason: string }>;
+  population_n: Record<string, number>;
+  key_angle: string;
+};
+
+type OutlineResult = {
+  blocks: Array<{
+    h2: string;
+    fact_ids: string[];
+    format: "table" | "prose";
+    summary_line: string;
+  }>;
+};
+
+type PhaseAResponse = {
+  draftId: string;
+  plan: PlanResult;
+  outline: OutlineResult;
+  factsCount: number;
+};
+
+type PhaseBResponse = {
+  draftId: string;
   title: string;
   content: string;
   frontmatter: Record<string, unknown>;
-  factsUsed: number;
-  unmatchedRetries: number;
+  polishLog: string[];
   lintWarnings: string[];
 };
 
 export default function EditorPage() {
-  // v2-18: brand vs industry 모드 토글
+  // 폼 상태
   const [mode, setMode] = useState<Mode>("brand");
   const [industry, setIndustry] = useState<string>("");
-
   const [tiers, setTiers] = useState<Set<Tier>>(new Set(["A", "B", "C"]));
   const [topic, setTopic] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<GenerateV2Response | null>(null);
-  // v2-10: ftc 9552 brand 검색 typeahead
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [searchResults, setSearchResults] = useState<FtcBrand[]>([]);
   const [searching, setSearching] = useState<boolean>(false);
   const [selectedBrand, setSelectedBrand] = useState<FtcBrand | null>(null);
+
+  // v3-03: 2단계 phase state machine
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [planResult, setPlanResult] = useState<PlanResult | null>(null);
+  const [outline, setOutline] = useState<OutlineResult | null>(null);
+  const [factsCount, setFactsCount] = useState<number>(0);
+  const [writeResult, setWriteResult] = useState<PhaseBResponse | null>(null);
   const [error, setError] = useState<string>("");
 
   // debounced typeahead (200ms)
   useEffect(() => {
-    if (selectedBrand) return; // 선택 후엔 검색 X
+    if (selectedBrand) return;
     if (!searchTerm.trim() || searchTerm.length < 1) {
       setSearchResults([]);
       return;
@@ -78,10 +111,39 @@ export default function EditorPage() {
     });
   };
 
-  const handleGenerate = useCallback(async () => {
+  // v3-03: 에러 응답 → 메시지 추출
+  async function readErrorMessage(res: Response): Promise<string> {
+    try {
+      const errData = await res.json();
+      let msg = errData.message
+        ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}`
+        : errData.error || `API ${res.status}`;
+      if (Array.isArray(errData.unmatched) && errData.unmatched.length > 0) {
+        msg = `${msg}\n\nunmatched 샘플:\n${errData.unmatched.slice(0, 5).join("\n")}`;
+      }
+      if (Array.isArray(errData.lintErrors) && errData.lintErrors.length > 0) {
+        msg = `${msg}\n\nlint errors:\n${errData.lintErrors.slice(0, 5).join("\n")}`;
+      }
+      return msg;
+    } catch {
+      const text = await res.text().catch(() => "");
+      return `API ${res.status} ${res.statusText}: ${text.slice(0, 300)}`;
+    }
+  }
+
+  // Phase A — 콘텐츠 생성 (Plan + Outline)
+  const handlePlan = useCallback(async () => {
     setError("");
-    setResult(null);
-    setLoading(true);
+    setPhase("planning");
+    setDraftId(null);
+    setPlanResult(null);
+    setOutline(null);
+    setFactsCount(0);
+    setWriteResult(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 65000);
+
     try {
       const body =
         mode === "brand"
@@ -97,34 +159,82 @@ export default function EditorPage() {
               topic,
               tiers: Array.from(tiers),
             };
-      const res = await fetch("/api/geo/generate", {
+      const res = await fetch("/api/geo/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!res.ok) {
-        const errData = await res.json();
-        const msg = errData.message
-          ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}`
-          : errData.error || "생성 실패";
-        setError(msg);
-        if (Array.isArray(errData.unmatched) && errData.unmatched.length > 0) {
-          setError(`${msg}\n\nunmatched 샘플:\n${errData.unmatched.slice(0, 5).join("\n")}`);
-        }
-        setLoading(false);
+        setError(await readErrorMessage(res));
+        setPhase("idle");
         return;
       }
-      const data = (await res.json()) as GenerateV2Response;
-      setResult(data);
+      const data = (await res.json()) as PhaseAResponse;
+      setDraftId(data.draftId);
+      setPlanResult(data.plan);
+      setOutline(data.outline);
+      setFactsCount(data.factsCount);
+      setPhase("plan_done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "오류 발생");
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("타임아웃 (65초 초과). 콘텐츠 생성 단계 — 다시 시도해 주세요.");
+      } else {
+        setError(err instanceof Error ? err.message : "오류 발생");
+      }
+      setPhase("idle");
     } finally {
-      setLoading(false);
+      clearTimeout(timeoutId);
     }
   }, [mode, selectedBrand, industry, topic, tiers]);
 
-  const isGenerateDisabled =
-    loading ||
+  // Phase B — 블로그 글 발행 (Write + Polish)
+  const handleWrite = useCallback(async () => {
+    if (!draftId) return;
+    setError("");
+    setPhase("writing");
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 65000);
+
+    try {
+      const res = await fetch(`/api/geo/write/${draftId}`, {
+        method: "POST",
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        setError(await readErrorMessage(res));
+        setPhase("plan_done"); // 다시 시도 가능
+        return;
+      }
+      const data = (await res.json()) as PhaseBResponse;
+      setWriteResult(data);
+      setPhase("write_done");
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("타임아웃 (65초 초과). 본문 작성 단계 — 다시 시도해 주세요.");
+      } else {
+        setError(err instanceof Error ? err.message : "오류 발생");
+      }
+      setPhase("plan_done");
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }, [draftId]);
+
+  const handleReset = () => {
+    setError("");
+    setPhase("idle");
+    setDraftId(null);
+    setPlanResult(null);
+    setOutline(null);
+    setFactsCount(0);
+    setWriteResult(null);
+  };
+
+  const formInputDisabled = phase !== "idle";
+  const isPlanDisabled =
+    phase !== "idle" ||
     !topic.trim() ||
     tiers.size === 0 ||
     (mode === "brand" ? !selectedBrand : !industry);
@@ -140,17 +250,18 @@ export default function EditorPage() {
             return (
               <label
                 key={tier}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
                   active
                     ? "border-blue-500 bg-blue-50 shadow-sm"
                     : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
+                } ${formInputDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
               >
                 <input
                   type="checkbox"
                   checked={active}
-                  onChange={() => toggleTier(tier)}
+                  onChange={() => !formInputDisabled && toggleTier(tier)}
                   className="hidden"
+                  disabled={formInputDisabled}
                 />
                 <span
                   className={`inline-flex items-center justify-center w-4 h-4 rounded border ${
@@ -185,27 +296,28 @@ export default function EditorPage() {
       {/* 2. 모드 + 브랜드/업종 선택 */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-semibold text-slate-800 mb-4">2. 분석 단위 선택</h2>
-        {/* 모드 토글 */}
         <div className="flex gap-2 mb-4">
           <button
             type="button"
-            onClick={() => setMode("brand")}
+            onClick={() => !formInputDisabled && setMode("brand")}
+            disabled={formInputDisabled}
             className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
               mode === "brand"
                 ? "border-blue-500 bg-blue-50 text-blue-700"
                 : "border-slate-200 text-slate-600"
-            }`}
+            } ${formInputDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             브랜드 단위
           </button>
           <button
             type="button"
-            onClick={() => setMode("industry")}
+            onClick={() => !formInputDisabled && setMode("industry")}
+            disabled={formInputDisabled}
             className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
               mode === "industry"
                 ? "border-blue-500 bg-blue-50 text-blue-700"
                 : "border-slate-200 text-slate-600"
-            }`}
+            } ${formInputDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             업종 단위 (A 데이터만)
           </button>
@@ -223,16 +335,18 @@ export default function EditorPage() {
                     {selectedBrand.industry ? ` · ${selectedBrand.industry}` : ""}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedBrand(null);
-                    setSearchTerm("");
-                  }}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  변경
-                </button>
+                {!formInputDisabled && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedBrand(null);
+                      setSearchTerm("");
+                    }}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    변경
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -241,7 +355,8 @@ export default function EditorPage() {
                   placeholder="브랜드명 검색 (예: 오공김밥)"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={formInputDisabled}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
                 />
                 {searching && <p className="text-xs text-slate-400">검색 중...</p>}
                 {!searching && searchResults.length > 0 && (
@@ -279,7 +394,8 @@ export default function EditorPage() {
             <select
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={formInputDisabled}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
             >
               <option value="">업종 선택</option>
               {INDUSTRIES_15.map((ind) => (
@@ -299,7 +415,8 @@ export default function EditorPage() {
           placeholder="예: 오공김밥 분식 평균 비교 / 본사 영업이익률 분석 / 공정위 vs 본사 발표 차이"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          className="w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          disabled={formInputDisabled}
+          className="w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:bg-slate-50"
           rows={3}
         />
         <p className="text-xs text-slate-400 mt-2">
@@ -309,52 +426,125 @@ export default function EditorPage() {
 
       {/* 에러 */}
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-          <pre className="text-sm text-red-800 whitespace-pre-wrap">{error}</pre>
+        <div className="rounded-lg bg-red-50 border-2 border-red-200 p-4 space-y-1">
+          <div className="text-sm font-semibold text-red-700">⚠️ 실패</div>
+          <pre className="text-sm text-red-800 whitespace-pre-wrap break-words">{error}</pre>
         </div>
       )}
 
-      {/* Generate 버튼 */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <Button onClick={handleGenerate} disabled={isGenerateDisabled} className="w-full" size="lg">
-          {loading ? "생성 중..." : "콘텐츠 생성 (v2 RAG)"}
-        </Button>
-      </div>
+      {/* Phase A — 콘텐츠 생성 */}
+      {phase === "idle" && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <Button onClick={handlePlan} disabled={isPlanDisabled} className="w-full" size="lg">
+            1단계: 콘텐츠 생성 (facts + 구조)
+          </Button>
+          <p className="text-xs text-slate-400 mt-2 text-center">
+            ~20초 소요. Plan(facts 선별) + Outline(5블럭) 까지 만들고 멈춥니다.
+          </p>
+        </div>
+      )}
 
-      {/* 결과 */}
-      {result && <ResultPreview result={result} />}
+      {phase === "planning" && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
+          <div className="font-semibold">⏳ 1단계 진행 중...</div>
+          <div className="text-xs text-blue-700 mt-1">
+            facts 선별 + 5블럭 구조 작성 (haiku × 2). 약 20초 소요.
+          </div>
+        </div>
+      )}
+
+      {/* Phase A 결과 + Phase B 트리거 */}
+      {(phase === "plan_done" || phase === "writing" || phase === "write_done") && planResult && outline && (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-semibold text-emerald-900">
+              ✓ 1단계 완료 — facts + outline (draft={draftId?.slice(0, 8)})
+            </h3>
+            <div className="flex items-center gap-3 text-[11px] text-emerald-800">
+              <span>facts={factsCount}</span>
+              <span>·</span>
+              <span>selected={planResult.selected_facts.length}</span>
+              <span>·</span>
+              <span>blocks={outline.blocks.length}</span>
+            </div>
+          </div>
+
+          {planResult.key_angle && (
+            <div className="text-xs text-slate-700">
+              <span className="font-semibold">핵심 각도: </span>
+              {planResult.key_angle}
+            </div>
+          )}
+
+          <details className="rounded-lg border border-emerald-200 bg-white px-4 py-3 text-xs">
+            <summary className="cursor-pointer font-semibold text-slate-700">
+              선별된 facts ({planResult.selected_facts.length}개) + outliers ({planResult.outliers.length}개)
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-slate-700 max-h-72 overflow-y-auto">
+              {JSON.stringify(planResult, null, 2)}
+            </pre>
+          </details>
+
+          <details className="rounded-lg border border-emerald-200 bg-white px-4 py-3 text-xs">
+            <summary className="cursor-pointer font-semibold text-slate-700">
+              5블럭 outline
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-slate-700 max-h-72 overflow-y-auto">
+              {JSON.stringify(outline, null, 2)}
+            </pre>
+          </details>
+
+          {/* Phase B 버튼 */}
+          {phase === "plan_done" && (
+            <div className="flex gap-2 pt-2 border-t border-emerald-200">
+              <Button onClick={handleWrite} className="flex-1" size="lg">
+                2단계: 블로그 글 발행 (본문 작성)
+              </Button>
+              <Button onClick={handleReset} variant="outline" size="lg">
+                다시 facts 선별
+              </Button>
+            </div>
+          )}
+
+          {phase === "writing" && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
+              <div className="font-semibold">⏳ 2단계 진행 중...</div>
+              <div className="text-xs text-blue-700 mt-1">
+                Write(sonnet 본문) + Polish(haiku 미세교정 + post-process). 약 40초 소요.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Phase B 결과 */}
+      {phase === "write_done" && writeResult && <PhaseBPreview result={writeResult} onReset={handleReset} />}
     </div>
   );
 }
 
-function ResultPreview({ result }: { result: GenerateV2Response }) {
-  const detailHref = result.draftId ? `/content/posts/${result.draftId}` : "/content/posts";
+function PhaseBPreview({ result, onReset }: { result: PhaseBResponse; onReset: () => void }) {
+  const detailHref = `/content/posts/${result.draftId}`;
   const excerpt = result.content.slice(0, 800);
 
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-emerald-900">생성 완료</h3>
-          {result.draftId && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-              저장됨 · {result.draftId.slice(0, 8)}
-            </span>
-          )}
+          <h3 className="text-sm font-semibold text-emerald-900">✓ 2단계 완료 — 본문 발행</h3>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+            저장됨 · {result.draftId.slice(0, 8)}
+          </span>
         </div>
-        <a href={detailHref} className="text-xs text-blue-600 hover:underline">
-          발행 관리에서 열기 →
-        </a>
+        <div className="flex items-center gap-3">
+          <Link href={detailHref} className="text-xs text-blue-600 hover:underline">
+            발행 관리에서 열기 →
+          </Link>
+          <button onClick={onReset} className="text-xs text-slate-500 hover:underline">
+            새로 시작
+          </button>
+        </div>
       </div>
-
-      {result.saveError && (
-        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
-          <p className="text-xs font-medium text-amber-800">저장 실패</p>
-          <p className="text-xs text-amber-700 mt-0.5 whitespace-pre-wrap break-words">
-            {result.saveError}
-          </p>
-        </div>
-      )}
 
       <div className="space-y-3">
         <div>
@@ -380,13 +570,16 @@ function ResultPreview({ result }: { result: GenerateV2Response }) {
           </div>
         )}
 
-        <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-2 border-t border-emerald-200">
-          <span>facts={result.factsUsed}</span>
-          <span>·</span>
-          <span>retries={result.unmatchedRetries}</span>
-          <span>·</span>
-          <span>warnings={result.lintWarnings.length}</span>
-        </div>
+        {result.polishLog.length > 0 && (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Polish log</p>
+            <ul className="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+              {result.polishLog.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
