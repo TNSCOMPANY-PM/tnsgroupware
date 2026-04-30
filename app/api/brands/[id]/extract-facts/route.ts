@@ -128,19 +128,24 @@ export async function POST(
           const fra = createFrandoorClient();
           const period = new Date().toISOString().slice(0, 7); // "YYYY-MM"
           const v2Rows: Array<Record<string, unknown>> = [];
+          let csrcCount = 0;
           for (const f of facts) {
             const metric_id = mapFactLabelToMetricId(f.label, f.source_type);
-            if (!metric_id) continue;
-            const meta = METRIC_IDS[metric_id];
-            if (!meta) continue;
+            const meta = metric_id ? METRIC_IDS[metric_id] : null;
+            // v3-07: unmapped docx labels (C급 free-form) — 합성 metric_id 로 facts pool 포함.
+            //   prefix "_csrc:" 로 stable 한 unique key 보장 (onConflict 에 사용 가능).
+            const finalMetricId = metric_id ?? `_csrc:${f.label}`;
+            const finalMetricLabel = meta?.label ?? f.label;
+            const finalUnit = f.unit !== "없음" ? f.unit : (meta?.unit ?? f.unit);
             const { provenance: prov, source_tier } = decideProvenance("docx", f.source_type);
+            if (!metric_id) csrcCount++;
             v2Rows.push({
               brand_id: ftcBrandIdForFacts,
-              metric_id,
-              metric_label: meta.label,
+              metric_id: finalMetricId,
+              metric_label: finalMetricLabel,
               value_num: f.value_normalized,
               value_text: f.value_normalized == null ? f.value : null,
-              unit: f.unit !== "없음" ? f.unit : meta.unit,
+              unit: finalUnit,
               period,
               provenance: prov,
               source_tier,
@@ -148,6 +153,11 @@ export async function POST(
               source_label: `본사 docx (${doc.file_name}, ${period})${f.source_note ? ` — ${f.source_note}` : ""}`,
               confidence: f.confidence >= 0.85 ? "high" : f.confidence >= 0.7 ? "medium" : "low",
             });
+          }
+          if (csrcCount > 0) {
+            console.log(
+              `[extract-facts] v3-07: unmapped C labels ${csrcCount}건 — _csrc: prefix 로 facts pool 포함`,
+            );
           }
           if (v2Rows.length > 0) {
             await fra
