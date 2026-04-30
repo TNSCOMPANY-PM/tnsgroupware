@@ -557,27 +557,39 @@ export async function runPhaseB(draftId: string): Promise<PhaseBResult> {
   console.log(`[v3.B] step 3 done: ${Date.now() - tStep3}ms, len=${draftBody.body.length}`);
 
   // (5) Step 4 — Polish (post-process + haiku)
-  console.log(`[v3.B] step 4 — polish (post + haiku)...`);
+  console.log(`[v3.B] step 4 — polish (post-process only)...`);
   const tStep4 = Date.now();
   const polished = await runPolish({ body: draftBody.body });
   console.log(
     `[v3.B] step 4 done: ${Date.now() - tStep4}ms, log: ${polished.log.join(" | ")}`,
   );
 
-  // (6) crosscheck + lint (v3-03 단순화: Phase B retry 없음 — timeout 위험)
+  // (6) crosscheck + lint
+  // v3-05: timeout 회피 위해 retry 폐기. cc.unmatched / lint.errors 는 throw 대신
+  // lintWarnings 에 기록 → 발행관리 UI 에서 사용자 검토.
   const cc = crosscheckV3(polished.body, factsPool);
   const lintRes = lintV3(polished.body);
   console.log(
     `[v3.B] validate: matched=${cc.matched} unmatched=${cc.unmatched.length} lintErrors=${lintRes.errors.length}`,
   );
-  if (!cc.ok) throw new HallucinationDetectedError(cc.unmatched);
-  if (lintRes.errors.length > 0) throw new LintErrorV3(lintRes.errors);
+  const ccWarnings = cc.unmatched.length > 0
+    ? [`[crosscheck] unmatched ${cc.unmatched.length}건: ${cc.unmatched.slice(0, 3).join(" | ")}`]
+    : [];
+  const lintErrorWarnings = lintRes.errors.length > 0
+    ? [`[lint errors] ${lintRes.errors.slice(0, 3).join(" | ")}`]
+    : [];
 
   // (7) frontmatter 파싱 + date 강제 + FAQ lint
   const { title, frontmatter: rawFm } = parseFrontmatter(polished.body);
   const frontmatter = normalizeFrontmatter(rawFm, today);
   const faqLint = lintV3Faq(frontmatter.faq);
-  const allWarnings = [...lintRes.warnings, ...faqLint.warnings];
+  const allWarnings = [
+    ...lintRes.warnings,
+    ...faqLint.warnings,
+    ...ccWarnings,
+    ...lintErrorWarnings,
+  ];
+  // FAQ count error (구조적 위반) 는 발행 차단 — 그대로 throw 유지
   if (faqLint.errors.length > 0) throw new LintErrorV3(faqLint.errors);
 
   const finalContent = polished.body.replace(

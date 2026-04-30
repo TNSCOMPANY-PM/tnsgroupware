@@ -139,7 +139,7 @@ async function main() {
   const { buildPlanSysprompt } = await import("../lib/geo/v3/sysprompts/plan");
   const { buildStructureSysprompt } = await import("../lib/geo/v3/sysprompts/structure");
   const { buildWriteSysprompt } = await import("../lib/geo/v3/sysprompts/write");
-  const { buildPolishSysprompt } = await import("../lib/geo/v3/sysprompts/polish");
+  // v3-05: buildPolishSysprompt 제거 (Step 4-B haiku 폐기)
 
   const planSp = buildPlanSysprompt();
   check(`Plan sysprompt — "JSON 만"`, planSp.includes("JSON 만"));
@@ -179,9 +179,7 @@ async function main() {
   });
   check(`Write (industry) — C급 섹션 미포함`, !writeIndSp.includes("C급 (본사 docx) 활용"));
 
-  const polishSp = buildPolishSysprompt();
-  check(`Polish sysprompt — 메타 코멘트 교체`, polishSp.includes("메타 코멘트"));
-  check(`Polish sysprompt — 그 외 변경 금지`, polishSp.includes("그 외"));
+  // v3-05: Polish sysprompt 폐기 — runPolish 가 post_process 만 호출
 
   // T5 — types & extractJson (v3-02: extractJson 이 unknown 반환)
   console.log("\n[T5] claude.ts extractJson");
