@@ -214,7 +214,8 @@ async function main() {
   check(`buildFrontmatter import`, pipelineSrc.includes("buildFrontmatter"));
   check(`buildFaq import`, pipelineSrc.includes("buildFaq"));
   check(`renderFrontmatterYaml import`, pipelineSrc.includes("renderFrontmatterYaml"));
-  check(`renderFaqBlock import`, pipelineSrc.includes("renderFaqBlock"));
+  // v4-14 supersede: renderFaqBlock 제거 (FAQ 중복 해소 — frontmatter YAML faq: 만 사용)
+  check(`renderFaqBlock import 제거 (v4-14)`, !pipelineSrc.includes("renderFaqBlock"));
   check(`parseTitle 제거`, !pipelineSrc.includes("function parseTitle"));
   check(`parseFaq 제거`, !pipelineSrc.includes("function parseFaq"));
   check(`v4-13 마커`, pipelineSrc.includes("v4-13"));

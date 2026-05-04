@@ -29,7 +29,8 @@ import { buildWriterSysprompt, buildWriterUserPrompt } from "./sysprompts/writer
 // v4-13: writer 본문만 출력 → frontmatter + FAQ 코드 결정론 합치기.
 import { buildFrontmatter } from "./build_frontmatter";
 import { buildFaq } from "./build_faq";
-import { renderFrontmatterYaml, renderFaqBlock } from "./render_frontmatter";
+// v4-14: FAQ 중복 해소 — frontmatter YAML 의 faq: 만 사용, 본문 끝 markdown 섹션 제거.
+import { renderFrontmatterYaml } from "./render_frontmatter";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
@@ -141,7 +142,9 @@ async function fetchBundle(input: V4Input): Promise<RawInputBundle> {
 
   return {
     brand_label: (brandRow.name as string) ?? "?",
-    industry: industryMain ?? industrySub ?? "?",
+    // v4-14: 세부 카테고리 (induty_mlsfc — "분식"/"한식"/"치킨" 등) 우선.
+    // induty_lclas ("외식") 는 너무 광범위 → 본문 분포 / FAQ 가 부정확.
+    industry: industrySub ?? industryMain ?? "?",
     industry_sub: industrySub,
     ftc_brand_id: ftcBrandId,
     ftc_row: ftcRow as Record<string, unknown>,
@@ -434,8 +437,8 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
     c_facts: cFacts,
   });
   const yaml = renderFrontmatterYaml(frontmatter, faqItems);
-  const faqBlock = renderFaqBlock(faqItems);
-  const finalContent = `${yaml}\n\n${processed.body.trim()}\n\n${faqBlock}\n`;
+  // v4-14: FAQ 는 frontmatter YAML 의 faq: 만 — 본문 끝 markdown 섹션 추가 X (editor UI 가 별도 렌더).
+  const finalContent = `${yaml}\n\n${processed.body.trim()}\n`;
 
   // crosscheck — a_facts/c_facts 의 raw_value + value_text + distribution.raw 모두 allowed
   const allowedFromA = collectAllowedNumbersFromAFacts(aFacts);

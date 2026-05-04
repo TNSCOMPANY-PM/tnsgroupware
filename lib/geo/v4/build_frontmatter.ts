@@ -59,7 +59,8 @@ function buildDescription(input: FrontmatterInput): string {
   }
 
   parts.push("출처: 공정위 정보공개서(2024-12)");
-  return parts.join(". ") + ".";
+  // v4-14: markdown ~ strikethrough 회피 — 범위 표기는 전각 "～" 로.
+  return (parts.join(". ") + ".").replace(/~/g, "～");
 }
 
 function pickFactGroup(
