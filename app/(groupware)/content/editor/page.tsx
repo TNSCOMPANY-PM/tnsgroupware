@@ -27,10 +27,21 @@ export default function EditorPage() {
   const [selectedBrand, setSelectedBrand] = useState<GeoBrand | null>(null);
 
   const [loading, setLoading] = useState(false);
-  // v4-07: 3-step phase 표시
-  const [phase, setPhase] = useState<"idle" | "facts_a" | "facts_c" | "writing" | "done">("idle");
+  // v4-07: 3-step phase 표시 (a_plus_c) + v4-16 a_only phase
+  const [phase, setPhase] = useState<
+    | "idle"
+    | "facts_a"
+    | "facts_c"
+    | "writing"
+    | "a_only_analyze"
+    | "a_only_structure"
+    | "a_only_write"
+    | "done"
+  >("idle");
   const [result, setResult] = useState<V4Result | null>(null);
   const [error, setError] = useState<string>("");
+  // v4-16: 생성 모드 (A+C 팩트 콘텐츠 / A only 분석 콘텐츠)
+  const [genMode, setGenMode] = useState<"a_plus_c" | "a_only">("a_plus_c");
 
   // brand 검색 (geo_brands typeahead — ftc_brand_id 매핑된 것만)
   useEffect(() => {
@@ -93,32 +104,57 @@ export default function EditorPage() {
     }
 
     try {
-      // Step 1 — facts-a (LLM1)
-      const step1 = (await callApi(
-        "/api/geo/facts-a",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ brand_id: selectedBrand.id, topic }),
-        },
-        65000,
-      )) as { draftId: string };
-      const draftId = step1.draftId;
+      if (genMode === "a_only") {
+        // v4-16 — A only 3-step chain
+        setPhase("a_only_analyze");
+        const s1 = (await callApi(
+          "/api/geo/a-only/analyze",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brand_id: selectedBrand.id, topic }),
+          },
+          65000,
+        )) as { draftId: string };
+        const draftId = s1.draftId;
 
-      // Step 2 — facts-c (LLM2)
-      setPhase("facts_c");
-      await callApi(`/api/geo/facts-c/${draftId}`, { method: "POST" }, 65000);
+        setPhase("a_only_structure");
+        await callApi(`/api/geo/a-only/structure/${draftId}`, { method: "POST" }, 65000);
 
-      // Step 3 — write (LLM3 = Sonnet)
-      setPhase("writing");
-      const step3 = (await callApi(
-        `/api/geo/write/${draftId}`,
-        { method: "POST" },
-        65000,
-      )) as V4Result;
+        setPhase("a_only_write");
+        const s3 = (await callApi(
+          `/api/geo/a-only/write/${draftId}`,
+          { method: "POST" },
+          65000,
+        )) as V4Result;
+        setResult(s3);
+        setPhase("done");
+      } else {
+        // v4-07 — A+C 3-step chain (facts-a → facts-c → write)
+        const step1 = (await callApi(
+          "/api/geo/facts-a",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brand_id: selectedBrand.id, topic }),
+          },
+          65000,
+        )) as { draftId: string };
+        const draftId = step1.draftId;
 
-      setResult(step3);
-      setPhase("done");
+        setPhase("facts_c");
+        await callApi(`/api/geo/facts-c/${draftId}`, { method: "POST" }, 65000);
+
+        setPhase("writing");
+        const step3 = (await callApi(
+          `/api/geo/write/${draftId}`,
+          { method: "POST" },
+          65000,
+        )) as V4Result;
+
+        setResult(step3);
+        setPhase("done");
+      }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         setError("타임아웃 (65초 초과). 다시 시도해 주세요.");
@@ -129,7 +165,7 @@ export default function EditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBrand, topic]);
+  }, [selectedBrand, topic, genMode]);
 
   const handleReset = () => {
     setError("");
@@ -140,6 +176,34 @@ export default function EditorPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* v4-16: 모드 탭 (A+C 팩트 / A only 분석) */}
+      <div className="flex border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => !loading && setGenMode("a_plus_c")}
+          disabled={loading}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            genMode === "a_plus_c"
+              ? "border-b-2 border-violet-500 text-violet-700"
+              : "text-slate-500 hover:text-slate-700"
+          } disabled:opacity-50`}
+        >
+          팩트 콘텐츠 (A+C)
+        </button>
+        <button
+          type="button"
+          onClick={() => !loading && setGenMode("a_only")}
+          disabled={loading}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            genMode === "a_only"
+              ? "border-b-2 border-violet-500 text-violet-700"
+              : "text-slate-500 hover:text-slate-700"
+          } disabled:opacity-50`}
+        >
+          분석 콘텐츠 (A only)
+        </button>
+      </div>
+
       {/* 1. 브랜드 선택 */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-semibold text-slate-800 mb-4">1. 브랜드 선택</h2>
@@ -229,19 +293,29 @@ export default function EditorPage() {
         </div>
       )}
 
-      {/* v4-07 3-step 진행 표시 */}
+      {/* v4-07 / v4-16 3-step 진행 표시 */}
       {loading && (
         <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800 space-y-1">
           <div className="font-semibold">
-            ⏳ 콘텐츠 생성 중... ({phase === "facts_a" ? "1/3 A급 데이터" : phase === "facts_c" ? "2/3 C급 데이터" : phase === "writing" ? "3/3 본문 작성" : "..."})
+            ⏳ 콘텐츠 생성 중... (
+            {phase === "facts_a" && "1/3 A급 데이터"}
+            {phase === "facts_c" && "2/3 C급 데이터"}
+            {phase === "writing" && "3/3 본문 작성"}
+            {phase === "a_only_analyze" && "1/3 분석 각도"}
+            {phase === "a_only_structure" && "2/3 구조화"}
+            {phase === "a_only_write" && "3/3 본문 작성"}
+            )
           </div>
           <div className="text-xs text-blue-700">
-            {phase === "facts_a" && "Step 1: 공정위 152컬럼 정제 (haiku, ~30초)"}
-            {phase === "facts_c" && "Step 2: 본사 docx_facts + A vs C 차이 (haiku, ~30초)"}
-            {phase === "writing" && "Step 3: Sonnet 본문 작성 (4,400자, ~50초)"}
+            {phase === "facts_a" && "Step 1: 공정위 152컬럼 정제 (Sonnet LLM1, ~10초)"}
+            {phase === "facts_c" && "Step 2: 본사 docx_facts + A vs C 차이 (코드 매칭, ~5초)"}
+            {phase === "writing" && "Step 3: Sonnet 본문 작성 (~50초)"}
+            {phase === "a_only_analyze" && "Step 1: 분석 각도 + selected_metrics (Sonnet, ~10초)"}
+            {phase === "a_only_structure" && "Step 2: timeseries + distribution 구조화 (~3초)"}
+            {phase === "a_only_write" && "Step 3: Sonnet 분석 콘텐츠 (~50초)"}
           </div>
           <div className="text-[11px] text-blue-600">
-            v4-07 — 3 로빈 구조. 사용자 대기 ~110초.
+            {genMode === "a_only" ? "v4-16 — A only 분석 모드" : "v4-07 — A+C 팩트 모드"}
           </div>
         </div>
       )}

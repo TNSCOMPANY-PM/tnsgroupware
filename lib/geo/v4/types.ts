@@ -92,3 +92,7 @@ export type CFactsResult = {
 
 export type V4Step1Response = { draftId: string; a_facts: AFactsResult };
 export type V4Step2Response = { draftId: string; c_facts: CFactsResult };
+
+// v4-16 — A only 분석 모드 응답.
+export type V4AOnlyStep1Response = { draftId: string };
+export type V4AOnlyStep2Response = { draftId: string };

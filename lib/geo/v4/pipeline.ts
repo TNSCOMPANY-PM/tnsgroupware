@@ -34,11 +34,24 @@ import { renderFrontmatterYaml } from "./render_frontmatter";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
+// v4-16: A only 분석 모드 — 별도 3-step chain.
+import {
+  buildLlm1AnalyzeAOnlySysprompt,
+  buildLlm1AnalyzeAOnlyUser,
+} from "./sysprompts/llm1_analyze_a_only";
+import { buildAOnlyFacts } from "./build_a_only_facts";
+import type { AOnlyFactsResult } from "./build_a_only_facts";
+import {
+  buildWriterAOnlySysprompt,
+  buildWriterAOnlyUserPrompt,
+} from "./sysprompts/writer_a_only";
 import type {
   AFactsResult,
   CFactsResult,
   DocxFact,
   RawInputBundle,
+  V4AOnlyStep1Response,
+  V4AOnlyStep2Response,
   V4Input,
   V4Result,
   V4Step1Response,
@@ -555,5 +568,259 @@ function collectAllowedNumbersFromCFacts(cFacts: CFactsResult): Set<string> {
     addFromText(f.value_text);
   }
   return allowed;
+}
+
+// =============================================================================
+// v4-16 — A only 분석 모드 (3-step chain, gen_mode='a_only')
+// =============================================================================
+
+/**
+ * v4-16 Step 1 — LLM1 (Sonnet) 분석 각도 결정 + 코드 후처리 (buildAOnlyFacts).
+ * input: V4Input { brand_id, topic }
+ * output: { draftId } — meta.a_only_facts 에 a_only_facts 저장.
+ */
+export async function runStep1AnalyzeAOnly(input: V4Input): Promise<V4AOnlyStep1Response> {
+  const today = new Date().toISOString().slice(0, 10);
+  const t0 = Date.now();
+
+  const bundle = await fetchBundle(input);
+  console.log(
+    `[v4-16.1] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols=${
+      Object.keys(bundle.ftc_row).length
+    } industry_facts=${bundle.industry_facts.length}`,
+  );
+
+  const sys = buildLlm1AnalyzeAOnlySysprompt();
+  const user = buildLlm1AnalyzeAOnlyUser({
+    brand_label: bundle.brand_label,
+    industry: bundle.industry,
+    industry_sub: bundle.industry_sub ?? null,
+    topic: input.topic,
+    ftc_brand_id: bundle.ftc_brand_id,
+  });
+
+  console.log(`[v4-16.1] sonnet (LLM1 analyze) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  const tStart = Date.now();
+  const raw = await callLLM1({
+    system: sys,
+    user,
+    maxTokens: 1500, // selected_metrics + key_angle + analysis_axes ~600 token + 안전 margin
+  });
+  console.log(`[v4-16.1] sonnet done: ${Date.now() - tStart}ms, len=${raw.length}`);
+
+  let parsed: { selected_metrics?: unknown; key_angle?: unknown; analysis_axes?: unknown };
+  try {
+    parsed = extractJson(raw) as typeof parsed;
+  } catch (e) {
+    throw new Error(`Step 1 (a_only) JSON parse 실패: ${e instanceof Error ? e.message : e}`);
+  }
+  const selectedMetrics = Array.isArray(parsed.selected_metrics)
+    ? parsed.selected_metrics.filter((x): x is string => typeof x === "string" && x.length > 0)
+    : [];
+  const keyAngle = typeof parsed.key_angle === "string" ? parsed.key_angle : input.topic;
+  const analysisAxes = Array.isArray(parsed.analysis_axes)
+    ? parsed.analysis_axes.filter((x): x is string => typeof x === "string" && x.length > 0)
+    : [];
+
+  const tBuild = Date.now();
+  const aOnlyFacts: AOnlyFactsResult = buildAOnlyFacts({
+    brand_label: bundle.brand_label,
+    industry: bundle.industry,
+    industry_sub: bundle.industry_sub ?? null,
+    topic: input.topic,
+    ftc_brand_id: bundle.ftc_brand_id,
+    selected_metrics: selectedMetrics,
+    key_angle: keyAngle,
+    analysis_axes: analysisAxes,
+    ftc_row: bundle.ftc_row,
+    industry_facts: bundle.industry_facts,
+  });
+  console.log(
+    `[v4-16.1] buildAOnlyFacts done: ${Date.now() - tBuild}ms (LLM 호출 X), fact_groups=${
+      Object.keys(aOnlyFacts.fact_groups).length
+    } axes=${aOnlyFacts.analysis_axes.length} timeseries=${
+      Object.keys(aOnlyFacts.timeseries).length
+    }`,
+  );
+
+  const tns = createAdminClient();
+  const placeholderTitle = `[1/3 a-only analyze] ${bundle.brand_label} — ${input.topic}`;
+  const { data: ins, error: dErr } = await tns
+    .from("frandoor_blog_drafts")
+    .insert({
+      brand_id: input.brand_id,
+      ftc_brand_id: bundle.ftc_brand_id,
+      industry: bundle.industry,
+      channel: "frandoor",
+      title: placeholderTitle,
+      content: null,
+      faq: [],
+      meta: {
+        mode: "brand",
+        topic: input.topic,
+        a_only_facts: aOnlyFacts,
+      },
+      content_type: "brand",
+      status: "draft",
+      target_date: today,
+      pipeline_version: "v4-16",
+      gen_mode: "a_only",
+      stage: "a_only_analyzed",
+    })
+    .select("id")
+    .single();
+  if (dErr || !ins) {
+    throw new Error(`Step 1 (a_only) INSERT failed: ${dErr?.message ?? "no row"}`);
+  }
+
+  console.log(
+    `[v4-16.1] ✓ ${Date.now() - t0}ms, draftId=${ins.id} stage=a_only_analyzed`,
+  );
+  return { draftId: ins.id as string };
+}
+
+/**
+ * v4-16 Step 2 — 코드 결정론 구조화 (현재는 pass-through, 추후 metric 간 관계 보강 자리).
+ * input: draftId (stage='a_only_analyzed')
+ * output: { draftId } — stage='a_only_structured'.
+ */
+export async function runStep2StructureAOnly(draftId: string): Promise<V4AOnlyStep2Response> {
+  const t0 = Date.now();
+  const draft = await loadDraft(draftId);
+  if (draft.stage !== "a_only_analyzed") {
+    throw new InvalidStageError(draftId, "a_only_analyzed", draft.stage);
+  }
+  const meta = (draft.meta ?? {}) as Record<string, unknown>;
+  const aOnlyFacts = meta.a_only_facts as AOnlyFactsResult | undefined;
+  if (!aOnlyFacts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
+
+  // v4-16: 현재는 LLM1 단계에서 buildAOnlyFacts 가 이미 timeseries / distribution 생성 완료.
+  // Step 2 는 stage 전환만 (추후 metric 간 관계 자동 추출 등 보강 자리).
+  const tns = createAdminClient();
+  const { error: uErr } = await tns
+    .from("frandoor_blog_drafts")
+    .update({
+      meta: { ...meta, a_only_facts: aOnlyFacts },
+      stage: "a_only_structured",
+    })
+    .eq("id", draftId);
+  if (uErr) throw new Error(`Step 2 (a_only) UPDATE failed: ${uErr.message}`);
+
+  console.log(`[v4-16.2] ✓ ${Date.now() - t0}ms, stage=a_only_structured`);
+  return { draftId };
+}
+
+/**
+ * v4-16 Step 3 — Sonnet writer (A only, 분석 톤) + frontmatter/FAQ 코드 합치기.
+ * input: draftId (stage='a_only_structured')
+ * output: V4Result.
+ */
+export async function runStep3WriteAOnly(draftId: string): Promise<V4Result> {
+  const t0 = Date.now();
+  const draft = await loadDraft(draftId);
+  if (draft.stage !== "a_only_structured") {
+    throw new InvalidStageError(draftId, "a_only_structured", draft.stage);
+  }
+  const meta = (draft.meta ?? {}) as Record<string, unknown>;
+  const aOnlyFacts = meta.a_only_facts as AOnlyFactsResult | undefined;
+  if (!aOnlyFacts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const sys = buildWriterAOnlySysprompt({
+    brand_label: aOnlyFacts.brand_label,
+    industry: aOnlyFacts.industry,
+    industry_sub: aOnlyFacts.industry_sub,
+    topic: aOnlyFacts.topic,
+    today,
+  });
+  const user = buildWriterAOnlyUserPrompt({
+    topic: aOnlyFacts.topic,
+    brand_label: aOnlyFacts.brand_label,
+    a_only_facts: aOnlyFacts,
+  });
+
+  console.log(`[v4-16.3] sonnet (A only) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  const tStart = Date.now();
+  const draftBody = await callSonnet({
+    system: sys,
+    user,
+    maxTokens: 3000,
+  });
+  console.log(`[v4-16.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
+
+  const processed = postProcess(draftBody);
+  console.log(`[v4-16.3] post_process: ${processed.log.join(" | ")}`);
+
+  // C 데이터 없음 — buildFrontmatter / buildFaq 재사용 (c_facts 빈 객체 전달).
+  const emptyCFacts: CFactsResult = { fact_groups: {}, c_only_facts: [], ac_diff_summary: "" };
+  const frontmatter = buildFrontmatter({
+    topic: aOnlyFacts.topic,
+    brand_label: aOnlyFacts.brand_label,
+    industry: aOnlyFacts.industry,
+    brand_id: draft.brand_id ?? "",
+    today,
+    a_facts: aOnlyFacts,
+    c_facts: emptyCFacts,
+  });
+  const faqItems = buildFaq({
+    brand_label: aOnlyFacts.brand_label,
+    industry: aOnlyFacts.industry,
+    a_facts: aOnlyFacts,
+    c_facts: emptyCFacts,
+  });
+  const yaml = renderFrontmatterYaml(frontmatter, faqItems);
+  const finalContent = `${yaml}\n\n${processed.body.trim()}\n`;
+
+  const allowedFromA = collectAllowedNumbersFromAFacts(aOnlyFacts);
+  const cc = crosscheckV4(processed.body, allowedFromA);
+  const lint = lintV4(processed.body, { hasC: false, topic: aOnlyFacts.topic });
+  console.log(
+    `[v4-16.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
+  );
+
+  const faqLint = lintV4Faq(faqItems);
+  const lintWarnings = [
+    ...lint.warnings,
+    ...faqLint.warnings,
+    ...lint.errors.map((e) => `[lint error] ${e}`),
+    ...cc.unmatched.slice(0, 5).map((u) => `[crosscheck unmatched] ${u}`),
+    ...faqLint.errors.map((e) => `[faq lint error] ${e}`),
+  ];
+
+  const finalTitle = frontmatter.title;
+  const tns = createAdminClient();
+  let saveError: string | null = null;
+  try {
+    const { error: uErr } = await tns
+      .from("frandoor_blog_drafts")
+      .update({
+        title: finalTitle,
+        content: finalContent,
+        faq: faqItems,
+        meta: {
+          ...meta,
+          lintWarnings,
+          ccUnmatched: cc.unmatched,
+          ccMatched: cc.matched,
+        },
+        polish_log: processed.log,
+        stage: "a_only_written",
+      })
+      .eq("id", draftId);
+    if (uErr) saveError = uErr.message;
+  } catch (e) {
+    saveError = e instanceof Error ? e.message : String(e);
+  }
+
+  console.log(`[v4-16.3] ✓ ${Date.now() - t0}ms, stage=a_only_written`);
+
+  return {
+    draftId,
+    saveError,
+    title: finalTitle,
+    content: finalContent,
+    lintWarnings,
+    ccUnmatched: cc.unmatched,
+  };
 }
 
