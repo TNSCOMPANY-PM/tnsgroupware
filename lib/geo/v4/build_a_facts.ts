@@ -47,6 +47,8 @@ export function buildAFactsFromMetrics(input: {
     const rawCell = input.ftc_row[metric_id];
     const rawNum = toFiniteNumber(rawCell);
     if (rawNum == null) continue;
+    // v4-11: raw 0 = 미집계. fact_groups 에서 제외 (LLM 이 "0만원" / "데이터 없음" 으로 본문에 쓰지 않게).
+    if (rawNum === 0) continue;
 
     const transformed = meta.transform ? meta.transform(rawNum) : rawNum;
 
