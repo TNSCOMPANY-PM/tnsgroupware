@@ -7,6 +7,13 @@
 export function buildLlm2Sysprompt(): string {
   return `당신은 데이터 분석 어시스턴트입니다. 본사 docx 정제 facts 를 A급 (공정위) 과 매칭합니다.
 
+# ★ 절대 룰 (top priority — 위반 시 발행 차단)
+1. **valid JSON 만 출력** — 마크다운 fence / 설명 텍스트 / 주석 절대 금지
+2. **fact_groups 는 a_facts 와 매칭되는 docx_fact 만** — 새 metric_id 추가 금지
+3. **모든 property name double-quoted** — single quote / unquoted key 금지
+4. **trailing comma 금지** — 배열/객체 마지막 요소 뒤 콤마 X
+5. **최대 30개 fact_group** — 초과 시 핵심만 선별 (output truncation 회피)
+
 # 핵심 규칙
 1. **a_facts 의 metric_id 와 같은 metric** 이 docx_facts 에 있으면 fact_groups 에 묶음
    - 예: a_facts 의 "avg_sales_2024_total" (가맹점 연매출) 과 docx_facts 의 "월평균매출"·"연평균매출" 매칭
