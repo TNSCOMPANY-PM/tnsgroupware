@@ -26,6 +26,10 @@ import { buildAFactsFromMetrics } from "./build_a_facts";
 // v4-09: LLM2 (haiku c_facts 정제) 폐기 → matchAndDiff 코드 매칭
 import { matchAndDiff } from "./match_and_diff";
 import { buildWriterSysprompt, buildWriterUserPrompt } from "./sysprompts/writer";
+// v4-13: writer 본문만 출력 → frontmatter + FAQ 코드 결정론 합치기.
+import { buildFrontmatter } from "./build_frontmatter";
+import { buildFaq } from "./build_faq";
+import { renderFrontmatterYaml, renderFaqBlock } from "./render_frontmatter";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
@@ -144,46 +148,6 @@ async function fetchBundle(input: V4Input): Promise<RawInputBundle> {
     docx_facts: docxFacts,
     industry_facts: industryFacts,
   };
-}
-
-function parseTitle(body: string): string {
-  // frontmatter 의 title: "..." 추출
-  const m = body.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!m) return "";
-  const titleM = m[1].match(/title:\s*"?([^"\n]+)"?/);
-  return titleM ? titleM[1].trim() : "";
-}
-
-function parseFaq(body: string): Array<{ q: string; a: string }> {
-  // frontmatter 의 faq 배열 휴리스틱 파싱
-  const m = body.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!m) return [];
-  const yaml = m[1];
-  const lines = yaml.split(/\r?\n/);
-  const faq: Array<{ q: string; a: string }> = [];
-  let inFaq = false;
-  let cur: { q?: string; a?: string } = {};
-  for (const l of lines) {
-    if (/^faq:\s*$/.test(l)) {
-      inFaq = true;
-      continue;
-    }
-    if (inFaq && /^[a-zA-Z_]+:\s*\S/.test(l)) {
-      // 다음 top-level key — faq 종료
-      inFaq = false;
-    }
-    if (!inFaq) continue;
-    const qm = l.match(/^\s*-\s*q:\s*"?(.+?)"?\s*$/);
-    const am = l.match(/^\s*a:\s*"?(.+?)"?\s*$/);
-    if (qm) {
-      if (cur.q && cur.a) faq.push({ q: cur.q, a: cur.a });
-      cur = { q: qm[1] };
-    } else if (am) {
-      cur.a = am[1];
-    }
-  }
-  if (cur.q && cur.a) faq.push({ q: cur.q, a: cur.a });
-  return faq;
 }
 
 // =============================================================================
@@ -438,20 +402,40 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
     c_facts: cFacts,
   });
 
-  console.log(`[v4-07.3] sonnet 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  console.log(`[v4-13.3] sonnet 호출 (sys=${sys.length}자, user=${user.length}자)...`);
   const tStart = Date.now();
   const draftBody = await callSonnet({
     system: sys,
     user,
-    // v4-12: 블럭 E 폐기 → 4블럭/4,500자. frontmatter+FAQ 까지 max_tokens 합산되므로 3500 으로 상향.
-    // Sonnet 50 tok/s × 3500 ≈ 70s — write route 60s 빠듯. timeout 시 v4-13 frontmatter 분리.
-    maxTokens: 3500,
+    // v4-13: 블럭 D 폐기 + frontmatter/FAQ 코드 분리 → 본문 3블럭 4,000자만.
+    // Sonnet 50 tok/s × 3000 ≈ 50s, write route 60s 안 안전.
+    maxTokens: 3000,
   });
-  console.log(`[v4-07.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
+  console.log(`[v4-13.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
 
-  // post_process
+  // post_process — Sonnet 본문 자릿수/표 정리.
   const processed = postProcess(draftBody);
-  console.log(`[v4-07.3] post_process: ${processed.log.join(" | ")}`);
+  console.log(`[v4-13.3] post_process: ${processed.log.join(" | ")}`);
+
+  // v4-13: frontmatter / FAQ 코드 결정론 생성 후 본문 앞뒤 합치기.
+  const frontmatter = buildFrontmatter({
+    topic: aFacts.topic,
+    brand_label: aFacts.brand_label,
+    industry: aFacts.industry,
+    brand_id: draft.brand_id ?? "",
+    today,
+    a_facts: aFacts,
+    c_facts: cFacts,
+  });
+  const faqItems = buildFaq({
+    brand_label: aFacts.brand_label,
+    industry: aFacts.industry,
+    a_facts: aFacts,
+    c_facts: cFacts,
+  });
+  const yaml = renderFrontmatterYaml(frontmatter, faqItems);
+  const faqBlock = renderFaqBlock(faqItems);
+  const finalContent = `${yaml}\n\n${processed.body.trim()}\n\n${faqBlock}\n`;
 
   // crosscheck — a_facts/c_facts 의 raw_value + value_text + distribution.raw 모두 allowed
   const allowedFromA = collectAllowedNumbersFromAFacts(aFacts);
@@ -464,12 +448,10 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
     topic: aFacts.topic,
   });
   console.log(
-    `[v4-07.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
+    `[v4-13.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
   );
 
-  const title = parseTitle(processed.body);
-  const faq = parseFaq(processed.body);
-  const faqLint = lintV4Faq(faq);
+  const faqLint = lintV4Faq(faqItems);
   const lintWarnings = [
     ...lint.warnings,
     ...faqLint.warnings,
@@ -478,14 +460,8 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
     ...faqLint.errors.map((e) => `[faq lint error] ${e}`),
   ];
 
-  const finalContent = processed.body.replace(
-    /^(---\s*\n[\s\S]*?\n---)/,
-    (block) =>
-      block
-        .replace(/^date:\s*"?[^"\n]+"?$/m, `date: "${today}"`)
-        .replace(/^dateModified:\s*"?[^"\n]+"?$/m, `dateModified: "${today}"`),
-  );
-  const finalTitle = title || `${aFacts.brand_label} ${aFacts.topic}`;
+  const finalTitle = frontmatter.title;
+  const faq = faqItems;
 
   // UPDATE draft (final)
   const tns = createAdminClient();
@@ -512,7 +488,7 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
     saveError = e instanceof Error ? e.message : String(e);
   }
 
-  console.log(`[v4-07.3] ✓ ${Date.now() - t0}ms, stage=write_done`);
+  console.log(`[v4-13.3] ✓ ${Date.now() - t0}ms, stage=write_done`);
 
   return {
     draftId,

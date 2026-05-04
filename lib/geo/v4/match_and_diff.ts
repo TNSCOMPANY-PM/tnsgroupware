@@ -99,7 +99,9 @@ export function matchAndDiff(args: {
         : null;
     const valueText = (docxFact.value ?? null) as string | null;
     const unit = (docxFact.unit ?? null) as string | null;
-    const sourceLabel = docxFact.source_note ?? "본사 발표 자료";
+    // v4-13: C source_label 을 "본사 데이터" 로 통일 (writer sysprompt 의 표기 룰 일치).
+    // 원본 source_note 는 c_only_facts.value_text / docx narrative 안에 보존됨.
+    const sourceLabel = "본사 데이터";
 
     if (matchedAGroup && matchedKey && matchedAGroup.A && valueNum != null && unit) {
       // A + C 묶음 + 차이 분석

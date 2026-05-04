@@ -116,8 +116,8 @@ async function main() {
   });
   check(`본사_브로셔 row → fact_groups 1건 매칭`, Object.keys(r3.fact_groups).length === 1);
 
-  // T4 — writer sysprompt — A vs C 표기 + 본사 측 자료 룰
-  console.log("\n[T4] writer sysprompt — A vs C / 본사 측 자료 룰");
+  // T4 — writer sysprompt — v4-13 supersede: A vs C 룰 유지 + "본사 데이터" 표기 통일
+  console.log("\n[T4] writer sysprompt — A vs C 룰 + 본사 데이터 표기 통일 (v4-13 supersede)");
   const writer = await import("../lib/geo/v4/sysprompts/writer");
   const sp = writer.buildWriterSysprompt({
     brand_label: "오공김밥",
@@ -129,23 +129,23 @@ async function main() {
   });
   check(`A vs C 비교표 룰 헤더`, sp.includes("A vs C 비교표 룰"));
   check(`c_facts 0건 fallback 문구`, sp.includes("불일치 항목 없음"));
-  check(`본사 측 자료 표기 룰 헤더`, sp.includes('"본사 측 자료" 표기 룰'));
+  // v4-13: "본사 측 자료" 표기 룰 → "본사 데이터" 통일 룰로 대체
+  check(`본사 데이터 표기 통일 룰`, sp.includes('"본사 데이터" 표기 통일') || sp.includes("\"본사 데이터\" 한 가지"));
   check(`정보공개서 본사 재무 항목 표기`, sp.includes("정보공개서") && sp.includes("본사 재무 항목"));
-  check(`혼동 금지 예시 (천원 단위 노출)`, sp.includes("천원"));
 
-  // T5 — 블럭 E 폐기 / 4블럭 / 4,500자 / max_tokens 3500
-  console.log("\n[T5] 블럭 E 폐기 → 4블럭 / 4,500자 / max_tokens 3500");
-  check(`4블럭 명시`, sp.includes("4블럭"));
-  check(`4,500자 한도`, sp.includes("4,500자"));
-  check(`블럭 E 폐기 명시`, sp.includes("E 폐기") || sp.includes("E (결론") || sp.includes("결론 체크리스트는 폐기"));
+  // T5 — v4-13 supersede: 블럭 D + E 폐기 → 3블럭 / 4,000자 / max_tokens 3000
+  console.log("\n[T5] v4-13 supersede: 3블럭 / 4,000자 / max_tokens 3000");
+  check(`3블럭 명시 (v4-13)`, sp.includes("3블럭"));
+  check(`4,000자 한도 (v4-13)`, sp.includes("4,000자"));
   check(`이전 5블럭 가이드 제거`, !sp.includes("# 본문 구조 — 5블럭"));
+  check(`이전 4블럭 가이드 제거`, !sp.includes("# 본문 구조 — 4블럭"));
   check(`이전 5,500자 한도 제거`, !sp.includes("5,500자 한도"));
-  check(`블럭 D 끝 마무리 한 줄`, sp.includes("자본·상권·운영 역량과 비교 검토"));
+  check(`블럭 C 끝 마무리 한 줄`, sp.includes("자본·상권·운영 역량과 비교 검토"));
 
   const pipelineSrc = await fs.readFile("lib/geo/v4/pipeline.ts", "utf-8");
-  check(`pipeline maxTokens: 3500`, pipelineSrc.includes("maxTokens: 3500"));
-  check(`pipeline maxTokens: 3000 제거`, !pipelineSrc.includes("maxTokens: 3000"));
-  check(`v4-12 마커`, pipelineSrc.includes("v4-12"));
+  check(`pipeline maxTokens: 3000 (v4-13)`, pipelineSrc.includes("maxTokens: 3000"));
+  check(`pipeline maxTokens: 3500 제거`, !pipelineSrc.includes("maxTokens: 3500"));
+  check(`v4-13 마커`, pipelineSrc.includes("v4-13"));
 
   // T6 — formatToDisplay 단위 환산
   console.log("\n[T6] formatToDisplay 단위 환산 (천원/원 → 만원/억원)");
