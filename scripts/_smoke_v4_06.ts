@@ -52,8 +52,9 @@ async function main() {
   console.log("\n[T2] pipeline max_tokens 2200");
   const fs = await import("node:fs/promises");
   const pipelineSrc = await fs.readFile("lib/geo/v4/pipeline.ts", "utf-8");
+  // v4-07: pipeline 의 sonnet writer maxTokens 2200 유지 (Step 3 본문 작성)
   check(`maxTokens: 2200`, pipelineSrc.includes("maxTokens: 2200"));
-  check(`v4-06 주석 명시`, pipelineSrc.includes("v4-06"));
+  check(`v4-07 3-step 명시`, pipelineSrc.includes("v4-07"));
 
   // T3 — lint L11 mixed detector
   console.log("\n[T3] lint L11 자릿수 mixed");

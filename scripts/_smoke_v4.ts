@@ -35,7 +35,10 @@ async function main() {
   check(`collectAllowedNumbers exported`, typeof cc.collectAllowedNumbers === "function");
   check(`crosscheckV4 exported`, typeof cc.crosscheckV4 === "function");
   check(`lintV4 exported`, typeof lint.lintV4 === "function");
-  check(`generateV4 exported`, typeof pipeline.generateV4 === "function");
+  // v4-07: generateV4 → runStep1FactsA + runStep2FactsC + runStep3Write
+  check(`runStep1FactsA exported`, typeof pipeline.runStep1FactsA === "function");
+  check(`runStep2FactsC exported`, typeof pipeline.runStep2FactsC === "function");
+  check(`runStep3Write exported`, typeof pipeline.runStep3Write === "function");
   check(`FtcBrandIdMissingError exported`, typeof pipeline.FtcBrandIdMissingError === "function");
 
   // T2 — sysprompt sanity
