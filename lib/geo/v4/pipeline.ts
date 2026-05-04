@@ -18,8 +18,11 @@
 import "server-only";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createFrandoorClient } from "@/utils/supabase/frandoor";
-import { callHaiku, callSonnet, extractJson } from "./claude";
+// v4-10: LLM1 → Sonnet (callLLM1) + 코드 후처리 (buildAFactsFromMetrics).
+//        Haiku 큰 JSON output 만성 parse 실패 (position 6764) 회피.
+import { callLLM1, callSonnet, extractJson } from "./claude";
 import { buildLlm1Sysprompt, buildLlm1User } from "./sysprompts/llm1_facts_a";
+import { buildAFactsFromMetrics } from "./build_a_facts";
 // v4-09: LLM2 (haiku c_facts 정제) 폐기 → matchAndDiff 코드 매칭
 import { matchAndDiff } from "./match_and_diff";
 import { buildWriterSysprompt, buildWriterUserPrompt } from "./sysprompts/writer";
@@ -240,7 +243,7 @@ export async function runStep1FactsA(input: V4Input): Promise<V4Step1Response> {
     } industry_facts=${bundle.industry_facts.length}`,
   );
 
-  // LLM1 — A급 정제
+  // v4-10 LLM1 — Sonnet 으로 selected_metrics + key_angle 만 받음.
   const sys = buildLlm1Sysprompt();
   const user = buildLlm1User({
     brand_label: bundle.brand_label,
@@ -248,41 +251,46 @@ export async function runStep1FactsA(input: V4Input): Promise<V4Step1Response> {
     industry_sub: bundle.industry_sub ?? null,
     topic: input.topic,
     ftc_brand_id: bundle.ftc_brand_id,
-    ftc_row: bundle.ftc_row,
-    industry_facts: bundle.industry_facts,
   });
 
-  console.log(`[v4-07.1] haiku 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  console.log(`[v4-10.1] sonnet (LLM1) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
   const tStart = Date.now();
-  const raw = await callHaiku({
+  const raw = await callLLM1({
     system: sys,
     user,
-    maxTokens: 4000, // a_facts JSON ~3000 token + 안전 margin
+    maxTokens: 1500, // selected_metrics + key_angle ~500 token + 안전 margin
   });
-  console.log(`[v4-07.1] haiku done: ${Date.now() - tStart}ms, len=${raw.length}`);
+  console.log(`[v4-10.1] sonnet (LLM1) done: ${Date.now() - tStart}ms, len=${raw.length}`);
 
-  let aFacts: AFactsResult;
+  let llm1Parsed: { selected_metrics?: unknown; key_angle?: unknown };
   try {
-    aFacts = extractJson(raw) as AFactsResult;
+    llm1Parsed = extractJson(raw) as { selected_metrics?: unknown; key_angle?: unknown };
   } catch (e) {
     throw new Error(`Step 1 LLM1 JSON parse 실패: ${e instanceof Error ? e.message : e}`);
   }
-  // 안전 fallback
-  if (!aFacts.fact_groups || typeof aFacts.fact_groups !== "object") {
-    aFacts.fact_groups = {};
-  }
-  if (typeof aFacts.brand_label !== "string") aFacts.brand_label = bundle.brand_label;
-  if (typeof aFacts.industry !== "string") aFacts.industry = bundle.industry;
-  if (typeof aFacts.industry_sub !== "string" && aFacts.industry_sub !== null) {
-    aFacts.industry_sub = bundle.industry_sub ?? null;
-  }
-  if (typeof aFacts.topic !== "string") aFacts.topic = input.topic;
-  if (typeof aFacts.ftc_brand_id !== "string") aFacts.ftc_brand_id = bundle.ftc_brand_id;
-  if (!Array.isArray(aFacts.selected_metrics)) aFacts.selected_metrics = [];
-  if (typeof aFacts.key_angle !== "string") aFacts.key_angle = input.topic;
-  if (!aFacts.population_info || typeof aFacts.population_info !== "object") {
-    aFacts.population_info = {};
-  }
+  const selectedMetrics = Array.isArray(llm1Parsed.selected_metrics)
+    ? llm1Parsed.selected_metrics.filter((x): x is string => typeof x === "string" && x.length > 0)
+    : [];
+  const keyAngle = typeof llm1Parsed.key_angle === "string" ? llm1Parsed.key_angle : input.topic;
+
+  // v4-10 코드 후처리 — display / distribution / brand_position / population_info 모두 결정론.
+  const tBuild = Date.now();
+  const aFacts: AFactsResult = buildAFactsFromMetrics({
+    brand_label: bundle.brand_label,
+    industry: bundle.industry,
+    industry_sub: bundle.industry_sub ?? null,
+    topic: input.topic,
+    ftc_brand_id: bundle.ftc_brand_id,
+    selected_metrics: selectedMetrics,
+    key_angle: keyAngle,
+    ftc_row: bundle.ftc_row,
+    industry_facts: bundle.industry_facts,
+  });
+  console.log(
+    `[v4-10.1] buildAFacts done: ${Date.now() - tBuild}ms (LLM 호출 X), fact_groups=${
+      Object.keys(aFacts.fact_groups).length
+    }`,
+  );
 
   // INSERT draft
   const tns = createAdminClient();
@@ -305,7 +313,7 @@ export async function runStep1FactsA(input: V4Input): Promise<V4Step1Response> {
       content_type: "brand",
       status: "draft",
       target_date: today,
-      pipeline_version: "v4-07",
+      pipeline_version: "v4-10",
       stage: "facts_a_done",
     })
     .select("id")
@@ -315,7 +323,7 @@ export async function runStep1FactsA(input: V4Input): Promise<V4Step1Response> {
   }
 
   console.log(
-    `[v4-07.1] ✓ ${Date.now() - t0}ms, draftId=${ins.id} stage=facts_a_done fact_groups=${
+    `[v4-10.1] ✓ ${Date.now() - t0}ms, draftId=${ins.id} stage=facts_a_done fact_groups=${
       Object.keys(aFacts.fact_groups).length
     }`,
   );
