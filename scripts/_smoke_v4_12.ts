@@ -144,7 +144,11 @@ async function main() {
 
   const pipelineSrc = await fs.readFile("lib/geo/v4/pipeline.ts", "utf-8");
   check(`pipeline maxTokens: 3000 (v4-13)`, pipelineSrc.includes("maxTokens: 3000"));
-  check(`pipeline maxTokens: 3500 제거`, !pipelineSrc.includes("maxTokens: 3500"));
+  // v4-18 supersede: A only 만 3500 (1건). A+C 는 3000 유지.
+  check(
+    `pipeline maxTokens: 3500 1건 (A only v4-18)`,
+    (pipelineSrc.match(/maxTokens: 3500/g) ?? []).length === 1,
+  );
   check(`v4-13 마커`, pipelineSrc.includes("v4-13"));
 
   // T6 — formatToDisplay 단위 환산

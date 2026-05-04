@@ -56,20 +56,26 @@ function uniq<T>(xs: T[]): T[] {
 }
 
 /**
- * v4-17 — 업종 분석 FAQ 5문항 코드 결정론.
- * distributions / ranking / outliers 활용.
+ * v4-18 — 업종 분석 FAQ 5문항 강제 (코드 결정론).
+ * Q1~Q5 templated → fallback (남은 distributions) → final fallback (출처/시점 generic).
+ *
+ * v4-18 변경:
+ *  · outlier 답변에 "σ" / "outlier" 표기 X — 자연어 ("평균과 두드러지게 차이 나는") 사용.
+ *  · metric label 의 "(2024)" 괄호 제거 → "2024년 ..." 자연어로 변환.
+ *  · 5건 강제 (final fallback 으로 generic 안내문 채움).
  */
 export function buildIndustryFaq(input: {
   industry: string;
   facts: IndustryAnalysisFacts;
 }): FaqItem[] {
   const { industry, facts } = input;
+  const n_brands = facts.n_brands;
   const faqs: FaqItem[] = [];
 
   // Q1: 평균 매출
   const sales = facts.distributions["avg_sales_2024_total"];
   if (sales?.p50?.display && sales.p50.display !== "데이터 없음") {
-    let answer = `정보공개서 기준 ${industry} ${facts.n_brands}개 브랜드 가맹점 평균 연매출의 중앙값은 ${sales.p50.display}입니다.`;
+    let answer = `정보공개서 기준 ${industry} ${n_brands}개 브랜드 가맹점 평균 연매출의 중앙값은 ${sales.p50.display}입니다.`;
     if (sales.p90?.display && sales.p90.display !== "데이터 없음") {
       answer += ` 상위 10% 기준선은 ${sales.p90.display}로, 중앙값과 격차가 큽니다.`;
     }
@@ -86,9 +92,9 @@ export function buildIndustryFaq(input: {
       .map((r, i) => `${i + 1}위 ${r.brand_label} (${r.value.display})`)
       .join(", ");
     faqs.push({
-      q: `${industry} ${facts.ranking.label} 상위 brand 는?`,
+      q: `${industry} ${cleanLabel(facts.ranking.label)} 상위 브랜드는 어디인가요?`,
       a: escapeMarkdownTilde(
-        `정보공개서 기준 ${facts.ranking.label} 상위 brand 는 ${list} 순입니다.`,
+        `정보공개서 기준 ${cleanLabel(facts.ranking.label)} 상위 브랜드는 ${list} 순입니다.`,
       ),
     });
   }
@@ -98,7 +104,7 @@ export function buildIndustryFaq(input: {
   if (cost?.p50?.display && cost.p50.display !== "데이터 없음") {
     let answer = `정보공개서 기준 ${industry} 창업비용 총액의 중앙값은 ${cost.p50.display}입니다.`;
     if (cost.p25?.display && cost.p25.display !== "데이터 없음") {
-      answer += ` 하위 25% 기준선은 ${cost.p25.display} 로, brand 별 차이가 있습니다.`;
+      answer += ` 하위 25% 기준선은 ${cost.p25.display}로, 브랜드별 차이가 있습니다.`;
     }
     faqs.push({
       q: `${industry} 창업비용 총액 분포는 어떻게 되나요?`,
@@ -113,57 +119,91 @@ export function buildIndustryFaq(input: {
     faqs.push({
       q: `${industry} 본사 영업이익률 분포는?`,
       a: escapeMarkdownTilde(
-        `정보공개서 본사 재무 항목 기준 ${industry} ${facts.n_brands}개 브랜드 본사 영업이익률 중앙값은 ${opMargin.p50.display}입니다.`,
+        `정보공개서 본사 재무 항목 기준 ${industry} ${n_brands}개 브랜드 본사 영업이익률 중앙값은 ${opMargin.p50.display}입니다.`,
       ),
     });
   } else if (fin?.p50?.display && fin.p50.display !== "데이터 없음") {
     faqs.push({
       q: `${industry} 본사 매출 분포는 어떻게 되나요?`,
       a: escapeMarkdownTilde(
-        `정보공개서 본사 재무 항목 기준 ${industry} ${facts.n_brands}개 브랜드 본사 매출 중앙값은 ${fin.p50.display}입니다.`,
+        `정보공개서 본사 재무 항목 기준 ${industry} ${n_brands}개 브랜드 본사 매출 중앙값은 ${fin.p50.display}입니다.`,
       ),
     });
   }
 
-  // Q5: outlier
+  // Q5: outlier — 자연어 ("평균과 두드러지게 차이 나는 브랜드"). σ 표기 X.
   if (facts.outliers?.length > 0) {
     const top = facts.outliers.slice(0, 3);
-    const list = top
-      .map((o) => `${o.brand_label} (${o.value.display}, ${o.deviation} ${o.sigma}σ)`)
-      .join(", ");
+    const list = top.map((o) => `${o.brand_label} (${o.value.display})`).join(", ");
     faqs.push({
-      q: `${industry} ${facts.ranking.label} 평균 대비 큰 차이를 보이는 brand 는?`,
+      q: `${industry} 업종 안에서 평균과 두드러지게 차이 나는 브랜드는?`,
       a: escapeMarkdownTilde(
-        `정보공개서 기준 평균 ±2σ 를 벗어난 outlier 는 ${list} 등 ${facts.outliers.length}개 brand 입니다.`,
+        `정보공개서 기준 ${industry} 분포 안에서 평균과 가장 큰 차이를 보이는 브랜드는 ${list} 등 ${facts.outliers.length}개입니다.`,
       ),
     });
   }
 
-  // 5건 미만이면 가맹점수 / 가맹비 분포 fallback
-  if (faqs.length < 5) {
-    const stores = facts.distributions["frcs_cnt_2024_total"];
-    if (stores?.p50?.display && stores.p50.display !== "데이터 없음") {
-      faqs.push({
-        q: `${industry} 가맹점 수 분포는?`,
-        a: escapeMarkdownTilde(
-          `정보공개서 기준 ${industry} ${facts.n_brands}개 브랜드 전체 가맹점수 중앙값은 ${stores.p50.display}입니다.`,
-        ),
-      });
+  // ★ Fallback — 5건 미달 시 가용한 distributions 로 추가 (이미 사용된 metric 제외).
+  const usedMetrics = new Set<string>([
+    "avg_sales_2024_total",
+    "startup_cost_total",
+    "hq_op_margin_pct",
+    "fin_2024_revenue",
+  ]);
+  for (const [mid, dist] of Object.entries(facts.distributions ?? {})) {
+    if (faqs.length >= 5) break;
+    if (usedMetrics.has(mid)) continue;
+    if (!dist?.p50?.raw || dist.p50.display === "데이터 없음") continue;
+    const label = cleanLabel(dist.label);
+    const parts = [`정보공개서 기준 ${industry} ${label} 분포에서 중앙값은 ${dist.p50.display}입니다.`];
+    if (dist.p90?.display && dist.p90.display !== "데이터 없음") {
+      parts.push(`상위 10% 기준선은 ${dist.p90.display}입니다.`);
     }
+    faqs.push({
+      q: `${industry} ${label} 분포는 어떻게 되나요?`,
+      a: escapeMarkdownTilde(parts.join(" ")),
+    });
   }
-  if (faqs.length < 5) {
-    const fee = facts.distributions["startup_fee"];
-    if (fee?.p50?.display && fee.p50.display !== "데이터 없음") {
-      faqs.push({
-        q: `${industry} 가맹비 분포는?`,
-        a: escapeMarkdownTilde(
-          `정보공개서 기준 ${industry} ${facts.n_brands}개 브랜드 가맹비 중앙값은 ${fee.p50.display}입니다.`,
-        ),
-      });
-    }
+
+  // ★ Final fallback — 그래도 5 미만이면 generic 출처/시점/방식 안내문으로 채움.
+  const finalFallback: FaqItem[] = [
+    {
+      q: `${industry} 업종 데이터의 출처는 어디인가요?`,
+      a: `공정거래위원회 정보공개서(2024-12) 기준이며, ${industry} 업종 등록 ${n_brands}개 브랜드 분포를 모집단으로 합니다.`,
+    },
+    {
+      q: `${industry} 업종 분석의 기준 시점은 언제인가요?`,
+      a: `정보공개서(2024-12) 기준 데이터입니다. 본사 자체 발표 자료(POS·브로셔)는 별도 분석 모드(A+C)에서 다룹니다.`,
+    },
+    {
+      q: `${industry} 분포 비교는 어떤 방식으로 이뤄지나요?`,
+      a: `정보공개서 기준 ${industry} 업종 ${n_brands}개 브랜드의 metric 별 분포 — 하위 25% / 중앙값 / 상위 25% / 상위 10% 와 평균 — 을 사용합니다.`,
+    },
+    {
+      q: `${industry} 업종에 본사 발표 자료(브로셔/POS)는 포함되어 있나요?`,
+      a: `이 분석은 정보공개서(A) 기반 업종 단위 분석입니다. 개별 브랜드의 본사 발표 자료(브로셔·POS·본사 카카오톡 확인 등)는 A+C 모드에서 별도로 다룹니다.`,
+    },
+    {
+      q: `${industry} 평균과 두드러지게 차이 나는 브랜드는 어떤 기준으로 추출되나요?`,
+      a: `정보공개서 기준 ${industry} 업종 분포에서 metric 평균과 차이가 두드러지게 큰 브랜드를 추출합니다. 분포 안에서 가장 멀리 떨어진 브랜드를 우선 안내드립니다.`,
+    },
+  ];
+  for (const fb of finalFallback) {
+    if (faqs.length >= 5) break;
+    if (faqs.some((f) => f.q === fb.q)) continue;
+    faqs.push({ q: fb.q, a: escapeMarkdownTilde(fb.a) });
   }
 
   return faqs.slice(0, 5);
+}
+
+/**
+ * v4-18 — metric label 의 "(2024)" / "(2023)" 괄호 표기 제거.
+ * "전체 가맹점 수 (2024)" → "전체 가맹점 수".
+ * 본문/FAQ 인용 시 "2024년" 같이 자연어로 변환할 수 있도록 base 만 보존.
+ */
+function cleanLabel(label: string): string {
+  return label.replace(/\s*\(\s*\d{4}\s*\)\s*$/g, "").trim();
 }
 
 function escapeMarkdownTilde(s: string): string {

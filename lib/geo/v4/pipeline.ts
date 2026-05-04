@@ -773,14 +773,15 @@ export async function runStep3WriteAOnly(draftId: string): Promise<V4Result> {
     a_only_facts: facts,
   });
 
-  console.log(`[v4-17.3] sonnet (A only industry) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  console.log(`[v4-18.3] sonnet (A only industry) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
   const tStart = Date.now();
   const draftBody = await callSonnet({
     system: sys,
     user,
-    maxTokens: 3000,
+    // v4-18: ranking 표 + outlier narrative 분량 큼 → 3000 → 3500. 50 tok/s × 3500 = ~70s, write route 60s 빠듯.
+    maxTokens: 3500,
   });
-  console.log(`[v4-17.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
+  console.log(`[v4-18.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
 
   const processed = postProcess(draftBody);
   console.log(`[v4-17.3] post_process: ${processed.log.join(" | ")}`);

@@ -126,7 +126,8 @@ async function main() {
   check(`★ 단일 brand 비교 X`, wsp.includes("단일 brand 비교 X"));
   check(`★ C 데이터 인용 절대 X`, wsp.includes("C 데이터 인용 절대 X"));
   check(`업종 단위 분석`, wsp.includes("업종") && wsp.includes("238"));
-  check(`본문 3블럭 / 4,000자`, wsp.includes("3블럭") && wsp.includes("4,000자"));
+  // v4-18 supersede: 본문 한도 4,000 → 4,500자.
+  check(`본문 3블럭 / 4,500자 (v4-18 supersede)`, wsp.includes("3블럭") && wsp.includes("4,500자"));
   check(`distributions / ranking / outliers 명시`, wsp.includes("distributions") && wsp.includes("ranking") && wsp.includes("outliers"));
   check(`p25/p50 약어 X 룰`, wsp.includes("p25") && wsp.includes("자연어"));
 
