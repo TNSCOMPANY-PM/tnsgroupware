@@ -27,6 +27,8 @@ export default function EditorPage() {
   const [selectedBrand, setSelectedBrand] = useState<GeoBrand | null>(null);
 
   const [loading, setLoading] = useState(false);
+  // v4-07: 3-step phase 표시
+  const [phase, setPhase] = useState<"idle" | "facts_a" | "facts_c" | "writing" | "done">("idle");
   const [result, setResult] = useState<V4Result | null>(null);
   const [error, setError] = useState<string>("");
 
@@ -58,46 +60,73 @@ export default function EditorPage() {
     return () => clearTimeout(t);
   }, [searchTerm, selectedBrand]);
 
+  // v4-07: 3-step chain — facts-a → facts-c/[id] → write/[id]
   const handleGenerate = useCallback(async () => {
     if (!selectedBrand || !topic.trim()) return;
     setError("");
     setResult(null);
     setLoading(true);
+    setPhase("facts_a");
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 65000);
+    async function callApi(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...init, signal: controller.signal });
+        if (!res.ok) {
+          let msg: string;
+          try {
+            const errData = await res.json();
+            msg = errData.message
+              ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}${errData.hint ? `\n\n${errData.hint}` : ""}`
+              : errData.error || `API ${res.status}`;
+          } catch {
+            const text = await res.text().catch(() => "");
+            msg = `API ${res.status} ${res.statusText}: ${text.slice(0, 300)}`;
+          }
+          throw new Error(msg);
+        }
+        return await res.json();
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
 
     try {
-      const res = await fetch("/api/geo/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_id: selectedBrand.id, topic }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        let msg: string;
-        try {
-          const errData = await res.json();
-          msg = errData.message
-            ? `${errData.message}${errData.error ? ` [${errData.error}]` : ""}${errData.hint ? `\n\n${errData.hint}` : ""}`
-            : errData.error || `API ${res.status}`;
-        } catch {
-          const text = await res.text().catch(() => "");
-          msg = `API ${res.status} ${res.statusText}: ${text.slice(0, 300)}`;
-        }
-        setError(msg);
-        return;
-      }
-      const data = (await res.json()) as V4Result;
-      setResult(data);
+      // Step 1 — facts-a (LLM1)
+      const step1 = (await callApi(
+        "/api/geo/facts-a",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brand_id: selectedBrand.id, topic }),
+        },
+        65000,
+      )) as { draftId: string };
+      const draftId = step1.draftId;
+
+      // Step 2 — facts-c (LLM2)
+      setPhase("facts_c");
+      await callApi(`/api/geo/facts-c/${draftId}`, { method: "POST" }, 65000);
+
+      // Step 3 — write (LLM3 = Sonnet)
+      setPhase("writing");
+      const step3 = (await callApi(
+        `/api/geo/write/${draftId}`,
+        { method: "POST" },
+        65000,
+      )) as V4Result;
+
+      setResult(step3);
+      setPhase("done");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         setError("타임아웃 (65초 초과). 다시 시도해 주세요.");
       } else {
         setError(err instanceof Error ? err.message : "오류 발생");
       }
+      setPhase("idle");
     } finally {
-      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [selectedBrand, topic]);
@@ -200,12 +229,19 @@ export default function EditorPage() {
         </div>
       )}
 
-      {/* 생성 중 */}
+      {/* v4-07 3-step 진행 표시 */}
       {loading && (
-        <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
-          <div className="font-semibold">⏳ 콘텐츠 생성 중...</div>
-          <div className="text-xs text-blue-700 mt-1">
-            sonnet 1회 호출 (raw 데이터 통째 입력). 약 40초 소요.
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800 space-y-1">
+          <div className="font-semibold">
+            ⏳ 콘텐츠 생성 중... ({phase === "facts_a" ? "1/3 A급 데이터" : phase === "facts_c" ? "2/3 C급 데이터" : phase === "writing" ? "3/3 본문 작성" : "..."})
+          </div>
+          <div className="text-xs text-blue-700">
+            {phase === "facts_a" && "Step 1: 공정위 152컬럼 정제 (haiku, ~30초)"}
+            {phase === "facts_c" && "Step 2: 본사 docx_facts + A vs C 차이 (haiku, ~30초)"}
+            {phase === "writing" && "Step 3: Sonnet 본문 작성 (4,400자, ~50초)"}
+          </div>
+          <div className="text-[11px] text-blue-600">
+            v4-07 — 3 로빈 구조. 사용자 대기 ~110초.
           </div>
         </div>
       )}

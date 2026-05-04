@@ -1,13 +1,13 @@
 /**
- * v4 — /api/geo/generate. 단일 sonnet call (Plan/Write 분할 폐기).
+ * v4-07 — /api/geo/facts-a (LLM1, haiku).
  * 입력: { brand_id, topic }
- * 출력: V4Result { draftId, content, lintWarnings, ccUnmatched, ... }
+ * 출력: { draftId, a_facts } — 이후 /api/geo/facts-c/{draftId} → /api/geo/write/{draftId} chain.
  */
 
 import { NextResponse } from "next/server";
 import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
 import {
-  generateV4,
+  runStep1FactsA,
   FtcBrandIdMissingError,
   FtcRowNotFoundError,
 } from "@/lib/geo/v4/pipeline";
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const out = await generateV4(parsed);
+    const out = await runStep1FactsA(parsed);
     return NextResponse.json(out);
   } catch (e) {
     if (e instanceof FtcBrandIdMissingError) {
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       );
     }
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[v4.gen] failed:", msg);
-    return NextResponse.json({ error: "GENERATE_FAILED", message: msg }, { status: 500 });
+    console.error("[v4-07.1] failed:", msg);
+    return NextResponse.json({ error: "FACTS_A_FAILED", message: msg }, { status: 500 });
   }
 }

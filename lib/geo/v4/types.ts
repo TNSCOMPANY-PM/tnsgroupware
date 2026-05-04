@@ -35,3 +35,60 @@ export type V4Result = {
   lintWarnings: string[];
   ccUnmatched: string[];
 };
+
+/**
+ * v4-07 — Step 1 (LLM1 haiku) output: A급 정제 facts.
+ * fact_groups: metric_id → { label, A, distribution?, outlier_note? }
+ */
+export type AFactsResult = {
+  brand_label: string;
+  industry: string;
+  industry_sub: string | null;
+  topic: string;
+  ftc_brand_id: string;
+  selected_metrics: string[];
+  key_angle: string;
+  fact_groups: Record<
+    string,
+    {
+      label: string;
+      A?: { display: string; raw_value: number; unit: string; period?: string | null; source: string };
+      distribution?: {
+        p25?: { display: string; raw: number };
+        p50?: { display: string; raw: number };
+        p75?: { display: string; raw: number };
+        p90?: { display: string; raw: number };
+        p95?: { display: string; raw: number };
+        n_population: number;
+        brand_position?: string;
+      };
+      outlier_note?: string;
+    }
+  >;
+  population_info: Record<string, number>;
+};
+
+/**
+ * v4-07 — Step 2 (LLM2 haiku) output: C급 정제 facts + A vs C 차이.
+ */
+export type CFactsResult = {
+  fact_groups: Record<
+    string,
+    {
+      label: string;
+      C?: { display: string; raw_value: number | null; value_text?: string | null; unit: string | null; source: string };
+      ac_diff_analysis?: string;
+    }
+  >;
+  c_only_facts: Array<{
+    label: string;
+    value_num: number | null;
+    value_text: string | null;
+    unit: string | null;
+    source: string;
+  }>;
+  ac_diff_summary: string;
+};
+
+export type V4Step1Response = { draftId: string; a_facts: AFactsResult };
+export type V4Step2Response = { draftId: string; c_facts: CFactsResult };

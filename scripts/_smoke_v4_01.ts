@@ -65,7 +65,9 @@ async function main() {
   // T4 — truncateDocxIfLarge (pipeline 내부 함수 — surface 검증 안 됨, 동작만 확인)
   console.log("\n[T4] pipeline 모듈 surface");
   const pipeline = await import("../lib/geo/v4/pipeline");
-  check(`generateV4 exported`, typeof pipeline.generateV4 === "function");
+  // v4-07: generateV4 → runStep1/2/3
+  check(`runStep1FactsA exported`, typeof pipeline.runStep1FactsA === "function");
+  check(`runStep3Write exported`, typeof pipeline.runStep3Write === "function");
   check(`FtcBrandIdMissingError exported`, typeof pipeline.FtcBrandIdMissingError === "function");
 
   // T5 — sysprompt 변경 없음 (회귀)
