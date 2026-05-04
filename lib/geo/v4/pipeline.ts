@@ -377,7 +377,9 @@ export async function runStep2FactsC(draftId: string): Promise<V4Step2Response> 
     const raw = await callHaiku({
       system: sys,
       user,
-      maxTokens: 3000,
+      // v4-08: 3000 → 4000. c_facts JSON truncation 빈발 (다중 c_only_facts narrative 길이).
+      // haiku 빠르니 +5~10s 허용. ~40s 합 (60s 안 안전).
+      maxTokens: 4000,
     });
     console.log(`[v4-07.2] haiku done: ${Date.now() - tStart}ms, len=${raw.length}`);
     try {
