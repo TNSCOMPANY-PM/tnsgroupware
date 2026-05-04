@@ -223,7 +223,12 @@ async function main() {
   // T6 — maxTokens 3000
   console.log("\n[T6] callSonnet maxTokens 3500 → 3000");
   check(`maxTokens: 3000 (v4-13)`, pipelineSrc.includes("maxTokens: 3000"));
-  check(`maxTokens: 3500 제거`, !pipelineSrc.includes("maxTokens: 3500"));
+  // v4-18 supersede: A only 만 3500 (A+C 는 3000 유지).
+  check(
+    `maxTokens: 3500 1건 (A only v4-18, A+C 3000 유지)`,
+    (pipelineSrc.match(/maxTokens: 3500/g) ?? []).length === 1 &&
+      (pipelineSrc.match(/maxTokens: 3000/g) ?? []).length === 1,
+  );
 
   // T7 — matchAndDiff source_label 통일
   console.log("\n[T7] matchAndDiff source_label = '본사 데이터'");
