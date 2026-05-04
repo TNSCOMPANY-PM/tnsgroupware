@@ -10,6 +10,25 @@ type GeoBrand = {
   ftc_brand_id: string | null;
 };
 
+// v4-17: A only 모드 — 외식 15 업종 dropdown.
+const INDUSTRIES_15 = [
+  "한식",
+  "분식",
+  "중식",
+  "일식",
+  "서양식",
+  "기타외국식",
+  "패스트푸드",
+  "치킨",
+  "피자",
+  "제과제빵",
+  "아이스크림빙수",
+  "커피",
+  "음료(커피외)",
+  "주점",
+  "기타외식",
+] as const;
+
 type V4Result = {
   draftId: string | null;
   saveError: string | null;
@@ -42,6 +61,8 @@ export default function EditorPage() {
   const [error, setError] = useState<string>("");
   // v4-16: 생성 모드 (A+C 팩트 콘텐츠 / A only 분석 콘텐츠)
   const [genMode, setGenMode] = useState<"a_plus_c" | "a_only">("a_plus_c");
+  // v4-17: A only 모드 — industry 단위 (brand 검색 X). 외식 15 업종.
+  const [industry, setIndustry] = useState<string>("");
 
   // brand 검색 (geo_brands typeahead — ftc_brand_id 매핑된 것만)
   useEffect(() => {
@@ -71,13 +92,16 @@ export default function EditorPage() {
     return () => clearTimeout(t);
   }, [searchTerm, selectedBrand]);
 
-  // v4-07: 3-step chain — facts-a → facts-c/[id] → write/[id]
+  // v4-07: A+C 3-step chain (facts-a → facts-c/[id] → write/[id])
+  // v4-17: A only 모드는 industry + topic 만 (brand 없음).
   const handleGenerate = useCallback(async () => {
-    if (!selectedBrand || !topic.trim()) return;
+    if (!topic.trim()) return;
+    if (genMode === "a_plus_c" && !selectedBrand) return;
+    if (genMode === "a_only" && !industry) return;
     setError("");
     setResult(null);
     setLoading(true);
-    setPhase("facts_a");
+    setPhase(genMode === "a_only" ? "a_only_analyze" : "facts_a");
 
     async function callApi(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
       const controller = new AbortController();
@@ -105,14 +129,14 @@ export default function EditorPage() {
 
     try {
       if (genMode === "a_only") {
-        // v4-16 — A only 3-step chain
+        // v4-17 — A only 업종 3-step chain (industry + topic, brand 없음)
         setPhase("a_only_analyze");
         const s1 = (await callApi(
           "/api/geo/a-only/analyze",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ brand_id: selectedBrand.id, topic }),
+            body: JSON.stringify({ industry, topic }),
           },
           65000,
         )) as { draftId: string };
@@ -131,6 +155,7 @@ export default function EditorPage() {
         setPhase("done");
       } else {
         // v4-07 — A+C 3-step chain (facts-a → facts-c → write)
+        if (!selectedBrand) throw new Error("브랜드 선택 필요");
         const step1 = (await callApi(
           "/api/geo/facts-a",
           {
@@ -165,14 +190,17 @@ export default function EditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBrand, topic, genMode]);
+  }, [selectedBrand, topic, genMode, industry]);
 
   const handleReset = () => {
     setError("");
     setResult(null);
   };
 
-  const isDisabled = loading || !selectedBrand || !topic.trim();
+  const isDisabled =
+    loading ||
+    !topic.trim() ||
+    (genMode === "a_plus_c" ? !selectedBrand : !industry);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -204,12 +232,34 @@ export default function EditorPage() {
         </button>
       </div>
 
-      {/* 1. 브랜드 선택 */}
+      {/* 1. 브랜드 선택 (A+C) 또는 업종 선택 (A only) */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-sm font-semibold text-slate-800 mb-4">1. 브랜드 선택</h2>
-        <p className="text-xs text-slate-500 mb-3">
-          geo_brands 에 등록된 브랜드 중 선택. ftc_brand_id 매핑 필수 (자동 데이터 fetch 용).
-        </p>
+        {genMode === "a_only" ? (
+          <>
+            <h2 className="text-sm font-semibold text-slate-800 mb-4">1. 업종 선택</h2>
+            <p className="text-xs text-slate-500 mb-3">
+              외식 15 업종 중 1개 선택. 해당 업종 N개 브랜드 분포 / ranking / outlier 분석.
+            </p>
+            <select
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              disabled={loading}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
+            >
+              <option value="">— 업종 선택 —</option>
+              {INDUSTRIES_15.map((ind) => (
+                <option key={ind} value={ind}>
+                  {ind}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <>
+            <h2 className="text-sm font-semibold text-slate-800 mb-4">1. 브랜드 선택</h2>
+            <p className="text-xs text-slate-500 mb-3">
+              geo_brands 에 등록된 브랜드 중 선택. ftc_brand_id 매핑 필수 (자동 데이터 fetch 용).
+            </p>
         {selectedBrand ? (
           <div className="flex items-center gap-2 p-3 border border-blue-200 bg-blue-50 rounded-lg">
             <div className="flex-1">
@@ -267,13 +317,19 @@ export default function EditorPage() {
             )}
           </>
         )}
+          </>
+        )}
       </div>
 
       {/* 2. 토픽 */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-semibold text-slate-800 mb-4">2. 토픽 입력</h2>
         <textarea
-          placeholder="예: 오공김밥 분식 업종 포지션 분석 / 한식 폐점률 분석 / 본사 운영 모델 차별점"
+          placeholder={
+            genMode === "a_only"
+              ? `예: "${industry || "분식"} 평균 매출 분포 분석" / "${industry || "치킨"} 본사 영업이익률 trend" / "${industry || "한식"} 폐점률 ranking"`
+              : "예: 오공김밥 분식 업종 포지션 분석 / 한식 폐점률 분석 / 본사 운영 모델 차별점"
+          }
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           disabled={loading}
