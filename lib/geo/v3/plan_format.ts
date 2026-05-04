@@ -36,12 +36,22 @@ export function formatToDisplay(raw: number, unit: string): string {
     return `${raw.toLocaleString("en-US")}억원`;
   }
 
+  // v4-12: 천원 → 원 환산 후 동일 분기로 처리 (사람 읽기: "X억 Y만원").
+  if (u === "천원") {
+    return formatToDisplay(raw * 1000, "원");
+  }
+
   if (u === "원") {
     if (raw >= 100_000_000) {
       const eok = Math.floor(raw / 100_000_000);
       const remainingMan = Math.floor((raw - eok * 100_000_000) / 10_000);
       if (remainingMan === 0) return `${eok}억원`;
       return `${eok}억 ${remainingMan.toLocaleString("en-US")}만원`;
+    }
+    // 1억 미만: 만원 단위로 표기 (1만원 미만은 원 유지)
+    if (raw >= 10_000) {
+      const man = Math.floor(raw / 10_000);
+      return `${man.toLocaleString("en-US")}만원`;
     }
     return `${raw.toLocaleString("en-US")}원`;
   }
