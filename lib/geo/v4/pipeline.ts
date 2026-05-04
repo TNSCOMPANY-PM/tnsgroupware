@@ -443,9 +443,9 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
   const draftBody = await callSonnet({
     system: sys,
     user,
-    // v4-11: 본문 잘림 fix — write route 60s 독립 budget 활용 (Sonnet 50 tok/s × 3000 = ~60s).
-    // 5,500자 / 5블럭 (D 리스크 + E 결론 잘림 0).
-    maxTokens: 3000,
+    // v4-12: 블럭 E 폐기 → 4블럭/4,500자. frontmatter+FAQ 까지 max_tokens 합산되므로 3500 으로 상향.
+    // Sonnet 50 tok/s × 3500 ≈ 70s — write route 60s 빠듯. timeout 시 v4-13 frontmatter 분리.
+    maxTokens: 3500,
   });
   console.log(`[v4-07.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
 

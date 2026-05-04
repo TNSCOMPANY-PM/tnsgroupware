@@ -44,6 +44,18 @@ export function matchAndDiff(args: {
     const label = (docxFact.label ?? "").trim();
     if (!label) continue;
 
+    // v4-12: source_type/source_note 가 정보공개서 계열이면 A 보강 (C 가 아님) → 매칭 skip.
+    // 진짜 C (브로셔/POS/본사 자료/카카오톡) 만 fact_groups 에 매칭해 의미 있는 차이만 표기.
+    const sourceType = (docxFact.source_type ?? "").trim();
+    const sourceNote = (docxFact.source_note ?? "").toLowerCase();
+    const isAGradeBoost =
+      sourceType === "공정위" ||
+      sourceType === "정부_통계" ||
+      sourceType === "공식_인증" ||
+      sourceNote.includes("정보공개서") ||
+      sourceNote.includes("공정거래위원회");
+    if (isAGradeBoost) continue;
+
     // mapFactLabelToMetricId 재사용 (v2 의 docx_label → v2 metric_id 매핑).
     // v4 의 a_facts metric_id 는 ftc_brands_2024 컬럼명이라 매핑 키가 다를 수 있음 →
     // a_facts.fact_groups 의 key 와 v2 metric_id 모두 후보로 매칭.
