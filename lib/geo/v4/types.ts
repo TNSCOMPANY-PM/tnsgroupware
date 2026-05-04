@@ -96,3 +96,51 @@ export type V4Step2Response = { draftId: string; c_facts: CFactsResult };
 // v4-16 — A only 분석 모드 응답.
 export type V4AOnlyStep1Response = { draftId: string };
 export type V4AOnlyStep2Response = { draftId: string };
+
+// v4-17 — A only 모드 업종 단위 input (brand_id 대신 industry).
+export type V4AOnlyInput = {
+  industry: string;
+  topic: string;
+};
+
+// v4-17 — A only 모드 업종 단위 분석 facts.
+// 단일 brand 비교 X. 분포 / ranking / outlier 중심.
+export type IndustryDistribution = {
+  label: string;
+  unit: string;
+  n_population: number | null;
+  p25: { display: string; raw: number | null };
+  p50: { display: string; raw: number | null };
+  p75: { display: string; raw: number | null };
+  p90: { display: string; raw: number | null };
+  p95: { display: string; raw: number | null };
+  mean: { display: string; raw: number | null };
+};
+
+export type IndustryAnalysisFacts = {
+  industry: string;
+  n_brands: number;
+  topic: string;
+  key_angle: string;
+  analysis_axes: string[];
+  selected_metrics: string[];
+  ranking_metric: string;
+
+  distributions: Record<string, IndustryDistribution>;
+
+  ranking: {
+    metric_id: string;
+    label: string;
+    unit: string;
+    top10: Array<{ brand_label: string; value: { display: string; raw: number } }>;
+    bottom10: Array<{ brand_label: string; value: { display: string; raw: number } }>;
+  };
+
+  outliers: Array<{
+    brand_label: string;
+    metric_id: string;
+    value: { display: string; raw: number };
+    deviation: "상단" | "하단";
+    sigma: number;
+  }>;
+};

@@ -34,22 +34,30 @@ import { renderFrontmatterYaml } from "./render_frontmatter";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
 import { lintV4, lintV4Faq } from "./lint";
-// v4-16: A only 분석 모드 — 별도 3-step chain.
+// v4-16~17: A only 분석 모드 — 별도 3-step chain (v4-17 업종 단위 재설계).
 import {
   buildLlm1AnalyzeAOnlySysprompt,
   buildLlm1AnalyzeAOnlyUser,
 } from "./sysprompts/llm1_analyze_a_only";
-import { buildAOnlyFacts } from "./build_a_only_facts";
-import type { AOnlyFactsResult } from "./build_a_only_facts";
+import {
+  buildIndustryAnalysisFacts,
+  DEFAULT_RANKING_METRIC,
+} from "./build_industry_analysis";
 import {
   buildWriterAOnlySysprompt,
   buildWriterAOnlyUserPrompt,
 } from "./sysprompts/writer_a_only";
+import {
+  buildIndustryFrontmatter,
+  buildIndustryFaq,
+} from "./build_industry_frontmatter";
 import type {
   AFactsResult,
   CFactsResult,
   DocxFact,
+  IndustryAnalysisFacts,
   RawInputBundle,
+  V4AOnlyInput,
   V4AOnlyStep1Response,
   V4AOnlyStep2Response,
   V4Input,
@@ -571,44 +579,72 @@ function collectAllowedNumbersFromCFacts(cFacts: CFactsResult): Set<string> {
 }
 
 // =============================================================================
-// v4-16 — A only 분석 모드 (3-step chain, gen_mode='a_only')
+// v4-17 — A only 업종 분석 모드 (3-step chain, gen_mode='a_only', industry 단위)
 // =============================================================================
 
 /**
- * v4-16 Step 1 — LLM1 (Sonnet) 분석 각도 결정 + 코드 후처리 (buildAOnlyFacts).
- * input: V4Input { brand_id, topic }
- * output: { draftId } — meta.a_only_facts 에 a_only_facts 저장.
+ * v4-17 — 업종 단위 raw 데이터 fetch (ftc_brands_2024 induty_mlsfc/lclas + industry_facts).
  */
-export async function runStep1AnalyzeAOnly(input: V4Input): Promise<V4AOnlyStep1Response> {
+async function fetchAOnlyBundle(industry: string): Promise<{
+  brands: Array<Record<string, unknown>>;
+  industry_facts: Array<Record<string, unknown>>;
+}> {
+  const fra = createFrandoorClient();
+  // induty_mlsfc 우선 (분식/한식/치킨), induty_lclas (외식) fallback OR
+  const { data: brandsData, error: bErr } = await fra
+    .from("ftc_brands_2024")
+    .select("*")
+    .or(`induty_mlsfc.eq.${industry},induty_lclas.eq.${industry}`);
+  if (bErr) throw new Error(`ftc_brands_2024 industry fetch (${industry}): ${bErr.message}`);
+
+  const { data: ifData, error: ifErr } = await fra
+    .from("industry_facts")
+    .select("*")
+    .eq("industry", industry);
+  if (ifErr) console.warn(`[v4-17] industry_facts fetch: ${ifErr.message}`);
+
+  return {
+    brands: (brandsData ?? []) as Array<Record<string, unknown>>,
+    industry_facts: (ifData ?? []) as Array<Record<string, unknown>>,
+  };
+}
+
+/**
+ * v4-17 Step 1 — LLM1 (Sonnet) 업종 분석 각도 결정 + 코드 후처리 (buildIndustryAnalysisFacts).
+ * input: V4AOnlyInput { industry, topic }
+ * output: { draftId } — meta.a_only_facts 에 IndustryAnalysisFacts 저장.
+ */
+export async function runStep1AnalyzeAOnly(input: V4AOnlyInput): Promise<V4AOnlyStep1Response> {
   const today = new Date().toISOString().slice(0, 10);
   const t0 = Date.now();
 
-  const bundle = await fetchBundle(input);
+  const bundle = await fetchAOnlyBundle(input.industry);
   console.log(
-    `[v4-16.1] brand=${bundle.brand_label} ftc_id=${bundle.ftc_brand_id} industry=${bundle.industry} ftc_cols=${
-      Object.keys(bundle.ftc_row).length
-    } industry_facts=${bundle.industry_facts.length}`,
+    `[v4-17.1] industry=${input.industry} brands=${bundle.brands.length} industry_facts=${bundle.industry_facts.length}`,
   );
 
   const sys = buildLlm1AnalyzeAOnlySysprompt();
   const user = buildLlm1AnalyzeAOnlyUser({
-    brand_label: bundle.brand_label,
-    industry: bundle.industry,
-    industry_sub: bundle.industry_sub ?? null,
+    industry: input.industry,
     topic: input.topic,
-    ftc_brand_id: bundle.ftc_brand_id,
+    n_brands: bundle.brands.length,
   });
 
-  console.log(`[v4-16.1] sonnet (LLM1 analyze) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  console.log(`[v4-17.1] sonnet (LLM1 analyze) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
   const tStart = Date.now();
   const raw = await callLLM1({
     system: sys,
     user,
-    maxTokens: 1500, // selected_metrics + key_angle + analysis_axes ~600 token + 안전 margin
+    maxTokens: 1500,
   });
-  console.log(`[v4-16.1] sonnet done: ${Date.now() - tStart}ms, len=${raw.length}`);
+  console.log(`[v4-17.1] sonnet done: ${Date.now() - tStart}ms, len=${raw.length}`);
 
-  let parsed: { selected_metrics?: unknown; key_angle?: unknown; analysis_axes?: unknown };
+  let parsed: {
+    selected_metrics?: unknown;
+    key_angle?: unknown;
+    analysis_axes?: unknown;
+    ranking_metric?: unknown;
+  };
   try {
     parsed = extractJson(raw) as typeof parsed;
   } catch (e) {
@@ -621,49 +657,50 @@ export async function runStep1AnalyzeAOnly(input: V4Input): Promise<V4AOnlyStep1
   const analysisAxes = Array.isArray(parsed.analysis_axes)
     ? parsed.analysis_axes.filter((x): x is string => typeof x === "string" && x.length > 0)
     : [];
+  const rankingMetric =
+    typeof parsed.ranking_metric === "string" && parsed.ranking_metric.length > 0
+      ? parsed.ranking_metric
+      : DEFAULT_RANKING_METRIC;
 
   const tBuild = Date.now();
-  const aOnlyFacts: AOnlyFactsResult = buildAOnlyFacts({
-    brand_label: bundle.brand_label,
-    industry: bundle.industry,
-    industry_sub: bundle.industry_sub ?? null,
+  const facts: IndustryAnalysisFacts = buildIndustryAnalysisFacts({
+    industry: input.industry,
     topic: input.topic,
-    ftc_brand_id: bundle.ftc_brand_id,
     selected_metrics: selectedMetrics,
     key_angle: keyAngle,
     analysis_axes: analysisAxes,
-    ftc_row: bundle.ftc_row,
+    ranking_metric: rankingMetric,
+    brands: bundle.brands,
     industry_facts: bundle.industry_facts,
   });
   console.log(
-    `[v4-16.1] buildAOnlyFacts done: ${Date.now() - tBuild}ms (LLM 호출 X), fact_groups=${
-      Object.keys(aOnlyFacts.fact_groups).length
-    } axes=${aOnlyFacts.analysis_axes.length} timeseries=${
-      Object.keys(aOnlyFacts.timeseries).length
-    }`,
+    `[v4-17.1] buildIndustryAnalysisFacts done: ${Date.now() - tBuild}ms — distributions=${
+      Object.keys(facts.distributions).length
+    } top10=${facts.ranking.top10.length} outliers=${facts.outliers.length}`,
   );
 
   const tns = createAdminClient();
-  const placeholderTitle = `[1/3 a-only analyze] ${bundle.brand_label} — ${input.topic}`;
+  const placeholderTitle = `[1/3 a-only analyze] ${input.industry} — ${input.topic}`;
   const { data: ins, error: dErr } = await tns
     .from("frandoor_blog_drafts")
     .insert({
-      brand_id: input.brand_id,
-      ftc_brand_id: bundle.ftc_brand_id,
-      industry: bundle.industry,
+      brand_id: null, // ★ industry 모드 — brand 없음
+      ftc_brand_id: null,
+      industry: input.industry,
       channel: "frandoor",
       title: placeholderTitle,
       content: null,
       faq: [],
       meta: {
-        mode: "brand",
+        mode: "industry",
         topic: input.topic,
-        a_only_facts: aOnlyFacts,
+        a_only_facts: facts,
+        n_brands: bundle.brands.length,
       },
-      content_type: "brand",
+      content_type: "industry",
       status: "draft",
       target_date: today,
-      pipeline_version: "v4-16",
+      pipeline_version: "v4-17",
       gen_mode: "a_only",
       stage: "a_only_analyzed",
     })
@@ -674,13 +711,13 @@ export async function runStep1AnalyzeAOnly(input: V4Input): Promise<V4AOnlyStep1
   }
 
   console.log(
-    `[v4-16.1] ✓ ${Date.now() - t0}ms, draftId=${ins.id} stage=a_only_analyzed`,
+    `[v4-17.1] ✓ ${Date.now() - t0}ms, draftId=${ins.id} stage=a_only_analyzed industry=${input.industry}`,
   );
   return { draftId: ins.id as string };
 }
 
 /**
- * v4-16 Step 2 — 코드 결정론 구조화 (현재는 pass-through, 추후 metric 간 관계 보강 자리).
+ * v4-17 Step 2 — 코드 결정론 구조화 (현재는 pass-through).
  * input: draftId (stage='a_only_analyzed')
  * output: { draftId } — stage='a_only_structured'.
  */
@@ -691,27 +728,25 @@ export async function runStep2StructureAOnly(draftId: string): Promise<V4AOnlySt
     throw new InvalidStageError(draftId, "a_only_analyzed", draft.stage);
   }
   const meta = (draft.meta ?? {}) as Record<string, unknown>;
-  const aOnlyFacts = meta.a_only_facts as AOnlyFactsResult | undefined;
-  if (!aOnlyFacts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
+  const facts = meta.a_only_facts as IndustryAnalysisFacts | undefined;
+  if (!facts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
 
-  // v4-16: 현재는 LLM1 단계에서 buildAOnlyFacts 가 이미 timeseries / distribution 생성 완료.
-  // Step 2 는 stage 전환만 (추후 metric 간 관계 자동 추출 등 보강 자리).
   const tns = createAdminClient();
   const { error: uErr } = await tns
     .from("frandoor_blog_drafts")
     .update({
-      meta: { ...meta, a_only_facts: aOnlyFacts },
+      meta: { ...meta, a_only_facts: facts },
       stage: "a_only_structured",
     })
     .eq("id", draftId);
   if (uErr) throw new Error(`Step 2 (a_only) UPDATE failed: ${uErr.message}`);
 
-  console.log(`[v4-16.2] ✓ ${Date.now() - t0}ms, stage=a_only_structured`);
+  console.log(`[v4-17.2] ✓ ${Date.now() - t0}ms, stage=a_only_structured`);
   return { draftId };
 }
 
 /**
- * v4-16 Step 3 — Sonnet writer (A only, 분석 톤) + frontmatter/FAQ 코드 합치기.
+ * v4-17 Step 3 — Sonnet writer (업종 분석 톤) + frontmatter/FAQ 코드 합치기.
  * input: draftId (stage='a_only_structured')
  * output: V4Result.
  */
@@ -722,60 +757,53 @@ export async function runStep3WriteAOnly(draftId: string): Promise<V4Result> {
     throw new InvalidStageError(draftId, "a_only_structured", draft.stage);
   }
   const meta = (draft.meta ?? {}) as Record<string, unknown>;
-  const aOnlyFacts = meta.a_only_facts as AOnlyFactsResult | undefined;
-  if (!aOnlyFacts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
+  const facts = meta.a_only_facts as IndustryAnalysisFacts | undefined;
+  if (!facts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
 
   const today = new Date().toISOString().slice(0, 10);
   const sys = buildWriterAOnlySysprompt({
-    brand_label: aOnlyFacts.brand_label,
-    industry: aOnlyFacts.industry,
-    industry_sub: aOnlyFacts.industry_sub,
-    topic: aOnlyFacts.topic,
+    industry: facts.industry,
+    topic: facts.topic,
+    n_brands: facts.n_brands,
     today,
   });
   const user = buildWriterAOnlyUserPrompt({
-    topic: aOnlyFacts.topic,
-    brand_label: aOnlyFacts.brand_label,
-    a_only_facts: aOnlyFacts,
+    topic: facts.topic,
+    industry: facts.industry,
+    a_only_facts: facts,
   });
 
-  console.log(`[v4-16.3] sonnet (A only) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
+  console.log(`[v4-17.3] sonnet (A only industry) 호출 (sys=${sys.length}자, user=${user.length}자)...`);
   const tStart = Date.now();
   const draftBody = await callSonnet({
     system: sys,
     user,
     maxTokens: 3000,
   });
-  console.log(`[v4-16.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
+  console.log(`[v4-17.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
 
   const processed = postProcess(draftBody);
-  console.log(`[v4-16.3] post_process: ${processed.log.join(" | ")}`);
+  console.log(`[v4-17.3] post_process: ${processed.log.join(" | ")}`);
 
-  // C 데이터 없음 — buildFrontmatter / buildFaq 재사용 (c_facts 빈 객체 전달).
-  const emptyCFacts: CFactsResult = { fact_groups: {}, c_only_facts: [], ac_diff_summary: "" };
-  const frontmatter = buildFrontmatter({
-    topic: aOnlyFacts.topic,
-    brand_label: aOnlyFacts.brand_label,
-    industry: aOnlyFacts.industry,
-    brand_id: draft.brand_id ?? "",
+  const frontmatter = buildIndustryFrontmatter({
+    topic: facts.topic,
+    industry: facts.industry,
+    draft_id: draftId,
     today,
-    a_facts: aOnlyFacts,
-    c_facts: emptyCFacts,
+    facts,
   });
-  const faqItems = buildFaq({
-    brand_label: aOnlyFacts.brand_label,
-    industry: aOnlyFacts.industry,
-    a_facts: aOnlyFacts,
-    c_facts: emptyCFacts,
+  const faqItems = buildIndustryFaq({
+    industry: facts.industry,
+    facts,
   });
   const yaml = renderFrontmatterYaml(frontmatter, faqItems);
   const finalContent = `${yaml}\n\n${processed.body.trim()}\n`;
 
-  const allowedFromA = collectAllowedNumbersFromAFacts(aOnlyFacts);
-  const cc = crosscheckV4(processed.body, allowedFromA);
-  const lint = lintV4(processed.body, { hasC: false, topic: aOnlyFacts.topic });
+  const allowedFromIndustry = collectAllowedNumbersFromIndustryFacts(facts);
+  const cc = crosscheckV4(processed.body, allowedFromIndustry);
+  const lint = lintV4(processed.body, { hasC: false, topic: facts.topic });
   console.log(
-    `[v4-16.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
+    `[v4-17.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
   );
 
   const faqLint = lintV4Faq(faqItems);
@@ -812,7 +840,7 @@ export async function runStep3WriteAOnly(draftId: string): Promise<V4Result> {
     saveError = e instanceof Error ? e.message : String(e);
   }
 
-  console.log(`[v4-16.3] ✓ ${Date.now() - t0}ms, stage=a_only_written`);
+  console.log(`[v4-17.3] ✓ ${Date.now() - t0}ms, stage=a_only_written`);
 
   return {
     draftId,
@@ -822,5 +850,29 @@ export async function runStep3WriteAOnly(draftId: string): Promise<V4Result> {
     lintWarnings,
     ccUnmatched: cc.unmatched,
   };
+}
+
+/** v4-17 — 업종 분석 facts 의 모든 raw_value (distributions + ranking + outliers) → allowedNumbers. */
+function collectAllowedNumbersFromIndustryFacts(facts: IndustryAnalysisFacts): Set<string> {
+  const allowed = new Set<string>();
+  function add(n: number | null | undefined) {
+    if (typeof n !== "number" || !Number.isFinite(n) || n <= 1) return;
+    allowed.add(String(n));
+    allowed.add(n.toLocaleString("en-US"));
+    allowed.add(n.toLocaleString("ko-KR"));
+    allowed.add(String(Math.trunc(n)));
+  }
+  for (const dist of Object.values(facts.distributions ?? {})) {
+    for (const k of ["p25", "p50", "p75", "p90", "p95", "mean"] as const) {
+      const p = dist[k];
+      if (p && typeof p.raw === "number") add(p.raw);
+    }
+    add(dist.n_population);
+  }
+  for (const r of facts.ranking?.top10 ?? []) add(r.value.raw);
+  for (const r of facts.ranking?.bottom10 ?? []) add(r.value.raw);
+  for (const o of facts.outliers ?? []) add(o.value.raw);
+  add(facts.n_brands);
+  return allowed;
 }
 
