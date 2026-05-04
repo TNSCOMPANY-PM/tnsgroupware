@@ -20,7 +20,8 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { createFrandoorClient } from "@/utils/supabase/frandoor";
 import { callHaiku, callSonnet, extractJson } from "./claude";
 import { buildLlm1Sysprompt, buildLlm1User } from "./sysprompts/llm1_facts_a";
-import { buildLlm2Sysprompt, buildLlm2User } from "./sysprompts/llm2_facts_c";
+// v4-09: LLM2 (haiku c_facts 정제) 폐기 → matchAndDiff 코드 매칭
+import { matchAndDiff } from "./match_and_diff";
 import { buildWriterSysprompt, buildWriterUserPrompt } from "./sysprompts/writer";
 import { postProcess } from "./post_process";
 import { collectAllowedNumbers, crosscheckV4 } from "./crosscheck";
@@ -356,40 +357,23 @@ export async function runStep2FactsC(draftId: string): Promise<V4Step2Response> 
 
   console.log(`[v4-07.2] docx_facts raw ${docxFactsRaw.length}건`);
 
+  // v4-09: LLM2 (haiku) 폐기 → matchAndDiff 코드 매칭
+  // mapFactLabelToMetricId 재사용 + formatToDisplay + computeAcDiff (모두 결정론).
+  // JSON parse 실패 0 / 비용 0 / 응답 ~5s.
   let cFacts: CFactsResult;
   if (docxFactsRaw.length === 0) {
-    // C급 데이터 없음 — 빈 c_facts
     cFacts = {
       fact_groups: {},
       c_only_facts: [],
       ac_diff_summary: "C급 데이터 없음 (본사 docx 미업로드 또는 추출된 fact 0건).",
     };
   } else {
-    const sys = buildLlm2Sysprompt();
-    const user = buildLlm2User({
-      topic: aFacts.topic,
-      brand_label: aFacts.brand_label,
+    const tMatch = Date.now();
+    cFacts = matchAndDiff({
       a_facts: aFacts,
       docx_facts_raw: docxFactsRaw,
     });
-    console.log(`[v4-07.2] haiku 호출 (sys=${sys.length}자, user=${user.length}자)...`);
-    const tStart = Date.now();
-    const raw = await callHaiku({
-      system: sys,
-      user,
-      // v4-08: 3000 → 4000. c_facts JSON truncation 빈발 (다중 c_only_facts narrative 길이).
-      // haiku 빠르니 +5~10s 허용. ~40s 합 (60s 안 안전).
-      maxTokens: 4000,
-    });
-    console.log(`[v4-07.2] haiku done: ${Date.now() - tStart}ms, len=${raw.length}`);
-    try {
-      cFacts = extractJson(raw) as CFactsResult;
-    } catch (e) {
-      throw new Error(`Step 2 LLM2 JSON parse 실패: ${e instanceof Error ? e.message : e}`);
-    }
-    if (!cFacts.fact_groups || typeof cFacts.fact_groups !== "object") cFacts.fact_groups = {};
-    if (!Array.isArray(cFacts.c_only_facts)) cFacts.c_only_facts = [];
-    if (typeof cFacts.ac_diff_summary !== "string") cFacts.ac_diff_summary = "";
+    console.log(`[v4-09.2] matchAndDiff done: ${Date.now() - tMatch}ms (LLM 호출 X)`);
   }
 
   // UPDATE draft

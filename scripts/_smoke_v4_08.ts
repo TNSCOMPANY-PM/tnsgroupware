@@ -101,17 +101,12 @@ async function main() {
   check(`trailing comma 금지`, sp.includes("trailing comma"));
   check(`최대 30개 제한`, sp.includes("최대 30개"));
 
-  // T3 — pipeline LLM2 max_tokens 4000
-  console.log("\n[T3] pipeline LLM2 max_tokens 4000");
+  // T3 — v4-09 에서 LLM2 폐기됨 → buildLlm2Sysprompt 는 import 안 됨 (legacy 만 보존)
+  console.log("\n[T3] pipeline LLM2 폐기 (v4-09 supersede)");
   const fs = await import("node:fs/promises");
   const pipelineSrc = await fs.readFile("lib/geo/v4/pipeline.ts", "utf-8");
-  // LLM2 는 두 번째 callHaiku 호출 (Step 2 facts_c)
-  // v4-08 댓 글 마커
-  check(`v4-08 주석 명시`, pipelineSrc.includes("v4-08"));
-  check(
-    `maxTokens: 4000 (Step 2)`,
-    (pipelineSrc.match(/maxTokens: 4000/g)?.length ?? 0) >= 2,
-  );
+  check(`buildLlm2Sysprompt import 제거`, !pipelineSrc.includes("buildLlm2Sysprompt"));
+  check(`matchAndDiff import (v4-09)`, pipelineSrc.includes("matchAndDiff"));
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);
   process.exit(okAll ? 0 : 1);
