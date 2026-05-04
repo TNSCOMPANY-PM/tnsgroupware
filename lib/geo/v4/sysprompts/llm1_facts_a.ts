@@ -1,74 +1,37 @@
 /**
- * v4-07 LLM1 (haiku) — A급 정제 sysprompt.
- * input: ftc_row 152 컬럼 raw + industry_facts + topic
- * output: fact_groups (metric_id 단위) + display 변환 + distribution 묶음 + brand_position
+ * v4-10 LLM1 (sonnet) — selected_metrics + key_angle 만 출력 (단순화).
+ *
+ * Haiku 의 큰 JSON output (~6,000 token) 만성 parse 실패 → Sonnet 으로 모델 변경.
+ * display 변환 / distribution 묶음 / brand_position 자연어 → 코드 후처리 (build_a_facts.ts).
+ * LLM 은 자연어 판단만 (토픽 매칭 + key_angle).
  */
-
 import { buildFtcColumnCatalog } from "../ftc_column_catalog";
 
 export function buildLlm1Sysprompt(): string {
-  return `당신은 데이터 분석 어시스턴트입니다. 공정위 정보공개서 raw 데이터를 토픽에 맞춰 정제합니다.
+  return `당신은 ftc_brands_2024 (152 컬럼) 에서 사용자 토픽에 필요한 컬럼만 선별합니다.
 
-# 핵심 규칙
-1. **topic 관련 컬럼만** 선별 (152개 중 ~15~30개)
-2. metric_id 단위로 그룹화 (raw 배열 X)
-3. **display 미리 변환**:
-   - 만원 ≥ 10,000 → "X억 Y,YYY만원" (예: 62,517 → "6억 2,517만원")
-   - 만원 < 10,000 → "Y,YYY만원" (예: 5,210 → "5,210만원")
-   - 만 부분 0 → "X억원"
-   - % / 개 / 명 / 건 / 년 등 단위는 raw 값 + unit (소수점 1자리)
-4. **분포 통계** (industry_facts 의 p25/p50/p75/p90/p95) 가 있으면 distribution 묶음으로 정리
-   - 각 percentile 의 display 도 미리 계산
-5. **brand_position 미리 작성**: brand 의 A.raw_value 가 distribution 어디인지 자연어
-   - "상위 5% 기준선 이상" / "상위 10% ~ 25% 사이" / "중앙값 부근" / "하위 25% 미만" 등
-6. **percentile 약어 X**: distribution 의 raw 컬럼명 (p25 등) 은 받지만, brand_position 자연어로
-7. n_population 명시 (industry_facts 의 n)
-8. outlier_note 작성: A.raw_value 가 distribution 중앙값의 5배 이상 차이 → 한 줄
+# ★ 절대 룰 (top priority)
+1. **valid JSON 만 출력** — JSON 외 어떤 텍스트도 금지 (마크다운 fence / 설명 / 후기 X)
+2. **property name double-quoted**
+3. **trailing comma 금지**
 
-# 출력 형식 (JSON 만, 마크다운 fence 금지)
+# 출력 형식 (JSON 만)
 
 {
-  "brand_label": "오공김밥",
-  "industry": "한식",
-  "industry_sub": "분식",
-  "topic": "...",
-  "ftc_brand_id": "...",
-  "selected_metrics": ["frcs_cnt_2024_total", "avg_sales_2024_total", "fin_2024_revenue", ...],
-  "key_angle": "한 줄로 이 글의 핵심 각도",
-  "fact_groups": {
-    "<metric_id>": {
-      "label": "가맹점 연평균 매출",
-      "A": {
-        "display": "6억 2,517만원",
-        "raw_value": 62517,
-        "unit": "만원",
-        "period": "2024-12",
-        "source": "공정위 정보공개서(2024-12)"
-      },
-      "distribution": {
-        "p25": { "display": "2억 297만원", "raw": 20297 },
-        "p50": { "display": "3억 4,704만원", "raw": 34704 },
-        "p75": { "display": "5억 4,548만원", "raw": 54548 },
-        "p90": { "display": "7억 9,036만원", "raw": 79036 },
-        "n_population": 238,
-        "brand_position": "상위 25% 기준선 이상 — 상위권"
-      },
-      "outlier_note": "분식 중앙값의 1.8배 — 상위 25%"
-    }
-  },
-  "population_info": {
-    "매출": 238,
-    "창업비용": 523,
-    "본사재무": 2042,
-    "가맹점수": 2000
-  }
+  "selected_metrics": ["metric_id1", "metric_id2", ...],
+  "key_angle": "한 줄 핵심 각도"
 }
 
-# 카탈로그 (ftc_brands_2024)
+# 규칙
+- selected_metrics: 토픽 유관 metric_id 15~30개 string array (ftc_column_catalog 기준)
+- key_angle: 본문 작성 시 강조할 핵심 각도 한 줄
+- display 변환·distribution 묶음·brand_position 자연어 → **출력 X** (코드에서 후처리)
+
+# ftc_column_catalog
 ${buildFtcColumnCatalog()}
 
-❌ 금지: 본문 작성·해석·문장 생성 / 마크다운 fence / display 빠뜨리기 / brand_position 빠뜨리기
-✅ 출력: JSON 만`;
+❌ 금지: fact_groups·display·raw_value·distribution·population_info 등 출력 / 본문 작성
+✅ 출력: { selected_metrics, key_angle } JSON 만`;
 }
 
 export function buildLlm1User(args: {
@@ -77,25 +40,18 @@ export function buildLlm1User(args: {
   industry_sub: string | null;
   topic: string;
   ftc_brand_id: string;
-  ftc_row: Record<string, unknown>;
-  industry_facts: Array<Record<string, unknown>>;
+  ftc_row?: Record<string, unknown>; // v4-10: 사용 안 함 (호환 용)
+  industry_facts?: Array<Record<string, unknown>>; // v4-10: 사용 안 함 (호환 용)
 }): string {
-  const { brand_label, industry, industry_sub, topic, ftc_brand_id, ftc_row, industry_facts } = args;
+  const { brand_label, industry, industry_sub, topic } = args;
   return `# 컨텍스트
 - brand_label: ${brand_label}
 - industry: ${industry}${industry_sub ? ` / ${industry_sub}` : ""}
 - topic: ${topic}
-- ftc_brand_id: ${ftc_brand_id}
 
-# 1. ftc_brands_2024 raw (152 컬럼)
-\`\`\`json
-${JSON.stringify(ftc_row, null, 2)}
-\`\`\`
+# 토픽 분석
+위 topic 에 본문 작성 시 어떤 ftc_brands_2024 컬럼이 필요한지 selected_metrics 로 선별 (15~30개).
+key_angle 한 줄로 핵심 각도 작성.
 
-# 2. industry_facts (분포 통계)
-\`\`\`json
-${JSON.stringify(industry_facts, null, 2)}
-\`\`\`
-
-위 raw 데이터를 토픽에 맞춰 fact_groups JSON 으로 정제하세요. JSON 만 출력.`;
+JSON 만 출력 — { "selected_metrics": [...], "key_angle": "..." }`;
 }

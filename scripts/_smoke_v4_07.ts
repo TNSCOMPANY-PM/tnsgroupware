@@ -52,11 +52,11 @@ async function main() {
   check(`buildWriterUserPrompt exported`, typeof writer.buildWriterUserPrompt === "function");
 
   const llm1Sp = llm1.buildLlm1Sysprompt();
-  check(`llm1 sysprompt — fact_groups 명시`, llm1Sp.includes("fact_groups"));
-  check(`llm1 sysprompt — display 변환 룰`, llm1Sp.includes("display 미리 변환"));
-  check(`llm1 sysprompt — distribution + brand_position`, llm1Sp.includes("brand_position"));
+  // v4-10: LLM1 output 단순화 — selected_metrics + key_angle 만 (display·distribution → 코드 후처리)
+  check(`llm1 sysprompt — selected_metrics 명시`, llm1Sp.includes("selected_metrics"));
+  check(`llm1 sysprompt — key_angle 명시`, llm1Sp.includes("key_angle"));
   check(`llm1 sysprompt — JSON 만`, llm1Sp.includes("JSON 만"));
-  check(`llm1 sysprompt — ftc 카탈로그 포함`, llm1Sp.includes("ftc_brands_2024 컬럼 카탈로그"));
+  check(`llm1 sysprompt — ftc 카탈로그 포함`, llm1Sp.includes("ftc_column_catalog") || llm1Sp.includes("ftc_brands_2024"));
 
   const llm2Sp = llm2.buildLlm2Sysprompt();
   check(`llm2 sysprompt — A vs C 매칭`, llm2Sp.includes("a_facts 의 metric_id"));

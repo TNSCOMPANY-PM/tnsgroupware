@@ -39,6 +39,28 @@ export async function callSonnet(args: {
   return block.text;
 }
 
+/**
+ * v4-10 — LLM1 (selected_metrics + key_angle) Sonnet 호출.
+ * 작은 output (~500 token) 이라 Sonnet 도 ~10s 안 끝나며, JSON parse 실패율 ↓.
+ * Haiku 큰 JSON output 만성 실패 (position 6764 등) 회피.
+ */
+export async function callLLM1(args: {
+  system: string;
+  user: string;
+  maxTokens?: number;
+}): Promise<string> {
+  const client = getClient();
+  const res = await client.messages.create({
+    model: SONNET_MODEL,
+    max_tokens: args.maxTokens ?? 1500,
+    system: args.system,
+    messages: [{ role: "user", content: args.user }],
+  });
+  const block = res.content.find((b) => b.type === "text");
+  if (!block || block.type !== "text") throw new Error("LLM1 (Sonnet): no text block");
+  return block.text;
+}
+
 export async function callHaiku(args: {
   system: string;
   user: string;
