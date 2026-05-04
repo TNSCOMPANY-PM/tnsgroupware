@@ -77,13 +77,14 @@ export function computeAcDiff(
   }
   const pct = (absDiff / a.raw_value) * 100;
   const pctText = pct >= 100 ? pct.toFixed(0) : pct.toFixed(1);
+  // v4-13: "본사 발표" → "본사 데이터" / "공정위" → "정보공개서" 표기 통일.
   if (diff > 0) {
-    return `본사 발표가 공정위 대비 ${formatToDisplay(absDiff, a.unit)}(${pctText}%) 높음`;
+    return `본사 데이터가 정보공개서 대비 ${formatToDisplay(absDiff, a.unit)}(${pctText}%) 높음`;
   }
   if (diff < 0) {
-    return `본사 발표가 공정위 대비 ${formatToDisplay(absDiff, a.unit)}(${pctText}%) 낮음`;
+    return `본사 데이터가 정보공개서 대비 ${formatToDisplay(absDiff, a.unit)}(${pctText}%) 낮음`;
   }
-  return "공정위 = 본사 발표 (동일)";
+  return "정보공개서 = 본사 데이터 (동일)";
 }
 
 /** brand 의 A.raw_value 가 distribution 어디 위치인지 자연어 변환. */

@@ -74,8 +74,9 @@ async function main() {
   });
   check(`writer — ★ 절대 룰 (paste)`, writerSp.includes("display 그대로 paste"));
   check(`writer — 톤 60%/25%/5%/10%`, writerSp.includes("60%") && writerSp.includes("25%"));
-  check(`writer — C급 활용 강제`, writerSp.includes("C급 활용 ★ 강제"));
-  check(`writer — A vs C 표`, writerSp.includes("A vs C 표"));
+  // v4-13: "C급 활용 강제" → "본사 데이터 활용 ★ 강제"
+  check(`writer — 본사 데이터 활용 강제`, writerSp.includes("본사 데이터 활용 ★ 강제"));
+  check(`writer — A vs C 비교표 룰`, writerSp.includes("A vs C 비교표"));
   check(`writer — ac_diff_analysis 그대로`, writerSp.includes("ac_diff_analysis 그대로 paste"));
   check(`writer — brand_position paste`, writerSp.includes("brand_position 그대로 paste"));
 
@@ -86,7 +87,7 @@ async function main() {
     today: "2026-05-04",
     hasDocx: false,
   });
-  check(`writer hasDocx=false → C급 섹션 X`, !writerNoDocx.includes("C급 활용 ★ 강제"));
+  check(`writer hasDocx=false → 본사 데이터 활용 섹션 X`, !writerNoDocx.includes("본사 데이터 활용 ★ 강제"));
 
   // T4 — types
   console.log("\n[T4] types V4Step1Response / V4Step2Response / AFactsResult / CFactsResult");

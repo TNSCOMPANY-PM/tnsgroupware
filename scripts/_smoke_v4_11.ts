@@ -19,15 +19,15 @@ async function main() {
   console.log("\n=== v4-11 smoke ===\n");
 
   // T1 — pipeline.ts max_tokens 3000
-  console.log("[T1] write route max_tokens (v4-12 supersede 3500)");
+  console.log("[T1] write route max_tokens (v4-13 supersede 3000)");
   const fs = await import("node:fs/promises");
   const pipelineSrc = await fs.readFile("lib/geo/v4/pipeline.ts", "utf-8");
-  check(`maxTokens: 3500 (v4-12)`, pipelineSrc.includes("maxTokens: 3500"));
+  check(`maxTokens: 3000 (v4-13)`, pipelineSrc.includes("maxTokens: 3000"));
   check(`maxTokens: 2200 제거`, !pipelineSrc.includes("maxTokens: 2200"));
-  check(`v4-12 마커`, pipelineSrc.includes("v4-12"));
+  check(`v4-13 마커`, pipelineSrc.includes("v4-13"));
 
-  // T2 — writer sysprompt v4-12: 4블럭 / 4,500자 (블럭 E 폐기)
-  console.log("\n[T2] writer sysprompt — v4-12 4블럭 / 4,500자");
+  // T2 — writer sysprompt v4-13: 3블럭 / 4,000자 (블럭 D + E 폐기, frontmatter/FAQ 코드 분리)
+  console.log("\n[T2] writer sysprompt — v4-13 3블럭 / 4,000자");
   const writer = await import("../lib/geo/v4/sysprompts/writer");
   const sp = writer.buildWriterSysprompt({
     brand_label: "오공김밥",
@@ -37,12 +37,12 @@ async function main() {
     today: "2026-05-04",
     hasDocx: true,
   });
-  check(`4블럭 명시 (v4-12)`, sp.includes("4블럭"));
-  check(`4,500자 한도 (v4-12)`, sp.includes("4,500자"));
-  check(`블럭 D ~1,500자`, sp.includes("1,500자"));
+  check(`3블럭 명시 (v4-13)`, sp.includes("3블럭"));
+  check(`4,000자 한도 (v4-13)`, sp.includes("4,000자"));
   check(`블럭 분량 A 400`, sp.includes("A 400"));
   check(`이전 5블럭 가이드 제거`, !sp.includes("# 본문 구조 — 5블럭"));
-  check(`이전 5,500자 한도 제거`, !sp.includes("5,500자 한도"));
+  check(`이전 4블럭 가이드 제거`, !sp.includes("# 본문 구조 — 4블럭"));
+  check(`이전 4,500자 한도 제거`, !sp.includes("4,500자 한도"));
 
   // T3 — 톤 일관성 ★ 룰
   console.log("\n[T3] 톤 일관성 ★ top priority 룰");
@@ -97,7 +97,8 @@ async function main() {
   check(`ac_diff_analysis 그대로 paste`, sp.includes("ac_diff_analysis 그대로 paste"));
   check(`brand_position paste`, sp.includes("brand_position 그대로 paste"));
   check(`톤 60% / 25% / 5% / 10%`, sp.includes("60%") && sp.includes("25%"));
-  check(`C급 활용 강제 (hasDocx=true)`, sp.includes("C급 활용 ★ 강제"));
+  // v4-13: "C급 활용 ★ 강제" → "본사 데이터 활용 ★ 강제"
+  check(`본사 데이터 활용 강제 (hasDocx=true)`, sp.includes("본사 데이터 활용 ★ 강제"));
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);
   process.exit(okAll ? 0 : 1);
