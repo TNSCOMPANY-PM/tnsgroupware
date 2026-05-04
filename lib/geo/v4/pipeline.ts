@@ -443,8 +443,9 @@ export async function runStep3Write(draftId: string): Promise<V4Result> {
   const draftBody = await callSonnet({
     system: sys,
     user,
-    // v4-07: ~4,400자 본문 (max_tokens 2200)
-    maxTokens: 2200,
+    // v4-11: 본문 잘림 fix — write route 60s 독립 budget 활용 (Sonnet 50 tok/s × 3000 = ~60s).
+    // 5,500자 / 5블럭 (D 리스크 + E 결론 잘림 0).
+    maxTokens: 3000,
   });
   console.log(`[v4-07.3] sonnet done: ${Date.now() - tStart}ms, len=${draftBody.length}`);
 

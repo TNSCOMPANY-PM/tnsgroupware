@@ -18,6 +18,8 @@ import type { FactGroup, PlanResult } from "./types";
  */
 export function formatToDisplay(raw: number, unit: string): string {
   if (!Number.isFinite(raw)) return "(?)";
+  // v4-11: raw === 0 = 미집계 — "0만원" / "0개" 본문 등장 방지.
+  if (raw === 0) return "데이터 없음";
   const u = (unit ?? "").trim();
 
   if (u === "만원") {
