@@ -69,6 +69,70 @@ export default function DualSourceSection({ brand }: { brand: Brand }) {
     finally { setBusy(""); }
   };
 
+  // v4-15: 팩트 추출 → step1 facts-a → step2 facts-c → step3 write 자동 chain.
+  // 사용자 클릭 1회 ≈ 75s 후 본문 완성.
+  const extractFactsAndGenerate = async () => {
+    try {
+      // 1/4 — extract-facts
+      setBusy("1/4 docx 팩트 추출 중... (~10s)");
+      const extractRes = await fetch(`/api/brands/${brand.id}/extract-facts`, { method: "POST" });
+      const extractData = await extractRes.json();
+      if (!extractRes.ok) throw new Error(extractData.error ?? "추출 실패");
+      await reload();
+
+      const brandLabel = (extractData.brand_label as string | undefined) ?? brand.name;
+      const industry = (extractData.industry as string | null | undefined) ?? "프랜차이즈";
+      const topic = `${brandLabel} ${industry} 프랜차이즈 평균 비교: 창업비용·매출·가맹점 데이터`;
+
+      // 2/4 — step1 facts-a
+      setBusy("2/4 분포 데이터 분석 중... (~10s)");
+      const s1Res = await fetch(`/api/geo/facts-a`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand_id: brand.id, topic, channel: "frandoor" }),
+      });
+      const s1Data = await s1Res.json();
+      if (!s1Res.ok) {
+        if (s1Data.error === "FTC_BRAND_ID_MISSING") {
+          setBusy("");
+          alert(
+            `이 브랜드는 ftc_brand_id 매핑이 필요합니다 (관리자에게 문의).\n팩트는 ${extractData.facts_count}개 추출됐지만 본문 생성은 skip 됐어요.`,
+          );
+          return;
+        }
+        throw new Error(s1Data.message ?? s1Data.error ?? "step1 실패");
+      }
+      const draftId = s1Data.draftId as string;
+      if (!draftId) throw new Error("step1 응답에 draftId 누락");
+
+      // 3/4 — step2 facts-c
+      setBusy("3/4 본사 데이터 매칭 중... (~5s)");
+      const s2Res = await fetch(`/api/geo/facts-c/${draftId}`, { method: "POST" });
+      if (!s2Res.ok) {
+        const e2 = await s2Res.json().catch(() => ({}));
+        throw new Error(e2.message ?? e2.error ?? "step2 실패");
+      }
+
+      // 4/4 — step3 write
+      setBusy("4/4 본문 생성 중... (~50s, 잠시만 기다려주세요)");
+      const s3Res = await fetch(`/api/geo/write/${draftId}`, { method: "POST" });
+      const s3Data = await s3Res.json().catch(() => ({}));
+      if (!s3Res.ok) throw new Error(s3Data.message ?? s3Data.error ?? "step3 실패");
+
+      // 완료
+      setBusy("");
+      const confirmGo = window.confirm(
+        `✓ 팩트 ${extractData.facts_count}개 추출 + 본문 생성 완료\n작성된 글로 이동할까요?`,
+      );
+      if (confirmGo) {
+        window.location.href = `/content/posts/${draftId}`;
+      }
+    } catch (e) {
+      setBusy("");
+      alert(`실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const fetchPublic = async () => {
     setBusy("공정위 수치 수집 중...");
     try {
@@ -119,10 +183,16 @@ export default function DualSourceSection({ brand }: { brand: Brand }) {
           </p>
         ) : <p className="mt-1.5 text-[10px] text-slate-400">업로드된 docx 없음</p>}
         {sourceDoc && (
-          <button onClick={extractFacts} disabled={!!busy}
-            className="mt-1.5 text-[10px] px-2 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 disabled:opacity-50">
-            팩트 추출
-          </button>
+          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+            <button onClick={extractFactsAndGenerate} disabled={!!busy}
+              className="text-[10px] px-2 py-0.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">
+              팩트 추출 + 본문 자동 생성
+            </button>
+            <button onClick={extractFacts} disabled={!!busy}
+              className="text-[10px] px-2 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 disabled:opacity-50">
+              팩트만 추출
+            </button>
+          </div>
         )}
       </div>
 

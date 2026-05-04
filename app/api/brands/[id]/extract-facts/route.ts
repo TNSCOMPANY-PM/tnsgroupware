@@ -70,7 +70,7 @@ export async function POST(
 
   const { data: brand } = await supabase
     .from("geo_brands")
-    .select("name, ftc_brand_id")
+    .select("name, ftc_brand_id, industry_main, industry_sub")
     .eq("id", brandId)
     .single();
   if (!brand) return NextResponse.json({ error: "브랜드 없음" }, { status: 404 });
@@ -205,11 +205,23 @@ export async function POST(
       }
     }
 
+    // v4-15: frontend chain (extract → facts-a → facts-c → write) 용 brand 메타 동봉.
+    const brandMeta = brand as {
+      name: string;
+      ftc_brand_id: string | null;
+      industry_main: string | null;
+      industry_sub: string | null;
+    };
     return NextResponse.json({
       ok: true,
       facts_count: facts.length,
       v2_adapted: v2Adapted,
       facts: facts.slice(0, 15),
+      brand_id: brandId,
+      brand_label: brandMeta.name,
+      // induty_mlsfc 우선 (분식/한식/치킨), 없으면 industry_main (외식)
+      industry: brandMeta.industry_sub ?? brandMeta.industry_main ?? null,
+      ftc_brand_id: brandMeta.ftc_brand_id,
     });
   } catch (e) {
     console.error("[extract-facts] 추출 실패:", e);
