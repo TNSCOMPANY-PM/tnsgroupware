@@ -27,6 +27,7 @@ type DraftRow = {
   content_type: string | null;
   content: string | null;
   faq: unknown;
+  thumbnail_url: string | null;
   geo_brands?: { name?: string } | null;
 };
 
@@ -45,12 +46,23 @@ function parseFaq(raw: unknown): FaqItem[] {
   return [];
 }
 
+/**
+ * v4-23 — frontmatter YAML 안 image: "..." 추출 (thumbnail_url null 일 때 fallback).
+ */
+function extractImageFromFrontmatter(body: string | null): string | null {
+  if (!body) return null;
+  const m = body.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!m) return null;
+  const imgMatch = m[1].match(/image:\s*"?([^"\n]+)"?/);
+  return imgMatch ? imgMatch[1].trim() : null;
+}
+
 export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("frandoor_blog_drafts")
-    .select("id, brand_id, channel, title, status, target_date, published_url, created_at, content_type, content, faq, geo_brands(name)")
+    .select("id, brand_id, channel, title, status, target_date, published_url, created_at, content_type, content, faq, thumbnail_url, geo_brands(name)")
     .eq("id", id)
     .maybeSingle();
 
@@ -58,6 +70,8 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   const draft = data as unknown as DraftRow;
   const faq = parseFaq(draft.faq);
   const typeLabel = draft.content_type ? (TYPE_LABEL[draft.content_type] ?? draft.content_type) : "-";
+  // v4-23: thumbnail_url 우선, 없으면 frontmatter image: fallback.
+  const imageUrl = draft.thumbnail_url ?? extractImageFromFrontmatter(draft.content);
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -107,6 +121,17 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
 
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-xs font-semibold text-slate-500 mb-3">본문</h2>
+        {imageUrl && (
+          <div className="mb-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt={draft.title ?? "industry thumbnail"}
+              className="w-full max-w-2xl mx-auto rounded-lg shadow-md"
+              loading="lazy"
+            />
+          </div>
+        )}
         {draft.content ? (
           <PostBodyMarkdown body={draft.content} />
         ) : (

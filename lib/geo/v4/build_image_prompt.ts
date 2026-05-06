@@ -26,6 +26,8 @@ const INDUSTRY_FOOD_HINTS: Record<string, string> = {
 
 /**
  * gpt-image-1 / DALL-E 3 류 용 prompt 빌드.
+ *
+ * v4-23: photorealism 강화 — DSLR + 50mm f/2.8 + 8K + ★ "not illustration / not 3D render".
  * topic / key_angle 은 prompt 길이 제한 + 모델 혼동 방지 위해 최소 hint 만 (지금은 사용 X).
  */
 export function buildIndustryImagePrompt(input: {
@@ -38,10 +40,18 @@ export function buildIndustryImagePrompt(input: {
     `${input.industry} dishes representative of Korean ${input.industry} cuisine`;
 
   return [
-    `Top-down food photography of ${foodHint}, beautifully arranged on a rustic wooden table.`,
-    "Warm natural lighting, appetizing presentation, high resolution, restaurant-quality.",
-    "Korean restaurant aesthetic, cozy atmosphere, no text or labels visible in the image.",
-    "Professional food magazine style, sharp focus, vibrant colors.",
+    // 1. 핵심 — hyperrealistic + 카메라 spec
+    `Hyperrealistic top-down food photography of ${foodHint}, beautifully arranged on a rustic wooden dining table.`,
+    // 2. 카메라 / 렌즈 / 라이팅
+    "Shot with a professional DSLR (Canon EOS R5, 50mm f/2.8 lens), shallow depth of field, soft natural window light from the side.",
+    // 3. 텍스처 / 디테일
+    "Warm color tones, realistic food textures, steam rising from hot dishes, condensation on cold drinks, oil sheen and surface details.",
+    // 4. 분위기
+    "Korean restaurant interior atmosphere, cozy authentic dining setting, no text or labels visible in the image.",
+    // 5. 해상도 / 품질
+    "8K resolution, magazine-quality food photography, sharp focus on details, vibrant natural colors.",
+    // 6. ★ 실사 강제
+    "Photorealistic real photograph — not illustration, not 3D render, not painting, not AI-generated look.",
   ].join(" ");
 }
 

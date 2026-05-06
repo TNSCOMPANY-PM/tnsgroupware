@@ -46,7 +46,8 @@ async function main() {
   }
   // prompt 영어 + industry food hint 포함
   const p1 = buildIndustryImagePrompt({ industry: "분식" });
-  check(`분식 prompt 영어`, /Top-down food photography/.test(p1));
+  // v4-23 supersede: "Hyperrealistic top-down food photography ..." (lowercase t).
+  check(`분식 prompt 영어`, /top-down food photography/i.test(p1));
   check(`분식 prompt — tteokbokki / kimbap`, /tteokbokki|kimbap/.test(p1));
   check(`분식 prompt — no text or labels`, /no text or labels/.test(p1));
 
