@@ -583,28 +583,115 @@ function collectAllowedNumbersFromCFacts(cFacts: CFactsResult): Set<string> {
 // =============================================================================
 
 /**
- * v4-17 — 업종 단위 raw 데이터 fetch (ftc_brands_2024 induty_mlsfc/lclas + industry_facts).
+ * v4-20 — A only 업종 분석 fetch 용 selective 컬럼.
+ * 152 컬럼 전부 select 하면 1500 brand × 152 컬럼 = 7-15MB 라 fetch 느림.
+ * ranking + outlier + 분포 분석에 쓰일 metric 만 30~40개 추리고 fetch 시간 ~10배 단축.
+ *
+ * 실제 ftc_brands_2024 컬럼명 (FTC_COLUMN_META 기준).
+ */
+export const A_ONLY_SAFE_COLUMNS: readonly string[] = [
+  // 메타
+  "id",
+  "brand_nm",
+  "induty_mlsfc",
+  "induty_lclas",
+  "biz_start_dt",
+  // 매출 / 분포 비교 핵심
+  "avg_sales_2024_total",
+  "avg_sales_2023_total",
+  "sales_per_area_2024_total",
+  // 가맹점수 / 변동
+  "frcs_cnt_2024_total",
+  "frcs_cnt_2023_total",
+  "stores_2024_franchise",
+  "stores_2024_direct",
+  "chg_2024_new_open",
+  "chg_2024_contract_end",
+  "chg_2024_contract_cancel",
+  "chg_2024_name_change",
+  // 창업비용
+  "startup_cost_total",
+  "startup_fee",
+  "joining_fee",
+  "education_fee",
+  "deposit",
+  "deposit_fee",
+  "other_fee",
+  "interior_cost_total",
+  "interior_cost_per_sqm",
+  "interior_std_area",
+  "escrow_amount",
+  // 본사 재무
+  "fin_2024_revenue",
+  "fin_2024_op_profit",
+  "fin_2024_net_income",
+  "fin_2024_total_asset",
+  "fin_2024_total_equity",
+  "fin_2024_total_debt",
+  // 광고 / 판촉
+  "ad_cost_2024",
+  "promo_cost_2024",
+  // 본사 조직
+  "staff_cnt",
+  "exec_cnt",
+  "brand_cnt",
+  "affiliate_cnt",
+  // 컴플라이언스
+  "violation_correction",
+  "violation_civil",
+  "violation_criminal",
+  "law_violation_cnt",
+  "business_year_cnt",
+] as const;
+
+const A_ONLY_SAFE_COLUMNS_SET = new Set<string>(A_ONLY_SAFE_COLUMNS);
+
+/**
+ * v4-20 — 업종 단위 raw 데이터 fetch.
+ * Supabase PostgREST default 1000 cap 해제 — page-by-page 로 전체 brand fetch.
+ * selective 컬럼 (A_ONLY_SAFE_COLUMNS) 만 select.
  */
 async function fetchAOnlyBundle(industry: string): Promise<{
   brands: Array<Record<string, unknown>>;
   industry_facts: Array<Record<string, unknown>>;
 }> {
   const fra = createFrandoorClient();
-  // induty_mlsfc 우선 (분식/한식/치킨), induty_lclas (외식) fallback OR
-  const { data: brandsData, error: bErr } = await fra
-    .from("ftc_brands_2024")
-    .select("*")
-    .or(`induty_mlsfc.eq.${industry},induty_lclas.eq.${industry}`);
-  if (bErr) throw new Error(`ftc_brands_2024 industry fetch (${industry}): ${bErr.message}`);
+  const selectStr = A_ONLY_SAFE_COLUMNS.join(", ");
+
+  // pagination — PostgREST 의 PGRST_MAX_ROWS / supabase default 1000 cap 회피.
+  // .order("id") 로 일관 정렬해 page 간 row 누락/중복 방지.
+  const PAGE = 1000;
+  const SAFE_CAP = 10_000;
+  const allBrands: Array<Record<string, unknown>> = [];
+  for (let from = 0; from < SAFE_CAP; from += PAGE) {
+    const { data, error } = await fra
+      .from("ftc_brands_2024")
+      .select(selectStr)
+      .or(`induty_mlsfc.eq.${industry},induty_lclas.eq.${industry}`)
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      throw new Error(`ftc_brands_2024 industry fetch (page ${from}, ${industry}): ${error.message}`);
+    }
+    if (!data || data.length === 0) break;
+    allBrands.push(...(data as unknown as Array<Record<string, unknown>>));
+    if (data.length < PAGE) break;
+  }
+  if (allBrands.length >= SAFE_CAP) {
+    console.warn(`[v4-20.fetchAOnlyBundle] industry=${industry}: SAFE_CAP ${SAFE_CAP} 도달, fetch 중단`);
+  }
+  console.log(
+    `[v4-20.fetchAOnlyBundle] industry=${industry} brands=${allBrands.length} cols=${A_ONLY_SAFE_COLUMNS.length}`,
+  );
 
   const { data: ifData, error: ifErr } = await fra
     .from("industry_facts")
     .select("*")
     .eq("industry", industry);
-  if (ifErr) console.warn(`[v4-17] industry_facts fetch: ${ifErr.message}`);
+  if (ifErr) console.warn(`[v4-20.fetchAOnlyBundle] industry_facts: ${ifErr.message}`);
 
   return {
-    brands: (brandsData ?? []) as Array<Record<string, unknown>>,
+    brands: allBrands,
     industry_facts: (ifData ?? []) as Array<Record<string, unknown>>,
   };
 }
@@ -657,10 +744,20 @@ export async function runStep1AnalyzeAOnly(input: V4AOnlyInput): Promise<V4AOnly
   const analysisAxes = Array.isArray(parsed.analysis_axes)
     ? parsed.analysis_axes.filter((x): x is string => typeof x === "string" && x.length > 0)
     : [];
-  const rankingMetric =
+  // v4-20: ranking_metric 은 SAFE_COLUMNS 안에서만 (selective fetch 한 컬럼만 정렬 가능).
+  // LLM1 이 SAFE 외 metric 출력하면 fallback DEFAULT_RANKING_METRIC.
+  const rawRankingMetric =
     typeof parsed.ranking_metric === "string" && parsed.ranking_metric.length > 0
       ? parsed.ranking_metric
       : DEFAULT_RANKING_METRIC;
+  const rankingMetric = A_ONLY_SAFE_COLUMNS_SET.has(rawRankingMetric)
+    ? rawRankingMetric
+    : DEFAULT_RANKING_METRIC;
+  if (rankingMetric !== rawRankingMetric) {
+    console.warn(
+      `[v4-20.1] LLM1 ranking_metric "${rawRankingMetric}" 이 SAFE_COLUMNS 외 → fallback "${rankingMetric}"`,
+    );
+  }
 
   const tBuild = Date.now();
   const facts: IndustryAnalysisFacts = buildIndustryAnalysisFacts({
