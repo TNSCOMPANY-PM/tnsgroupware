@@ -5,6 +5,7 @@ import DeleteDraftButton from "./DeleteDraftButton";
 import PostBodyMarkdown from "./PostBodyMarkdown";
 import DownloadMdButton from "./DownloadMdButton";
 import PublishFrandoorButton from "./PublishFrandoorButton";
+import ThumbnailRegenerateButton from "./ThumbnailRegenerateButton";
 
 const TYPE_LABEL: Record<string, string> = {
   brand: "브랜드(D3)",
@@ -28,6 +29,8 @@ type DraftRow = {
   content: string | null;
   faq: unknown;
   thumbnail_url: string | null;
+  gen_mode: string | null;
+  stage: string | null;
   geo_brands?: { name?: string } | null;
 };
 
@@ -62,7 +65,7 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("frandoor_blog_drafts")
-    .select("id, brand_id, channel, title, status, target_date, published_url, created_at, content_type, content, faq, thumbnail_url, geo_brands(name)")
+    .select("id, brand_id, channel, title, status, target_date, published_url, created_at, content_type, content, faq, thumbnail_url, gen_mode, stage, geo_brands(name)")
     .eq("id", id)
     .maybeSingle();
 
@@ -72,6 +75,10 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   const typeLabel = draft.content_type ? (TYPE_LABEL[draft.content_type] ?? draft.content_type) : "-";
   // v4-23: thumbnail_url 우선, 없으면 frontmatter image: fallback.
   const imageUrl = draft.thumbnail_url ?? extractImageFromFrontmatter(draft.content);
+  // v4-24: A only 모드 + write/thumbnail 단계에서만 재생성 버튼 노출.
+  const canRegenThumbnail =
+    draft.gen_mode === "a_only" &&
+    (draft.stage === "a_only_written" || draft.stage === "a_only_thumbnail_done");
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -130,6 +137,16 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
               className="w-full max-w-2xl mx-auto rounded-lg shadow-md"
               loading="lazy"
             />
+            {canRegenThumbnail && (
+              <div className="flex justify-end mt-2 max-w-2xl mx-auto">
+                <ThumbnailRegenerateButton draftId={draft.id} hasExisting={true} />
+              </div>
+            )}
+          </div>
+        )}
+        {!imageUrl && canRegenThumbnail && (
+          <div className="mb-4 flex justify-end">
+            <ThumbnailRegenerateButton draftId={draft.id} hasExisting={false} />
           </div>
         )}
         {draft.content ? (
