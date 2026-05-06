@@ -1059,10 +1059,19 @@ async function loadDraftWithContent(draftId: string): Promise<DraftRowWithConten
   return data as DraftRowWithContent;
 }
 
+/** v4-24 — Step 4 재호출 허용 (a_only_thumbnail_done 도 통과). */
+const STAGES_ALLOWED_FOR_THUMBNAIL = new Set<string>([
+  "a_only_written",
+  "a_only_thumbnail_done",
+]);
+
 /**
- * v4-22 Step 4 — gpt-image-1 호출 + Supabase Storage 업로드 + frontmatter image: 갱신.
- * input: draftId (stage='a_only_written')
+ * v4-22~24 Step 4 — gpt-image-1 호출 + Supabase Storage 업로드 + frontmatter image: 갱신.
+ * input: draftId (stage ∈ {a_only_written, a_only_thumbnail_done})
  * output: { draftId, thumbnail_url } — stage='a_only_thumbnail_done'.
+ *
+ * v4-24: 재생성 허용 — a_only_thumbnail_done 도 통과해 같은 path 에 Storage upsert.
+ *        cache busting 위해 publicUrl 에 ?v=<unix_ts> query 부착 후 DB / frontmatter 갱신.
  */
 export async function runStep4ThumbnailAOnly(draftId: string): Promise<{
   draftId: string;
@@ -1070,8 +1079,12 @@ export async function runStep4ThumbnailAOnly(draftId: string): Promise<{
 }> {
   const t0 = Date.now();
   const draft = await loadDraftWithContent(draftId);
-  if (draft.stage !== "a_only_written") {
-    throw new InvalidStageError(draftId, "a_only_written", draft.stage);
+  if (!draft.stage || !STAGES_ALLOWED_FOR_THUMBNAIL.has(draft.stage)) {
+    throw new InvalidStageError(
+      draftId,
+      "a_only_written | a_only_thumbnail_done",
+      draft.stage,
+    );
   }
   const meta = (draft.meta ?? {}) as Record<string, unknown>;
   const facts = meta.a_only_facts as IndustryAnalysisFacts | undefined;
@@ -1083,22 +1096,24 @@ export async function runStep4ThumbnailAOnly(draftId: string): Promise<{
     key_angle: facts.key_angle,
   });
 
-  console.log(`[v4-22.4] gpt-image-1 호출 (industry=${facts.industry}, prompt=${prompt.length}자)...`);
+  console.log(`[v4-24.4] gpt-image-1 호출 (industry=${facts.industry}, prompt=${prompt.length}자)...`);
   const tStart = Date.now();
   const { url } = await generateAndUploadThumbnail({
     draft_id: draftId,
     prompt,
   });
-  console.log(`[v4-22.4] thumbnail uploaded: ${Date.now() - tStart}ms url=${url}`);
+  // v4-24: cache busting — 재생성 시 브라우저가 옛 이미지 캐시 표시하지 않도록 query 부착.
+  const cacheBustedUrl = `${url}?v=${Date.now()}`;
+  console.log(`[v4-24.4] thumbnail uploaded: ${Date.now() - tStart}ms url=${cacheBustedUrl}`);
 
   const updatedContent =
     typeof draft.content === "string" && draft.content.length > 0
-      ? injectImageIntoFrontmatter(draft.content, url)
+      ? injectImageIntoFrontmatter(draft.content, cacheBustedUrl)
       : draft.content;
 
   const tns = createAdminClient();
   const updatePayload: Record<string, unknown> = {
-    thumbnail_url: url,
+    thumbnail_url: cacheBustedUrl,
     thumbnail_prompt: prompt,
     stage: "a_only_thumbnail_done",
   };
@@ -1110,7 +1125,7 @@ export async function runStep4ThumbnailAOnly(draftId: string): Promise<{
     .eq("id", draftId);
   if (uErr) throw new Error(`Step 4 (a_only) UPDATE failed: ${uErr.message}`);
 
-  console.log(`[v4-22.4] ✓ ${Date.now() - t0}ms, stage=a_only_thumbnail_done`);
-  return { draftId, thumbnail_url: url };
+  console.log(`[v4-24.4] ✓ ${Date.now() - t0}ms, stage=a_only_thumbnail_done`);
+  return { draftId, thumbnail_url: cacheBustedUrl };
 }
 
