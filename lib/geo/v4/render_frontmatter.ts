@@ -14,6 +14,10 @@ export function renderFrontmatterYaml(fm: Frontmatter, faq: FaqItem[]): string {
   lines.push(`date: "${fm.date}"`);
   lines.push(`dateModified: "${fm.dateModified}"`);
   lines.push(`tags: [${fm.tags.map((t) => `"${escapeYaml(t)}"`).join(", ")}]`);
+  // v4-22 — Step 4 (썸네일) 가 채운 image 가 있으면 emit.
+  if (fm.image) {
+    lines.push(`image: "${escapeYaml(fm.image)}"`);
+  }
   lines.push("faq:");
   for (const f of faq) {
     lines.push(`  - q: "${escapeYaml(f.q)}"`);

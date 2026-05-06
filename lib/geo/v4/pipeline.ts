@@ -51,6 +51,9 @@ import {
   buildIndustryFrontmatter,
   buildIndustryFaq,
 } from "./build_industry_frontmatter";
+// v4-22: A only Step 4 — gpt-image-1 썸네일 자동 생성.
+import { buildIndustryImagePrompt } from "./build_image_prompt";
+import { generateAndUploadThumbnail } from "./generate_thumbnail";
 import type {
   AFactsResult,
   CFactsResult,
@@ -1011,5 +1014,103 @@ function collectAllowedNumbersFromIndustryFacts(facts: IndustryAnalysisFacts): S
   for (const o of facts.outliers ?? []) add(o.value.raw);
   add(facts.n_brands);
   return allowed;
+}
+
+// =============================================================================
+// v4-22 — A only Step 4: 썸네일 자동 생성 (gpt-image-1 + Supabase Storage)
+// =============================================================================
+
+/**
+ * v4-22 — frontmatter YAML 의 image: 필드 삽입 또는 갱신.
+ * 첫 frontmatter 블럭 ('---' ... '---') 안에 적용. tags: 라인 다음에 image 추가.
+ * 기존 image: 라인이 있으면 url 갱신.
+ */
+export function injectImageIntoFrontmatter(content: string, url: string): string {
+  const m = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!m) return content;
+  const yaml = m[1];
+
+  if (/^\s*image:\s*"[^"]*"\s*$/m.test(yaml)) {
+    const newYaml = yaml.replace(/^\s*image:\s*"[^"]*"\s*$/m, `image: "${url}"`);
+    return content.replace(yaml, newYaml);
+  }
+
+  // tags: 라인 다음에 image: 추가. tags: 도 없으면 yaml 끝에.
+  let newYaml: string;
+  if (/^tags:\s/m.test(yaml)) {
+    newYaml = yaml.replace(/^(tags:\s.*)$/m, `$1\nimage: "${url}"`);
+  } else {
+    newYaml = `${yaml}\nimage: "${url}"`;
+  }
+  return content.replace(yaml, newYaml);
+}
+
+type DraftRowWithContent = DraftRowMin & { content: string | null };
+
+async function loadDraftWithContent(draftId: string): Promise<DraftRowWithContent> {
+  const tns = createAdminClient();
+  const { data, error } = await tns
+    .from("frandoor_blog_drafts")
+    .select("id, brand_id, ftc_brand_id, meta, stage, content")
+    .eq("id", draftId)
+    .maybeSingle();
+  if (error) throw new Error(`draft load: ${error.message}`);
+  if (!data) throw new DraftNotFoundError(draftId);
+  return data as DraftRowWithContent;
+}
+
+/**
+ * v4-22 Step 4 — gpt-image-1 호출 + Supabase Storage 업로드 + frontmatter image: 갱신.
+ * input: draftId (stage='a_only_written')
+ * output: { draftId, thumbnail_url } — stage='a_only_thumbnail_done'.
+ */
+export async function runStep4ThumbnailAOnly(draftId: string): Promise<{
+  draftId: string;
+  thumbnail_url: string;
+}> {
+  const t0 = Date.now();
+  const draft = await loadDraftWithContent(draftId);
+  if (draft.stage !== "a_only_written") {
+    throw new InvalidStageError(draftId, "a_only_written", draft.stage);
+  }
+  const meta = (draft.meta ?? {}) as Record<string, unknown>;
+  const facts = meta.a_only_facts as IndustryAnalysisFacts | undefined;
+  if (!facts) throw new Error(`draft ${draftId}: meta.a_only_facts 누락`);
+
+  const prompt = buildIndustryImagePrompt({
+    industry: facts.industry,
+    topic: facts.topic,
+    key_angle: facts.key_angle,
+  });
+
+  console.log(`[v4-22.4] gpt-image-1 호출 (industry=${facts.industry}, prompt=${prompt.length}자)...`);
+  const tStart = Date.now();
+  const { url } = await generateAndUploadThumbnail({
+    draft_id: draftId,
+    prompt,
+  });
+  console.log(`[v4-22.4] thumbnail uploaded: ${Date.now() - tStart}ms url=${url}`);
+
+  const updatedContent =
+    typeof draft.content === "string" && draft.content.length > 0
+      ? injectImageIntoFrontmatter(draft.content, url)
+      : draft.content;
+
+  const tns = createAdminClient();
+  const updatePayload: Record<string, unknown> = {
+    thumbnail_url: url,
+    thumbnail_prompt: prompt,
+    stage: "a_only_thumbnail_done",
+  };
+  if (updatedContent != null) updatePayload.content = updatedContent;
+
+  const { error: uErr } = await tns
+    .from("frandoor_blog_drafts")
+    .update(updatePayload)
+    .eq("id", draftId);
+  if (uErr) throw new Error(`Step 4 (a_only) UPDATE failed: ${uErr.message}`);
+
+  console.log(`[v4-22.4] ✓ ${Date.now() - t0}ms, stage=a_only_thumbnail_done`);
+  return { draftId, thumbnail_url: url };
 }
 
