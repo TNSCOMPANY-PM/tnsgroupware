@@ -798,13 +798,22 @@ export async function runStep3WriteAOnly(draftId: string): Promise<V4Result> {
     facts,
   });
   const yaml = renderFrontmatterYaml(frontmatter, faqItems);
-  const finalContent = `${yaml}\n\n${processed.body.trim()}\n`;
+  // v4-19: 본문 끝에 공정위 outbound link + 모집단 footer 자동 추가 (EEAT 보강).
+  const sourceFooter = [
+    "",
+    "---",
+    "",
+    "**출처**: [공정거래위원회 정보공개서](https://franchise.ftc.go.kr) (2024-12 기준)",
+    `**모집단**: ${facts.industry} 업종 등록 ${facts.n_brands}개 브랜드`,
+    "",
+  ].join("\n");
+  const finalContent = `${yaml}\n\n${processed.body.trim()}\n${sourceFooter}`;
 
   const allowedFromIndustry = collectAllowedNumbersFromIndustryFacts(facts);
   const cc = crosscheckV4(processed.body, allowedFromIndustry);
   const lint = lintV4(processed.body, { hasC: false, topic: facts.topic });
   console.log(
-    `[v4-17.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
+    `[v4-19.3] cc: matched=${cc.matched} unmatched=${cc.unmatched.length} | lint errors=${lint.errors.length} warnings=${lint.warnings.length}`,
   );
 
   const faqLint = lintV4Faq(faqItems);

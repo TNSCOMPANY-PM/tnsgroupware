@@ -36,9 +36,10 @@ function buildDescription(input: IndustryFrontmatterInput): string {
   const parts: string[] = [];
   parts.push(`${input.industry} ${input.facts.n_brands}개 브랜드 분포 분석`);
 
+  // v4-19: 영문 "ranking + outlier" → 자연어 "상위 브랜드와 분포 차이". cleanLabel 로 metric label suffix 정리.
   const ranking = input.facts.ranking;
   if (ranking?.label && ranking.top10.length > 0) {
-    parts.push(`${ranking.label} ranking + outlier 검토`);
+    parts.push(`${cleanLabel(ranking.label)} 상위 브랜드와 분포 차이 분석`);
   }
 
   parts.push("출처: 공정위 정보공개서(2024-12)");
@@ -177,7 +178,7 @@ export function buildIndustryFaq(input: {
     },
     {
       q: `${industry} 분포 비교는 어떤 방식으로 이뤄지나요?`,
-      a: `정보공개서 기준 ${industry} 업종 ${n_brands}개 브랜드의 metric 별 분포 — 하위 25% / 중앙값 / 상위 25% / 상위 10% 와 평균 — 을 사용합니다.`,
+      a: `정보공개서 기준 ${industry} 업종 ${n_brands}개 브랜드의 항목별 분포 — 하위 25%, 중앙값, 상위 25%, 상위 10% 그리고 평균 — 으로 비교합니다.`,
     },
     {
       q: `${industry} 업종에 본사 발표 자료(브로셔/POS)는 포함되어 있나요?`,
@@ -185,7 +186,7 @@ export function buildIndustryFaq(input: {
     },
     {
       q: `${industry} 평균과 두드러지게 차이 나는 브랜드는 어떤 기준으로 추출되나요?`,
-      a: `정보공개서 기준 ${industry} 업종 분포에서 metric 평균과 차이가 두드러지게 큰 브랜드를 추출합니다. 분포 안에서 가장 멀리 떨어진 브랜드를 우선 안내드립니다.`,
+      a: `정보공개서 기준 ${industry} 업종 분포에서 항목별 평균과 차이가 두드러지게 큰 브랜드를 추출합니다. 분포 안에서 가장 멀리 떨어진 브랜드를 우선 안내드립니다.`,
     },
   ];
   for (const fb of finalFallback) {
@@ -198,12 +199,22 @@ export function buildIndustryFaq(input: {
 }
 
 /**
- * v4-18 — metric label 의 "(2024)" / "(2023)" 괄호 표기 제거.
- * "전체 가맹점 수 (2024)" → "전체 가맹점 수".
- * 본문/FAQ 인용 시 "2024년" 같이 자연어로 변환할 수 있도록 base 만 보존.
+ * v4-18~19 — metric label 의 영문/괄호/suffix 정리.
+ *  · " (2024)" / " (2024-12)" 등 연도 괄호 제거
+ *  · " (만원)" / " (원)" / " (%)" 단위 괄호 제거
+ *  · " — 전체" / " — 평균" suffix 정리
+ *  · trailing " 분포" 제거 (FAQ 답변 안에서 다시 풀어줌)
  */
 function cleanLabel(label: string): string {
-  return label.replace(/\s*\(\s*\d{4}\s*\)\s*$/g, "").trim();
+  return label
+    .replace(/\s*\(\s*20\d{2}(?:[-/.]?\d{0,2})?\s*\)/g, "") // " (2024)" / " (2024-12)"
+    .replace(/\s*\(\s*만원\s*\)/g, "") // " (만원)"
+    .replace(/\s*\(\s*원\s*\)/g, "") // " (원)"
+    .replace(/\s*\(\s*%\s*\)/g, "") // " (%)"
+    .replace(/\s*[—–-]\s*전체\s*$/g, "") // " — 전체"
+    .replace(/\s*[—–-]\s*평균\s*$/g, " 평균") // " — 평균" → " 평균"
+    .replace(/\s*분포\s*$/g, "") // trailing " 분포"
+    .trim();
 }
 
 function escapeMarkdownTilde(s: string): string {
