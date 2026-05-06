@@ -32,7 +32,18 @@ export function buildLlm1AnalyzeAOnlySysprompt(): string {
 - selected_metrics: 토픽 + 분석 각도에 직접 관련 metric_id 15~30개 (ftc_column_catalog 기준).
 - key_angle: 업종 단위 핵심 한 줄 (예: "분식 238개 brand 매출 격차 — 상위 10%와 중앙값이 N배 차이").
 - analysis_axes: 본문 블럭 분석 축 3~5개 — 단일 brand 비교 X, 업종 N개 brand 단위.
-- ranking_metric: top/bottom 10 으로 보여줄 핵심 metric_id 1개. 매출/영업이익률/가맹점수 등 정량 지표 (default: "avg_sales_2024_total").
+- ranking_metric: top/bottom 10 으로 보여줄 핵심 metric_id 1개. 매출/영업이익률/가맹점수 등 정량 지표.
+
+# ★ ranking_metric 제약 (v4-20)
+ranking_metric 은 반드시 다음 metric_id 중에서만 선택. 이 외 metric 을 출력하면 fallback "avg_sales_2024_total" 로 자동 처리됨 — 토픽에 정확히 맞는 metric 이 없으면 가장 가까운 것 선택:
+
+매출 / 분포: avg_sales_2024_total, avg_sales_2023_total, sales_per_area_2024_total
+가맹점수 / 변동: frcs_cnt_2024_total, frcs_cnt_2023_total, stores_2024_franchise, stores_2024_direct, chg_2024_new_open, chg_2024_contract_end, chg_2024_contract_cancel, chg_2024_name_change
+창업비용: startup_cost_total, startup_fee, joining_fee, education_fee, deposit, deposit_fee, other_fee, interior_cost_total, interior_cost_per_sqm, interior_std_area, escrow_amount
+본사 재무: fin_2024_revenue, fin_2024_op_profit, fin_2024_net_income, fin_2024_total_asset, fin_2024_total_equity, fin_2024_total_debt
+광고: ad_cost_2024, promo_cost_2024
+본사 조직: staff_cnt, exec_cnt, brand_cnt, affiliate_cnt
+컴플라이언스: violation_correction, violation_civil, violation_criminal, law_violation_cnt, business_year_cnt
 
 # ftc_column_catalog
 ${buildFtcColumnCatalog()}
