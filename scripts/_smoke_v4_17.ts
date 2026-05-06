@@ -159,7 +159,8 @@ async function main() {
   check(`description 출처 공정위`, frontmatter.description.includes("공정위 정보공개서"));
   check(`category = "업종 분석"`, frontmatter.category === "업종 분석");
   check(`tags 포함 분식 + 외식`, frontmatter.tags.includes("분식") && frontmatter.tags.includes("외식"));
-  check(`slug "industry-분식-..."`, frontmatter.slug.startsWith("industry-분식-"));
+  // v4-25 supersede: slug 한글 → 영문 매핑 ("korean-snack-industry-...")
+  check(`slug 영문 — "korean-snack-industry-..."`, frontmatter.slug.startsWith("korean-snack-industry-"));
 
   const faq = fm.buildIndustryFaq({ industry: "분식", facts: r });
   check(`FAQ ≥ 1`, faq.length >= 1);

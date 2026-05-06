@@ -53,8 +53,10 @@ async function main() {
     pipelineSrc.includes("thumbnail_url: cacheBustedUrl"),
   );
   check(
-    `injectImageIntoFrontmatter(content, cacheBustedUrl)`,
-    pipelineSrc.includes("injectImageIntoFrontmatter(draft.content, cacheBustedUrl)"),
+    // v4-25 supersede: injectImageIntoFrontmatter → injectThumbnailIntoFrontmatter
+    `injectThumbnailIntoFrontmatter(content, cacheBustedUrl)`,
+    pipelineSrc.includes("injectThumbnailIntoFrontmatter(draft.content, cacheBustedUrl)") ||
+      pipelineSrc.includes("injectImageIntoFrontmatter(draft.content, cacheBustedUrl)"),
   );
 
   // T3 — ThumbnailRegenerateButton client component

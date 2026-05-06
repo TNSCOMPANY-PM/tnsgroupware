@@ -14,9 +14,9 @@ export function renderFrontmatterYaml(fm: Frontmatter, faq: FaqItem[]): string {
   lines.push(`date: "${fm.date}"`);
   lines.push(`dateModified: "${fm.dateModified}"`);
   lines.push(`tags: [${fm.tags.map((t) => `"${escapeYaml(t)}"`).join(", ")}]`);
-  // v4-22 — Step 4 (썸네일) 가 채운 image 가 있으면 emit.
-  if (fm.image) {
-    lines.push(`image: "${escapeYaml(fm.image)}"`);
+  // v4-22~25 — Step 4 (썸네일) 가 채운 thumbnail 이 있으면 emit (frandoor 표준 키).
+  if (fm.thumbnail) {
+    lines.push(`thumbnail: "${escapeYaml(fm.thumbnail)}"`);
   }
   lines.push("faq:");
   for (const f of faq) {
