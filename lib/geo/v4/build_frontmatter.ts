@@ -12,6 +12,8 @@ export type Frontmatter = {
   date: string;
   dateModified: string;
   tags: string[];
+  // v4-22 — Step 4 (썸네일) 가 채움. A only 만 적용.
+  image?: string;
 };
 
 export type FrontmatterInput = {

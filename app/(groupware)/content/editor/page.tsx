@@ -46,7 +46,7 @@ export default function EditorPage() {
   const [selectedBrand, setSelectedBrand] = useState<GeoBrand | null>(null);
 
   const [loading, setLoading] = useState(false);
-  // v4-07: 3-step phase 표시 (a_plus_c) + v4-16 a_only phase
+  // v4-07: 3-step phase 표시 (a_plus_c) + v4-16~22 a_only phase
   const [phase, setPhase] = useState<
     | "idle"
     | "facts_a"
@@ -55,6 +55,7 @@ export default function EditorPage() {
     | "a_only_analyze"
     | "a_only_structure"
     | "a_only_write"
+    | "a_only_thumbnail"
     | "done"
   >("idle");
   const [result, setResult] = useState<V4Result | null>(null);
@@ -151,6 +152,18 @@ export default function EditorPage() {
           { method: "POST" },
           65000,
         )) as V4Result;
+
+        // v4-22 Step 4 — gpt-image-1 썸네일 자동 생성. 실패해도 본문 결과 보존.
+        setPhase("a_only_thumbnail");
+        try {
+          await callApi(`/api/geo/a-only/thumbnail/${draftId}`, { method: "POST" }, 65000);
+        } catch (thumbErr) {
+          console.warn(
+            "v4-22 썸네일 생성 실패 — 본문은 정상 저장됨:",
+            thumbErr instanceof Error ? thumbErr.message : thumbErr,
+          );
+        }
+
         setResult(s3);
         setPhase("done");
       } else {
@@ -357,18 +370,20 @@ export default function EditorPage() {
             {phase === "facts_a" && "1/3 A급 데이터"}
             {phase === "facts_c" && "2/3 C급 데이터"}
             {phase === "writing" && "3/3 본문 작성"}
-            {phase === "a_only_analyze" && "1/3 분석 각도"}
-            {phase === "a_only_structure" && "2/3 구조화"}
-            {phase === "a_only_write" && "3/3 본문 작성"}
+            {phase === "a_only_analyze" && "1/4 분석 각도"}
+            {phase === "a_only_structure" && "2/4 구조화"}
+            {phase === "a_only_write" && "3/4 본문 작성"}
+            {phase === "a_only_thumbnail" && "4/4 썸네일 생성"}
             )
           </div>
           <div className="text-xs text-blue-700">
             {phase === "facts_a" && "Step 1: 공정위 152컬럼 정제 (Sonnet LLM1, ~10초)"}
             {phase === "facts_c" && "Step 2: 본사 docx_facts + A vs C 차이 (코드 매칭, ~5초)"}
             {phase === "writing" && "Step 3: Sonnet 본문 작성 (~50초)"}
-            {phase === "a_only_analyze" && "Step 1: 분석 각도 + selected_metrics (Sonnet, ~10초)"}
-            {phase === "a_only_structure" && "Step 2: timeseries + distribution 구조화 (~3초)"}
+            {phase === "a_only_analyze" && "Step 1: 분포 + ranking + outlier 분석 각도 (Sonnet, ~15초)"}
+            {phase === "a_only_structure" && "Step 2: distributions / ranking / outliers 구조화 (~5초)"}
             {phase === "a_only_write" && "Step 3: Sonnet 분석 콘텐츠 (~50초)"}
+            {phase === "a_only_thumbnail" && "Step 4: gpt-image-1 음식 사진 (~15초) — 실패해도 본문 보존"}
           </div>
           <div className="text-[11px] text-blue-600">
             {genMode === "a_only" ? "v4-16 — A only 분석 모드" : "v4-07 — A+C 팩트 모드"}
