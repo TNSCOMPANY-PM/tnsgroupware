@@ -79,8 +79,9 @@ async function main() {
   // T3 — runStep1AnalyzeAOnly ranking_metric 검증 + fallback
   console.log("\n[T3] runStep1AnalyzeAOnly — ranking_metric 검증 + fallback");
   check(
-    `A_ONLY_SAFE_COLUMNS_SET 검증`,
-    pipelineSrc.includes("A_ONLY_SAFE_COLUMNS_SET.has(rawRankingMetric)"),
+    // v4-21 supersede: SAFE_COLUMNS_SET → RANKING_METRIC_ALLOWED (SAFE ∪ derived).
+    `RANKING_METRIC_ALLOWED 검증 (v4-21)`,
+    pipelineSrc.includes("RANKING_METRIC_ALLOWED.has(rawRankingMetric)"),
   );
   check(
     `fallback DEFAULT_RANKING_METRIC`,
@@ -88,8 +89,10 @@ async function main() {
       pipelineSrc.includes(": DEFAULT_RANKING_METRIC"),
   );
   check(
-    `fallback warn log (SAFE_COLUMNS 외)`,
-    pipelineSrc.includes("SAFE_COLUMNS 외 → fallback"),
+    // v4-21 supersede: warn log "SAFE/DERIVED 외 → fallback".
+    `fallback warn log (SAFE/DERIVED 외)`,
+    pipelineSrc.includes("SAFE/DERIVED 외 → fallback") ||
+      pipelineSrc.includes("SAFE_COLUMNS 외 → fallback"),
   );
 
   // T4 — DEFAULT_RANKING_METRIC 일치

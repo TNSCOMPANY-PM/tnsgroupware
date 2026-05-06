@@ -19,6 +19,47 @@ const PERCENTILE_KEYS = ["p25", "p50", "p75", "p90", "p95", "mean"] as const;
 
 export const DEFAULT_RANKING_METRIC = "avg_sales_2024_total";
 
+/**
+ * v4-21 — derived metric (DB raw 없음, raw 컬럼 합산으로 코드 계산).
+ *  · hq_op_margin_pct = fin_2024_op_profit / fin_2024_revenue × 100
+ *  · hq_debt_ratio    = fin_2024_total_debt / fin_2024_total_equity × 100
+ *  · hq_net_margin_pct = fin_2024_net_income / fin_2024_revenue × 100
+ *  · hq_equity_ratio  = fin_2024_total_equity / fin_2024_total_asset × 100
+ *
+ * raw 가 0 또는 null 이면 derived 도 null. Infinity / NaN 도 null.
+ */
+export function injectDerivedMetrics(brand: Row): Row {
+  function num(v: unknown): number | null {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "") {
+      const n = Number(v.replace(/,/g, ""));
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+  function ratio(numerator: number | null, denominator: number | null): number | null {
+    if (numerator == null || denominator == null) return null;
+    if (denominator === 0) return null;
+    const r = (numerator / denominator) * 100;
+    return Number.isFinite(r) ? r : null;
+  }
+
+  const rev = num(brand.fin_2024_revenue);
+  const op = num(brand.fin_2024_op_profit);
+  const net = num(brand.fin_2024_net_income);
+  const debt = num(brand.fin_2024_total_debt);
+  const equity = num(brand.fin_2024_total_equity);
+  const asset = num(brand.fin_2024_total_asset);
+
+  return {
+    ...brand,
+    hq_op_margin_pct: ratio(op, rev),
+    hq_debt_ratio: ratio(debt, equity),
+    hq_net_margin_pct: ratio(net, rev),
+    hq_equity_ratio: ratio(equity, asset),
+  };
+}
+
 export function buildIndustryAnalysisFacts(input: {
   industry: string;
   topic: string;
@@ -29,9 +70,13 @@ export function buildIndustryAnalysisFacts(input: {
   brands: Row[];
   industry_facts: Row[];
 }): IndustryAnalysisFacts {
+  // v4-21: derived metric (영업이익률 / 부채비율 등) 을 brand row 에 주입.
+  // ranking_metric 이 derived 일 때 정렬 가능하도록.
+  const brandsWithDerived = input.brands.map(injectDerivedMetrics);
+
   const distributions = buildDistributions(input.selected_metrics, input.industry_facts);
-  const ranking = buildRanking(input.ranking_metric, input.brands);
-  const outliers = buildOutliers(input.ranking_metric, input.brands);
+  const ranking = buildRanking(input.ranking_metric, brandsWithDerived);
+  const outliers = buildOutliers(input.ranking_metric, brandsWithDerived);
 
   return {
     industry: input.industry,
