@@ -34,16 +34,57 @@ export function buildLlm1AnalyzeAOnlySysprompt(): string {
 - analysis_axes: 본문 블럭 분석 축 3~5개 — 단일 brand 비교 X, 업종 N개 brand 단위.
 - ranking_metric: top/bottom 10 으로 보여줄 핵심 metric_id 1개. 매출/영업이익률/가맹점수 등 정량 지표.
 
-# ★ ranking_metric 제약 (v4-20)
-ranking_metric 은 반드시 다음 metric_id 중에서만 선택. 이 외 metric 을 출력하면 fallback "avg_sales_2024_total" 로 자동 처리됨 — 토픽에 정확히 맞는 metric 이 없으면 가장 가까운 것 선택:
+# ★ ranking_metric 제약 (v4-21 — 실제 ftc_brands_2024 schema)
+ranking_metric 은 반드시 다음 metric_id 중에서만 선택. 이 외 metric 출력 시 fallback "avg_sales_2024_total":
 
-매출 / 분포: avg_sales_2024_total, avg_sales_2023_total, sales_per_area_2024_total
-가맹점수 / 변동: frcs_cnt_2024_total, frcs_cnt_2023_total, stores_2024_franchise, stores_2024_direct, chg_2024_new_open, chg_2024_contract_end, chg_2024_contract_cancel, chg_2024_name_change
-창업비용: startup_cost_total, startup_fee, joining_fee, education_fee, deposit, deposit_fee, other_fee, interior_cost_total, interior_cost_per_sqm, interior_std_area, escrow_amount
-본사 재무: fin_2024_revenue, fin_2024_op_profit, fin_2024_net_income, fin_2024_total_asset, fin_2024_total_equity, fin_2024_total_debt
-광고: ad_cost_2024, promo_cost_2024
-본사 조직: staff_cnt, exec_cnt, brand_cnt, affiliate_cnt
-컴플라이언스: violation_correction, violation_civil, violation_criminal, law_violation_cnt, business_year_cnt
+[매출]
+- avg_sales_2024_total (전국 가맹점 평균 연매출)
+- avg_sales_2024_seoul / avg_sales_2024_gyeonggi (지역별 — 서울/경기 두 시장만)
+- sales_per_area_2024_total (㎡당 매출)
+
+[가맹점수 + 변동]
+- frcs_cnt_2024_total / frcs_cnt_2024_seoul / frcs_cnt_2024_gyeonggi (전국/지역)
+- stores_2024_franchise / stores_2024_direct (가맹/직영)
+- stores_2023_franchise / stores_2022_franchise (시계열)
+- chg_2024_new_open (신규 개점)
+- chg_2024_contract_end (계약 종료)
+- chg_2024_contract_cancel (계약 해지)
+- chg_2024_name_change (명의 변경)
+- chg_2023_new_open / chg_2023_contract_end (시계열)
+
+[창업비용]
+- startup_cost_total (총액)
+- startup_fee (가맹비)
+- education_fee (교육비)
+- deposit_fee (보증금)
+- other_fee (기타비용)
+- interior_cost_total (인테리어 총액)
+- interior_cost_per_sqm (㎡당 인테리어 단가)
+- interior_std_area (기준 점포 면적)
+
+[본사 재무 — raw]
+- fin_2024_revenue (본사 매출)
+- fin_2024_op_profit (본사 영업이익)
+- fin_2024_net_income (본사 당기순이익)
+- fin_2024_total_asset (본사 자산)
+- fin_2024_total_debt (본사 부채)
+- fin_2024_total_equity (본사 자본)
+- fin_2023_revenue / fin_2023_op_profit / fin_2023_net_income (시계열)
+
+[본사 재무 — derived (코드 계산, ranking 가능)]
+- hq_op_margin_pct (영업이익률 = 영업이익 / 매출 × 100)
+- hq_debt_ratio (부채비율 = 부채 / 자본 × 100)
+- hq_net_margin_pct (순이익률 = 순이익 / 매출 × 100)
+- hq_equity_ratio (자본비율 = 자본 / 자산 × 100)
+
+[기타]
+- staff_cnt (본사 임직원수)
+- exec_cnt (본사 임원수)
+- ad_cost_2024 (광고비)
+- promo_cost_2024 (판촉비)
+- contract_initial_years (최초 계약기간)
+- contract_renewal_years (갱신 계약기간)
+- violation_civil / violation_correction / violation_criminal (법위반 건수)
 
 # ftc_column_catalog
 ${buildFtcColumnCatalog()}

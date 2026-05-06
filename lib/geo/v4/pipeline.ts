@@ -583,68 +583,98 @@ function collectAllowedNumbersFromCFacts(cFacts: CFactsResult): Set<string> {
 // =============================================================================
 
 /**
- * v4-20 — A only 업종 분석 fetch 용 selective 컬럼.
- * 152 컬럼 전부 select 하면 1500 brand × 152 컬럼 = 7-15MB 라 fetch 느림.
- * ranking + outlier + 분포 분석에 쓰일 metric 만 30~40개 추리고 fetch 시간 ~10배 단축.
+ * v4-21 — A only 업종 분석 fetch 용 selective 컬럼 (실제 ftc_brands_2024 schema 만).
  *
- * 실제 ftc_brands_2024 컬럼명 (FTC_COLUMN_META 기준).
+ * v4-20 에서는 FTC_COLUMN_META 기반으로 컬럼 list 를 짰지만 실제 DB 에 존재하지 않는
+ * 컬럼 (avg_sales_2023_total / joining_fee / deposit / brand_cnt / affiliate_cnt /
+ * law_violation_cnt / business_year_cnt 등) 이 박혀 한식 industry fetch 시
+ * "column does not exist" 에러 발생 → 모두 제거.
+ *
+ * 영업이익률 / 부채비율 같은 **derived** metric 은 DB 에 없음 → 코드 (injectDerivedMetrics)
+ * 에서 raw 컬럼으로 계산. ranking_metric 으로 derived 도 통과 가능 (RANKING_METRIC_ALLOWED).
  */
 export const A_ONLY_SAFE_COLUMNS: readonly string[] = [
-  // 메타
+  // 식별
   "id",
   "brand_nm",
   "induty_mlsfc",
   "induty_lclas",
   "biz_start_dt",
-  // 매출 / 분포 비교 핵심
+  // 매출 (전국 + 가장 큰 시장 — 서울/경기) + 단위면적당
   "avg_sales_2024_total",
-  "avg_sales_2023_total",
+  "avg_sales_2024_seoul",
+  "avg_sales_2024_gyeonggi",
   "sales_per_area_2024_total",
-  // 가맹점수 / 변동
+  // 가맹점수 (전국 + 서울/경기) + 가맹/직영 분리
   "frcs_cnt_2024_total",
-  "frcs_cnt_2023_total",
+  "frcs_cnt_2024_seoul",
+  "frcs_cnt_2024_gyeonggi",
   "stores_2024_franchise",
   "stores_2024_direct",
+  // 가맹점수 시계열
+  "stores_2023_franchise",
+  "stores_2022_franchise",
+  // 변동 (2024 + 2023 — 시계열)
   "chg_2024_new_open",
   "chg_2024_contract_end",
   "chg_2024_contract_cancel",
   "chg_2024_name_change",
-  // 창업비용
+  "chg_2023_new_open",
+  "chg_2023_contract_end",
+  // 창업비용 — 실제 schema (joining_fee / deposit 없음, deposit_fee 만)
   "startup_cost_total",
   "startup_fee",
-  "joining_fee",
   "education_fee",
-  "deposit",
   "deposit_fee",
   "other_fee",
   "interior_cost_total",
   "interior_cost_per_sqm",
   "interior_std_area",
-  "escrow_amount",
-  // 본사 재무
+  // 본사 재무 (2024)
   "fin_2024_revenue",
   "fin_2024_op_profit",
   "fin_2024_net_income",
   "fin_2024_total_asset",
-  "fin_2024_total_equity",
   "fin_2024_total_debt",
+  "fin_2024_total_equity",
+  // 본사 재무 (2023 — 시계열)
+  "fin_2023_revenue",
+  "fin_2023_op_profit",
+  "fin_2023_net_income",
+  // 본사 인력 (실제 schema 만 — brand_cnt / affiliate_cnt 없음)
+  "staff_cnt",
+  "exec_cnt",
   // 광고 / 판촉
   "ad_cost_2024",
   "promo_cost_2024",
-  // 본사 조직
-  "staff_cnt",
-  "exec_cnt",
-  "brand_cnt",
-  "affiliate_cnt",
-  // 컴플라이언스
-  "violation_correction",
+  // 계약
+  "contract_initial_years",
+  "contract_renewal_years",
+  // 법위반 (실제 schema 만 — law_violation_cnt 없음)
   "violation_civil",
+  "violation_correction",
   "violation_criminal",
-  "law_violation_cnt",
-  "business_year_cnt",
 ] as const;
 
-const A_ONLY_SAFE_COLUMNS_SET = new Set<string>(A_ONLY_SAFE_COLUMNS);
+/**
+ * v4-21 — derived metric (DB raw 없음, 코드 계산).
+ * ranking_metric 으로 LLM1 이 선택해도 통과시키되 정렬은 injectDerivedMetrics 후 가능.
+ */
+export const A_ONLY_DERIVED_METRICS: readonly string[] = [
+  "hq_op_margin_pct", // op_profit / revenue * 100
+  "hq_debt_ratio", // debt / equity * 100
+  "hq_net_margin_pct", // net_income / revenue * 100
+  "hq_equity_ratio", // equity / asset * 100
+] as const;
+
+/**
+ * v4-21 — RANKING_METRIC_ALLOWED = SAFE_COLUMNS ∪ DERIVED_METRICS.
+ * LLM1 ranking_metric 검증 시 사용.
+ */
+const RANKING_METRIC_ALLOWED = new Set<string>([
+  ...A_ONLY_SAFE_COLUMNS,
+  ...A_ONLY_DERIVED_METRICS,
+]);
 
 /**
  * v4-20 — 업종 단위 raw 데이터 fetch.
@@ -744,18 +774,18 @@ export async function runStep1AnalyzeAOnly(input: V4AOnlyInput): Promise<V4AOnly
   const analysisAxes = Array.isArray(parsed.analysis_axes)
     ? parsed.analysis_axes.filter((x): x is string => typeof x === "string" && x.length > 0)
     : [];
-  // v4-20: ranking_metric 은 SAFE_COLUMNS 안에서만 (selective fetch 한 컬럼만 정렬 가능).
-  // LLM1 이 SAFE 외 metric 출력하면 fallback DEFAULT_RANKING_METRIC.
+  // v4-21: ranking_metric 은 SAFE_COLUMNS ∪ DERIVED 안에서만 (RANKING_METRIC_ALLOWED).
+  // derived (hq_op_margin_pct 등) 는 buildIndustryAnalysisFacts 안 injectDerivedMetrics 가 raw 에서 계산.
   const rawRankingMetric =
     typeof parsed.ranking_metric === "string" && parsed.ranking_metric.length > 0
       ? parsed.ranking_metric
       : DEFAULT_RANKING_METRIC;
-  const rankingMetric = A_ONLY_SAFE_COLUMNS_SET.has(rawRankingMetric)
+  const rankingMetric = RANKING_METRIC_ALLOWED.has(rawRankingMetric)
     ? rawRankingMetric
     : DEFAULT_RANKING_METRIC;
   if (rankingMetric !== rawRankingMetric) {
     console.warn(
-      `[v4-20.1] LLM1 ranking_metric "${rawRankingMetric}" 이 SAFE_COLUMNS 외 → fallback "${rankingMetric}"`,
+      `[v4-21.1] LLM1 ranking_metric "${rawRankingMetric}" 이 SAFE/DERIVED 외 → fallback "${rankingMetric}"`,
     );
   }
 
