@@ -41,7 +41,8 @@ function industrySlugSegment(industry: string): string {
 }
 
 export function buildIndustryFrontmatter(input: IndustryFrontmatterInput): Frontmatter {
-  const today = input.today ?? new Date().toISOString().slice(0, 10);
+  // v4-26: KST datetime (Asia/Seoul). 결과 "2026-05-07T14:00:00".
+  const today = input.today ?? new Date().toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).replace(" ", "T");
   const title = input.topic.trim() || `${input.industry} 업종 분석`;
   const description = buildDescription(input);
   // v4-25: slug 한글 금지 → 영문 매핑. "korean-snack-industry-{draft_id_8}-{year}".

@@ -30,7 +30,8 @@ const COST_TOTAL_KEYS = ["startup_cost_total", "cost_total"];
 const ANNUAL_REV_KEYS = ["avg_sales_2024_total", "annual_revenue", "monthly_avg_revenue"];
 
 export function buildFrontmatter(input: FrontmatterInput): Frontmatter {
-  const today = input.today ?? new Date().toISOString().slice(0, 10);
+  // v4-26: KST datetime (Asia/Seoul). 결과 "2026-05-07T14:00:00".
+  const today = input.today ?? new Date().toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).replace(" ", "T");
   const title = input.topic.trim() || `${input.brand_label} 분석`;
   const description = buildDescription(input);
   const slug = `${slugFromBrandId(input.brand_id)}-${today.slice(0, 4)}`;
