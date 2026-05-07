@@ -47,8 +47,9 @@ async function main() {
   const postSrc = await fs.readFile("app/(groupware)/content/posts/[id]/page.tsx", "utf-8");
   check(`thumbnail_url SELECT 추가`, postSrc.includes(", thumbnail_url,"));
   check(`thumbnail_url type 정의`, postSrc.includes("thumbnail_url: string | null"));
-  check(`extractImageFromFrontmatter 헬퍼`, postSrc.includes("function extractImageFromFrontmatter"));
-  check(`imageUrl fallback (thumbnail_url ?? frontmatter)`, postSrc.includes("draft.thumbnail_url ?? extractImageFromFrontmatter"));
+  // v4-25 supersede: extractImageFromFrontmatter → extractThumbnailFromFrontmatter (legacy image: fallback 안에).
+  check(`extract 헬퍼 (Thumbnail/Image)`, postSrc.includes("function extractThumbnailFromFrontmatter") || postSrc.includes("function extractImageFromFrontmatter"));
+  check(`imageUrl fallback (thumbnail_url ?? frontmatter)`, postSrc.includes("draft.thumbnail_url ?? extractThumbnailFromFrontmatter") || postSrc.includes("draft.thumbnail_url ?? extractImageFromFrontmatter"));
   check(`<img> 본문 위 표시`, postSrc.includes("imageUrl && ("));
   check(`alt = title fallback`, postSrc.includes('alt={draft.title ?? "industry thumbnail"}'));
   check(`max-w-2xl rounded-lg`, postSrc.includes("max-w-2xl") && postSrc.includes("rounded-lg"));

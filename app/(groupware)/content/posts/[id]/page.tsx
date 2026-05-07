@@ -50,13 +50,18 @@ function parseFaq(raw: unknown): FaqItem[] {
 }
 
 /**
- * v4-23 — frontmatter YAML 안 image: "..." 추출 (thumbnail_url null 일 때 fallback).
+ * v4-23~25 — frontmatter YAML 안 thumbnail: "..." 추출 (thumbnail_url null 일 때 fallback).
+ *  · v4-25: thumbnail: 우선 (frandoor 표준 키)
+ *  · legacy image: 도 fallback (기존 post 들 표시 보장)
  */
-function extractImageFromFrontmatter(body: string | null): string | null {
+function extractThumbnailFromFrontmatter(body: string | null): string | null {
   if (!body) return null;
   const m = body.match(/^---\s*\n([\s\S]*?)\n---/);
   if (!m) return null;
-  const imgMatch = m[1].match(/image:\s*"?([^"\n]+)"?/);
+  const yaml = m[1];
+  const thumbMatch = yaml.match(/thumbnail:\s*"?([^"\n]+)"?/);
+  if (thumbMatch) return thumbMatch[1].trim();
+  const imgMatch = yaml.match(/image:\s*"?([^"\n]+)"?/);
   return imgMatch ? imgMatch[1].trim() : null;
 }
 
@@ -73,8 +78,8 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   const draft = data as unknown as DraftRow;
   const faq = parseFaq(draft.faq);
   const typeLabel = draft.content_type ? (TYPE_LABEL[draft.content_type] ?? draft.content_type) : "-";
-  // v4-23: thumbnail_url 우선, 없으면 frontmatter image: fallback.
-  const imageUrl = draft.thumbnail_url ?? extractImageFromFrontmatter(draft.content);
+  // v4-23~25: thumbnail_url 우선, 없으면 frontmatter thumbnail:/image: fallback.
+  const imageUrl = draft.thumbnail_url ?? extractThumbnailFromFrontmatter(draft.content);
   // v4-24: A only 모드 + write/thumbnail 단계에서만 재생성 버튼 노출.
   const canRegenThumbnail =
     draft.gen_mode === "a_only" &&

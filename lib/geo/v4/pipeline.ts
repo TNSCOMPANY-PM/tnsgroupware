@@ -1021,29 +1021,44 @@ function collectAllowedNumbersFromIndustryFacts(facts: IndustryAnalysisFacts): S
 // =============================================================================
 
 /**
- * v4-22 — frontmatter YAML 의 image: 필드 삽입 또는 갱신.
- * 첫 frontmatter 블럭 ('---' ... '---') 안에 적용. tags: 라인 다음에 image 추가.
- * 기존 image: 라인이 있으면 url 갱신.
+ * v4-22~25 — frontmatter YAML 의 thumbnail: 필드 삽입 또는 갱신.
+ * 첫 frontmatter 블럭 ('---' ... '---') 안에 적용. tags: 라인 다음에 thumbnail 추가.
+ *
+ * v4-25:
+ *  · 키 image: → thumbnail: (frandoor.co.kr 표준)
+ *  · 기존 image: 라인이 있으면 thumbnail: 로 자동 마이그레이션
+ *  · 기존 thumbnail: 라인이 있으면 url 갱신
  */
-export function injectImageIntoFrontmatter(content: string, url: string): string {
+export function injectThumbnailIntoFrontmatter(content: string, url: string): string {
   const m = content.match(/^---\s*\n([\s\S]*?)\n---/);
   if (!m) return content;
   const yaml = m[1];
 
-  if (/^\s*image:\s*"[^"]*"\s*$/m.test(yaml)) {
-    const newYaml = yaml.replace(/^\s*image:\s*"[^"]*"\s*$/m, `image: "${url}"`);
+  // 1) 기존 thumbnail: 갱신
+  if (/^\s*thumbnail:\s*"[^"]*"\s*$/m.test(yaml)) {
+    const newYaml = yaml.replace(/^\s*thumbnail:\s*"[^"]*"\s*$/m, `thumbnail: "${url}"`);
     return content.replace(yaml, newYaml);
   }
-
-  // tags: 라인 다음에 image: 추가. tags: 도 없으면 yaml 끝에.
+  // 2) legacy image: 라인 → thumbnail: 마이그레이션
+  if (/^\s*image:\s*"[^"]*"\s*$/m.test(yaml)) {
+    const newYaml = yaml.replace(/^\s*image:\s*"[^"]*"\s*$/m, `thumbnail: "${url}"`);
+    return content.replace(yaml, newYaml);
+  }
+  // 3) 신규 추가 — tags: 라인 다음, 없으면 yaml 끝.
   let newYaml: string;
   if (/^tags:\s/m.test(yaml)) {
-    newYaml = yaml.replace(/^(tags:\s.*)$/m, `$1\nimage: "${url}"`);
+    newYaml = yaml.replace(/^(tags:\s.*)$/m, `$1\nthumbnail: "${url}"`);
   } else {
-    newYaml = `${yaml}\nimage: "${url}"`;
+    newYaml = `${yaml}\nthumbnail: "${url}"`;
   }
   return content.replace(yaml, newYaml);
 }
+
+/**
+ * @deprecated v4-25: rename — call injectThumbnailIntoFrontmatter directly.
+ * Kept as alias for backward compat in case external code references it.
+ */
+export const injectImageIntoFrontmatter = injectThumbnailIntoFrontmatter;
 
 type DraftRowWithContent = DraftRowMin & { content: string | null };
 
@@ -1108,7 +1123,7 @@ export async function runStep4ThumbnailAOnly(draftId: string): Promise<{
 
   const updatedContent =
     typeof draft.content === "string" && draft.content.length > 0
-      ? injectImageIntoFrontmatter(draft.content, cacheBustedUrl)
+      ? injectThumbnailIntoFrontmatter(draft.content, cacheBustedUrl)
       : draft.content;
 
   const tns = createAdminClient();

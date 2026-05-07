@@ -93,27 +93,28 @@ faq:
 ---
 
 본문 시작...`;
+  // v4-25 supersede: image: → thumbnail: (frandoor 표준).
   const url = "https://felaezeqnoskkowoqsja.supabase.co/storage/v1/object/public/geo-thumbnails/abc123.png";
-  const injected = pipeline.injectImageIntoFrontmatter(sampleContent, url);
-  check(`tags 다음 image: 추가`, /tags:.*\nimage: "https/.test(injected));
-  check(`url 정확히 삽입`, injected.includes(`image: "${url}"`));
+  const injected = pipeline.injectThumbnailIntoFrontmatter(sampleContent, url);
+  check(`tags 다음 thumbnail: 추가`, /tags:.*\nthumbnail: "https/.test(injected));
+  check(`url 정확히 삽입`, injected.includes(`thumbnail: "${url}"`));
   check(`기존 frontmatter 보존`, injected.includes('title: "분식 평균 매출 분포 분석"'));
   check(`본문 보존`, injected.includes("본문 시작..."));
 
-  // 이미 image 필드가 있을 때 — 갱신
+  // 이미 thumbnail 필드가 있을 때 — 갱신
   const withImage = injected;
   const newUrl = "https://newhost.example.com/new.png";
-  const updated = pipeline.injectImageIntoFrontmatter(withImage, newUrl);
+  const updated = pipeline.injectThumbnailIntoFrontmatter(withImage, newUrl);
   check(
-    `이미 image 있으면 갱신 (1회만)`,
-    (updated.match(/image:/g) ?? []).length === 1,
-    `count=${(updated.match(/image:/g) ?? []).length}`,
+    `이미 thumbnail 있으면 갱신 (1회만)`,
+    (updated.match(/thumbnail:/g) ?? []).length === 1,
+    `count=${(updated.match(/thumbnail:/g) ?? []).length}`,
   );
-  check(`갱신된 url`, updated.includes(`image: "${newUrl}"`) && !updated.includes(`image: "${url}"`));
+  check(`갱신된 url`, updated.includes(`thumbnail: "${newUrl}"`) && !updated.includes(`thumbnail: "${url}"`));
 
   // frontmatter 없는 content → 무변경
   const noFm = "본문만 있음";
-  const noFmInjected = pipeline.injectImageIntoFrontmatter(noFm, url);
+  const noFmInjected = pipeline.injectThumbnailIntoFrontmatter(noFm, url);
   check(`frontmatter 없으면 무변경`, noFmInjected === noFm);
 
   // T6 — /api/geo/a-only/thumbnail endpoint 존재
@@ -136,13 +137,13 @@ faq:
   check(`Step 4 try/catch — 실패 시 본문 보존`, editorSrc.includes("v4-22 썸네일 생성 실패"));
   check(`progress 1/4 ~ 3/4 라벨 갱신`, editorSrc.includes("1/4 분석 각도") && editorSrc.includes("3/4 본문 작성"));
 
-  // T8 — Frontmatter image? + render
-  console.log("\n[T8] Frontmatter image? field + YAML render");
+  // T8 — Frontmatter thumbnail? + render (v4-25 supersede: image → thumbnail)
+  console.log("\n[T8] Frontmatter thumbnail? field + YAML render");
   const fmSrc = await fs.readFile("lib/geo/v4/build_frontmatter.ts", "utf-8");
-  check(`Frontmatter type — image?: string`, fmSrc.includes("image?: string"));
+  check(`Frontmatter type — thumbnail?: string`, fmSrc.includes("thumbnail?: string"));
 
   const renderSrc = await fs.readFile("lib/geo/v4/render_frontmatter.ts", "utf-8");
-  check(`renderFrontmatterYaml — image emit`, renderSrc.includes('lines.push(`image: "${'));
+  check(`renderFrontmatterYaml — thumbnail emit`, renderSrc.includes('lines.push(`thumbnail: "${'));
 
   // 실제 render 결과 검증
   const { renderFrontmatterYaml } = await import("../lib/geo/v4/render_frontmatter");
@@ -155,11 +156,11 @@ faq:
       date: "2026-05-12",
       dateModified: "2026-05-12",
       tags: ["t"],
-      image: "https://x.png",
+      thumbnail: "https://x.png",
     },
     [{ q: "Q", a: "A" }],
   );
-  check(`yaml — image: emitted`, yaml.includes('image: "https://x.png"'));
+  check(`yaml — thumbnail: emitted`, yaml.includes('thumbnail: "https://x.png"'));
 
   const yamlNoImg = renderFrontmatterYaml(
     {
@@ -173,7 +174,7 @@ faq:
     },
     [{ q: "Q", a: "A" }],
   );
-  check(`yaml — image 없으면 emit X`, !yamlNoImg.includes("image:"));
+  check(`yaml — thumbnail 없으면 emit X`, !yamlNoImg.includes("thumbnail:") && !yamlNoImg.includes("image:"));
 
   console.log(`\n=== ${okAll ? "ALL PASS" : "SOME FAILED"} ===\n`);
   process.exit(okAll ? 0 : 1);

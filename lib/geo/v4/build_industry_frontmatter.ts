@@ -14,11 +14,38 @@ export type IndustryFrontmatterInput = {
   facts: IndustryAnalysisFacts;
 };
 
+/**
+ * v4-25 — industry 한글 → 영문 slug 매핑 (frandoor.co.kr slug 한글 금지).
+ * 누락된 industry 는 fallback "industry".
+ */
+const INDUSTRY_SLUG_EN: Record<string, string> = {
+  한식: "korean",
+  분식: "korean-snack",
+  중식: "chinese",
+  일식: "japanese",
+  서양식: "western",
+  기타외국식: "international",
+  패스트푸드: "fastfood",
+  치킨: "chicken",
+  피자: "pizza",
+  제과제빵: "bakery",
+  아이스크림빙수: "icecream-bingsu",
+  커피: "coffee",
+  "음료(커피외)": "beverage",
+  주점: "pub",
+  기타외식: "other-restaurant",
+};
+
+function industrySlugSegment(industry: string): string {
+  return INDUSTRY_SLUG_EN[industry] ?? "industry";
+}
+
 export function buildIndustryFrontmatter(input: IndustryFrontmatterInput): Frontmatter {
   const today = input.today ?? new Date().toISOString().slice(0, 10);
   const title = input.topic.trim() || `${input.industry} 업종 분석`;
   const description = buildDescription(input);
-  const slug = `industry-${slugifyIndustry(input.industry)}-${input.draft_id.slice(0, 6)}-${today.slice(0, 4)}`;
+  // v4-25: slug 한글 금지 → 영문 매핑. "korean-snack-industry-{draft_id_8}-{year}".
+  const slug = `${industrySlugSegment(input.industry)}-industry-${input.draft_id.slice(0, 8)}-${today.slice(0, 4)}`;
   const tags = uniq([input.industry, "외식", "업종 분석"].filter(Boolean) as string[]);
 
   return {
@@ -44,12 +71,6 @@ function buildDescription(input: IndustryFrontmatterInput): string {
 
   parts.push("출처: 공정위 정보공개서(2024-12)");
   return (parts.join(". ") + ".").replace(/~/g, "～");
-}
-
-function slugifyIndustry(industry: string): string {
-  // 한글 그대로 슬러그에 들어가도 next/url 동작 OK (encode 처리됨).
-  // 공백/특수문자만 제거.
-  return industry.replace(/[^a-zA-Z0-9가-힣]/g, "");
 }
 
 function uniq<T>(xs: T[]): T[] {
