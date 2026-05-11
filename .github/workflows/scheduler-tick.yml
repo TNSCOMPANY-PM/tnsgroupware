@@ -20,7 +20,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # v5-02 hf2: Node 22 (native WebSocket 지원) — supabase-js v2 realtime-js 요구.
+          node-version: "22"
 
       - name: Install supabase-js (no full repo install)
         run: npm install --no-save --no-package-lock @supabase/supabase-js@2

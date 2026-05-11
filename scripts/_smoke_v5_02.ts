@@ -87,7 +87,8 @@ async function main() {
   check(`workflow_dispatch (수동 trigger)`, workflow.includes("workflow_dispatch"));
   check(`concurrency group scheduler-tick`, workflow.includes("group: scheduler-tick"));
   check(`actions/checkout@v4`, workflow.includes("actions/checkout@v4"));
-  check(`actions/setup-node@v4 + node-version 20`, workflow.includes("actions/setup-node@v4") && workflow.includes('node-version: "20"'));
+  // v5-02 hf2: Node 22 (native WebSocket 지원, supabase-js v2 realtime-js 요구)
+  check(`actions/setup-node@v4 + node-version 22`, workflow.includes("actions/setup-node@v4") && workflow.includes('node-version: "22"'));
   check(`@supabase/supabase-js install`, workflow.includes("@supabase/supabase-js"));
   check(`run node scripts/scheduler_tick.mjs`, workflow.includes("node scripts/scheduler_tick.mjs"));
   for (const sec of [
