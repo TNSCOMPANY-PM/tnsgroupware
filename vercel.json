@@ -23,10 +23,6 @@
     {
       "path": "/api/cron/naver-search-volume",
       "schedule": "0 3 1 * *"
-    },
-    {
-      "path": "/api/geo/scheduler/tick",
-      "schedule": "0 * * * *"
     }
   ]
 }

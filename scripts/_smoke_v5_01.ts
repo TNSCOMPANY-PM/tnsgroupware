@@ -1,6 +1,8 @@
 /**
- * v5-01 smoke — 예약 발행 자동화 인프라 (DB / API / cron / UI / tab).
- * DB / OpenAI / GitHub 호출 X — source surface 검증 + cron 컴포넌트 시그니처 확인.
+ * v5-01 smoke — 예약 발행 자동화 인프라 (DB / schedules CRUD / UI / tab).
+ *
+ * v5-02 supersede: cron 부분 (vercel.json cron + /api/geo/scheduler/tick) 은 GitHub Actions 로 이전되어 제거됨.
+ * 이 smoke 는 v5-02 이후에도 살아남는 인프라 (DB / CRUD / UI / tab) 만 검증.
  */
 import Module from "node:module";
 const ModAny = Module as unknown as { _load: (req: string, ...rest: unknown[]) => unknown };
@@ -46,23 +48,6 @@ async function main() {
   check(`action cancel`, patchSrc.includes('"cancel"'));
   check(`action retry`, patchSrc.includes('"retry"'));
   check(`action run_now`, patchSrc.includes('"run_now"'));
-  check(`cancel pending only`, patchSrc.includes('cancel 은 pending 만'));
-  check(`retry failed only`, patchSrc.includes('retry 는 failed 만'));
-  check(`run_now scheduled_at = now()`, patchSrc.includes("scheduled_at = new Date()") || patchSrc.includes("new Date().toISOString()"));
-
-  // T4 — cron tick
-  console.log("\n[T4] cron /api/geo/scheduler/tick");
-  const tickSrc = await fs.readFile("app/api/geo/scheduler/tick/route.ts", "utf-8");
-  check(`Bearer CRON_SECRET 인증`, tickSrc.includes("`Bearer ${cronSecret}`") || tickSrc.includes('Bearer ${cronSecret}'));
-  check(`isFrandoorPublishConfigured 가드`, tickSrc.includes("isFrandoorPublishConfigured"));
-  check(`maxDuration = 300`, tickSrc.includes("maxDuration = 300"));
-  check(`pending 만 + scheduled_at <= now LIMIT 3`, tickSrc.includes(".limit(3)") && tickSrc.includes(".eq(\"status\", \"pending\")") && tickSrc.includes(".lte(\"scheduled_at\""));
-  check(`running 으로 lock`, tickSrc.includes('status: "running"') && tickSrc.includes('.eq("status", "pending")'));
-  check(`A only 4-step 호출`, tickSrc.includes("runStep1AnalyzeAOnly") && tickSrc.includes("runStep2StructureAOnly") && tickSrc.includes("runStep3WriteAOnly") && tickSrc.includes("runStep4ThumbnailAOnly"));
-  check(`commitToFrandoor + extractSlugFromMarkdown`, tickSrc.includes("commitToFrandoor") && tickSrc.includes("extractSlugFromMarkdown"));
-  check(`draft published_url 갱신`, tickSrc.includes("published_url: publishResult.pageUrl"));
-  check(`schedule published 갱신 + draft_id 저장`, /status:\s*"published"[\s\S]{0,200}draft_id/.test(tickSrc));
-  check(`실패 시 retry > 1 → failed`, tickSrc.includes("retryCount > 1") || tickSrc.includes("retryCount > 1 ? \"failed\""));
 
   // T2 — UI
   console.log("\n[T2] /content/scheduler UI");
@@ -86,14 +71,8 @@ async function main() {
   check(`KST timezone 표시`, listSrc.includes("Asia/Seoul"));
   check(`draft 링크 + frandoor.co.kr 링크`, listSrc.includes("/content/posts/") && listSrc.includes("frandoor.co.kr"));
 
-  // T5 — vercel.json cron + content layout tab
-  console.log("\n[T5] vercel.json cron + content layout tab");
-  const vercelJson = JSON.parse(await fs.readFile("vercel.json", "utf-8"));
-  const crons = vercelJson.crons as Array<{ path: string; schedule: string }>;
-  const tickCron = crons.find((c) => c.path === "/api/geo/scheduler/tick");
-  check(`vercel.json 에 /api/geo/scheduler/tick cron`, !!tickCron);
-  check(`schedule "0 * * * *" (매시 0분)`, tickCron?.schedule === "0 * * * *");
-
+  // T5 — content layout tab
+  console.log("\n[T5] content layout — 예약 발행 탭");
   const layoutSrc = await fs.readFile("app/(groupware)/content/layout.tsx", "utf-8");
   check(`content layout — /content/scheduler 탭`, layoutSrc.includes("/content/scheduler"));
   check(`예약 발행 라벨`, layoutSrc.includes("예약 발행"));

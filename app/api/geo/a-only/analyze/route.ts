@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
+import { getSessionOrSchedulerToken, unauthorized } from "@/utils/apiAuth";
 import { runStep1AnalyzeAOnly } from "@/lib/geo/v4/pipeline";
 import type { V4AOnlyInput } from "@/lib/geo/v4/types";
 
@@ -25,8 +25,8 @@ function parseInput(raw: unknown): V4AOnlyInput | { error: string } {
 }
 
 export async function POST(req: Request) {
-  const session = await getSessionEmployee();
-  if (!session) return unauthorized();
+  const auth = await getSessionOrSchedulerToken(req);
+  if (!auth.ok) return unauthorized();
 
   const raw = await req.json().catch(() => null);
   const parsed = parseInput(raw);

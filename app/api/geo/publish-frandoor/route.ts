@@ -7,7 +7,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSessionEmployee, unauthorized } from "@/utils/apiAuth";
+import { getSessionOrSchedulerToken, unauthorized } from "@/utils/apiAuth";
 import { createAdminClient } from "@/utils/supabase/admin";
 import {
   commitToFrandoor,
@@ -19,8 +19,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const session = await getSessionEmployee();
-  if (!session) return unauthorized();
+  const auth = await getSessionOrSchedulerToken(req);
+  if (!auth.ok) return unauthorized();
 
   if (!isFrandoorPublishConfigured()) {
     return NextResponse.json(
