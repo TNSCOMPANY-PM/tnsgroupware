@@ -24,6 +24,18 @@ export async function proxy(request: NextRequest) {
     // 공개 경로는 통과
     if (isPublicPath(pathname)) return response;
 
+    // v5-04: GitHub Actions scheduler 호출 bypass — x-scheduler-token 헤더 + SCHEDULER_API_TOKEN env 일치 시 통과.
+    // endpoint route 가 getSessionOrSchedulerToken 으로 다시 검증하므로 middleware 는 redirect 만 회피.
+    const schedulerToken = request.headers.get("x-scheduler-token");
+    const expectedSchedulerToken = process.env.SCHEDULER_API_TOKEN;
+    if (
+      schedulerToken &&
+      expectedSchedulerToken &&
+      schedulerToken === expectedSchedulerToken
+    ) {
+      return response;
+    }
+
     const masterCookie = request.cookies.get(getMasterCookieName())?.value;
     let isMasterSession = false;
     try {
