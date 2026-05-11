@@ -25,15 +25,19 @@ const {
   SCHEDULER_API_TOKEN,
 } = process.env;
 
-if (
-  !NEXT_PUBLIC_SUPABASE_URL ||
-  !SUPABASE_SERVICE_ROLE_KEY ||
-  !GROUPWARE_BASE_URL ||
-  !SCHEDULER_API_TOKEN
-) {
-  console.error(
-    "[scheduler] env 누락 — NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / GROUPWARE_BASE_URL / SCHEDULER_API_TOKEN",
-  );
+// v5-02-hf1 — 어느 secret 이 비었는지 정확히 출력 (값은 미노출, boolean 만).
+const envFlags = {
+  NEXT_PUBLIC_SUPABASE_URL: !!NEXT_PUBLIC_SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY,
+  GROUPWARE_BASE_URL: !!GROUPWARE_BASE_URL,
+  SCHEDULER_API_TOKEN: !!SCHEDULER_API_TOKEN,
+};
+const missing = Object.entries(envFlags)
+  .filter(([, present]) => !present)
+  .map(([k]) => k);
+if (missing.length > 0) {
+  console.error(`[scheduler] env 누락: ${missing.join(", ")}`);
+  console.error(`[scheduler] env 상태: ${JSON.stringify(envFlags)}`);
   process.exit(1);
 }
 
