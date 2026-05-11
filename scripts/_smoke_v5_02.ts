@@ -74,7 +74,13 @@ async function main() {
   check(`pickup pending LIMIT 5`, tickScript.includes(".limit(5)"));
   check(`A only 4-step chain (analyze → structure → write → thumbnail)`, tickScript.includes("/api/geo/a-only/analyze") && tickScript.includes("/api/geo/a-only/structure/") && tickScript.includes("/api/geo/a-only/write/") && tickScript.includes("/api/geo/a-only/thumbnail/"));
   check(`publish-frandoor 호출`, tickScript.includes("/api/geo/publish-frandoor"));
-  check(`running 으로 lock (race condition 방지)`, tickScript.includes('status: "running"'));
+  // v5-03 supersede: lock 상태가 running → generating/publishing 으로 분화.
+  check(
+    `running / generating / publishing 으로 lock (race condition 방지)`,
+    tickScript.includes('status: "running"') ||
+      tickScript.includes('status: "generating"') ||
+      tickScript.includes('status: "publishing"'),
+  );
   check(`실패 시 retry > 1 → failed`, tickScript.includes("retryCount > 1") || tickScript.includes('retryCount > 1 ? "failed"'));
   check(`draftId 응답 파싱 (camelCase 우선)`, tickScript.includes("step1.draftId"));
 
