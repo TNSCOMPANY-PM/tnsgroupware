@@ -43,6 +43,29 @@ export async function getSessionEmployee(): Promise<EmployeeSession | null> {
   }
 }
 
+/**
+ * v5-02 — GitHub Actions scheduler 에서 호출하는 endpoint 용 token 인증.
+ *   세션 우선 → 없으면 x-scheduler-token 헤더 검사.
+ *   둘 다 실패 시 ok=false → 호출부에서 unauthorized() 응답.
+ */
+export type SchedulerTokenAuthResult =
+  | { ok: true; via: "session"; session: EmployeeSession }
+  | { ok: true; via: "scheduler" }
+  | { ok: false };
+
+export async function getSessionOrSchedulerToken(
+  req: Request,
+): Promise<SchedulerTokenAuthResult> {
+  const session = await getSessionEmployee();
+  if (session) return { ok: true, via: "session", session };
+  const token = req.headers.get("x-scheduler-token");
+  const expected = process.env.SCHEDULER_API_TOKEN;
+  if (token && expected && token === expected) {
+    return { ok: true, via: "scheduler" };
+  }
+  return { ok: false };
+}
+
 /** 인증 실패 응답 */
 export const unauthorized = () =>
   NextResponse.json({ error: "Unauthorized" }, { status: 401 });
