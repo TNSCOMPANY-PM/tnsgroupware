@@ -38,9 +38,10 @@ export default async function SchedulerPage() {
         </p>
         <SchedulerForm />
         <div className="mt-4 text-[11px] text-slate-400 space-y-0.5">
-          <p>⏰ cron 은 매시 0분에 실행됩니다. 14:30 으로 예약해도 15:00 실행 (최대 59분 지연).</p>
-          <p>🔁 실패 시 다음 시간에 1회 자동 재시도.</p>
-          <p>🚀 즉시 발행 — 생성 후 frandoor.co.kr 에 곧바로 git push.</p>
+          <p>⚡ 등록 즉시 백그라운드 generation 시작 (~95초). 페이지 떠나도 OK, 다시 들르면 상태 갱신.</p>
+          <p>👀 generation 완료 → "준비 완료" 상태 + 미리보기 가능. quality 확인 후 그대로 대기.</p>
+          <p>🚀 예약 시각 도래 시 자동으로 frandoor.co.kr 에 commit 발행.</p>
+          <p>🔁 실패 시 다음 cron 에서 1회 자동 재시도.</p>
         </div>
       </div>
 

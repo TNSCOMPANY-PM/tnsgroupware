@@ -12,7 +12,17 @@ import { createAdminClient } from "@/utils/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_STATUSES = ["pending", "running", "published", "failed", "canceled"] as const;
+// v5-03: 새 status (generating / ready / publishing) 포함 + v5-01 running 호환 유지.
+const ALLOWED_STATUSES = [
+  "pending",
+  "generating",
+  "ready",
+  "publishing",
+  "running",
+  "published",
+  "failed",
+  "canceled",
+] as const;
 
 export async function POST(req: Request) {
   const session = await getSessionEmployee();
@@ -65,7 +75,50 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+
+  // v5-03: 즉시 GitHub Actions workflow_dispatch (백그라운드 generation 트리거).
+  // 실패해도 등록은 성공 — 매시 cron 이 catch-up.
+  await triggerSchedulerWorkflowDispatch();
+
   return NextResponse.json(data);
+}
+
+async function triggerSchedulerWorkflowDispatch(): Promise<void> {
+  const pat = process.env.GH_DISPATCH_PAT;
+  if (!pat) {
+    console.warn(
+      "[scheduler] GH_DISPATCH_PAT 미설정 — workflow_dispatch skip (매시 cron 이 catch-up)",
+    );
+    return;
+  }
+  try {
+    const res = await fetch(
+      "https://api.github.com/repos/TNSCOMPANY-PM/tnsgroupware/actions/workflows/scheduler-tick.yml/dispatches",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${pat}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify({ ref: "main" }),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.warn(
+        `[scheduler] workflow_dispatch HTTP ${res.status}: ${text.slice(0, 300)}`,
+      );
+    } else {
+      console.log("[scheduler] workflow_dispatch 트리거 OK (백그라운드 generation 시작)");
+    }
+  } catch (e) {
+    console.warn(
+      "[scheduler] workflow_dispatch 트리거 실패 — 매시 cron 이 catch-up:",
+      e instanceof Error ? e.message : e,
+    );
+  }
 }
 
 export async function GET(req: Request) {

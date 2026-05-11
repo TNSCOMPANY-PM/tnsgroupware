@@ -1,26 +1,36 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { ScheduleRow } from "./page";
 
+// v5-03: 새 status (generating / ready / publishing) 추가. running 은 v5-01 호환.
 const STATUS_LABEL: Record<string, string> = {
-  pending: "대기",
+  pending: "대기 중",
+  generating: "생성 중...",
+  ready: "준비 완료",
+  publishing: "발행 중...",
   running: "실행 중",
-  published: "발행됨",
+  published: "발행 완료",
   failed: "실패",
   canceled: "취소됨",
 };
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-slate-100 text-slate-600",
+  generating: "bg-blue-100 text-blue-700 animate-pulse",
+  ready: "bg-emerald-100 text-emerald-700",
+  publishing: "bg-blue-100 text-blue-700 animate-pulse",
   running: "bg-blue-100 text-blue-700 animate-pulse",
   published: "bg-emerald-100 text-emerald-700",
   failed: "bg-rose-100 text-rose-700",
   canceled: "bg-slate-100 text-slate-400",
 };
+
+// v5-03: 활성 상태 — 폴링 트리거. ready 는 시각 도래까지 정적이라 폴링 X.
+const ACTIVE_STATUSES = new Set(["pending", "generating", "publishing", "running"]);
 
 function formatKst(iso: string): string {
   const d = new Date(iso);
@@ -39,6 +49,20 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
   const [rows, setRows] = useState<ScheduleRow[]>(initialRows);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  // v5-03: 활성 상태 row 가 있으면 5초마다 router.refresh — server 컴포넌트 재조회.
+  useEffect(() => {
+    setRows(initialRows);
+  }, [initialRows]);
+
+  useEffect(() => {
+    const hasActive = rows.some((r) => ACTIVE_STATUSES.has(r.status));
+    if (!hasActive) return;
+    const t = setInterval(() => {
+      router.refresh();
+    }, 5000);
+    return () => clearInterval(t);
+  }, [rows, router]);
 
   const callAction = async (id: string, action: "cancel" | "retry" | "run_now") => {
     if (action === "cancel" && !confirm("예약을 취소할까요?")) return;
@@ -101,7 +125,7 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
                       href={`/content/posts/${r.draft_id}`}
                       className="block text-blue-600 hover:underline"
                     >
-                      draft 보기 ↗
+                      {r.status === "ready" ? "미리보기 ↗" : "draft 보기 ↗"}
                     </Link>
                   )}
                   {r.published_url && (
@@ -146,7 +170,12 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
                       재시도
                     </button>
                   )}
-                  {(r.status === "running" || r.status === "published" || isCanceled) && (
+                  {(r.status === "generating" ||
+                    r.status === "ready" ||
+                    r.status === "publishing" ||
+                    r.status === "running" ||
+                    r.status === "published" ||
+                    isCanceled) && (
                     <span className="text-slate-400 text-[10px]">—</span>
                   )}
                 </td>

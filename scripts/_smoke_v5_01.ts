@@ -55,7 +55,11 @@ async function main() {
   check(`page 서버 컴포넌트 + SELECT frandoor_blog_schedules`, pageSrc.includes("frandoor_blog_schedules") && pageSrc.includes("createAdminClient"));
   check(`SchedulerForm import`, pageSrc.includes("import SchedulerForm"));
   check(`SchedulerList import`, pageSrc.includes("import SchedulerList"));
-  check(`안내 메시지 (cron 매시 0분)`, pageSrc.includes("매시 0분"));
+  // v5-03 supersede: 안내 문구 "매시 0분" → "예약 시각 도래" / "백그라운드 generation" 흐름 안내.
+  check(
+    `안내 메시지 (스케줄 흐름)`,
+    pageSrc.includes("매시 0분") || pageSrc.includes("예약 시각") || pageSrc.includes("백그라운드"),
+  );
 
   const formSrc = await fs.readFile("app/(groupware)/content/scheduler/SchedulerForm.tsx", "utf-8");
   check(`SchedulerForm "use client"`, formSrc.startsWith('"use client"'));
@@ -65,7 +69,13 @@ async function main() {
 
   const listSrc = await fs.readFile("app/(groupware)/content/scheduler/SchedulerList.tsx", "utf-8");
   check(`SchedulerList "use client"`, listSrc.startsWith('"use client"'));
-  check(`상태 라벨 (대기/실행중/발행됨/실패/취소됨)`, listSrc.includes("대기") && listSrc.includes("실행 중") && listSrc.includes("발행됨"));
+  // v5-03 supersede: "대기" → "대기 중", "실행 중" → "생성 중...", "발행됨" → "발행 완료".
+  check(
+    `상태 라벨 (대기 / 생성·발행 / 발행 완료)`,
+    listSrc.includes("대기") &&
+      (listSrc.includes("생성 중") || listSrc.includes("실행 중")) &&
+      (listSrc.includes("발행 완료") || listSrc.includes("발행됨")),
+  );
   check(`PATCH action 호출`, listSrc.includes("/api/geo/scheduler/schedules/"));
   check(`run_now / cancel / retry 액션 버튼`, listSrc.includes("run_now") && listSrc.includes("cancel") && listSrc.includes("retry"));
   check(`KST timezone 표시`, listSrc.includes("Asia/Seoul"));
