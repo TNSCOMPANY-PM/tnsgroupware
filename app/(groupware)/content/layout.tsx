@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Pencil, Globe, History } from "lucide-react";
+import { Pencil, Globe, History, Clock } from "lucide-react";
 
 const TABS = [
-  { href: "/content/editor",   label: "콘텐츠 생성", icon: Pencil,          color: "violet" },
-  { href: "/content/posts",    label: "발행 관리",  icon: History,          color: "slate" },
-  { href: "/content/external", label: "외부 백링크", icon: Globe,            color: "rose" },
+  { href: "/content/editor",    label: "콘텐츠 생성", icon: Pencil,  color: "violet" },
+  { href: "/content/posts",     label: "발행 관리",  icon: History, color: "slate" },
+  { href: "/content/scheduler", label: "예약 발행",  icon: Clock,   color: "blue" },
+  { href: "/content/external",  label: "외부 백링크", icon: Globe,   color: "rose" },
 ] as const;
 
 export default function ContentLayout({ children }: { children: React.ReactNode }) {
