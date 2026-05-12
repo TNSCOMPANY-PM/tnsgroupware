@@ -81,6 +81,30 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
     }
   };
 
+  // v5-05: schedule row 영구 삭제 (모든 status). draft 본문은 별도 보존.
+  const callDelete = async (id: string) => {
+    if (
+      !confirm(
+        "이 예약을 영구 삭제합니다. 작성된 draft 본문은 발행 관리 탭에 그대로 남고, 이미 발행된 글의 frandoor.co.kr 페이지도 영향 없습니다. 진행할까요?",
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/geo/scheduler/schedules/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message ?? data.error ?? `삭제 실패 (${res.status})`);
+      }
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      startTransition(() => router.refresh());
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
@@ -98,7 +122,6 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
           {rows.map((r) => {
             const statusLabel = STATUS_LABEL[r.status] ?? r.status;
             const statusStyle = STATUS_STYLE[r.status] ?? "bg-slate-100 text-slate-600";
-            const isCanceled = r.status === "canceled";
             return (
               <tr key={r.id} className="border-b border-slate-100">
                 <td className="py-2 pr-3 font-medium text-slate-700">{r.industry}</td>
@@ -170,14 +193,14 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
                       재시도
                     </button>
                   )}
-                  {(r.status === "generating" ||
-                    r.status === "ready" ||
-                    r.status === "publishing" ||
-                    r.status === "running" ||
-                    r.status === "published" ||
-                    isCanceled) && (
-                    <span className="text-slate-400 text-[10px]">—</span>
-                  )}
+                  {/* v5-05: 모든 status row 에 삭제 버튼 */}
+                  <button
+                    onClick={() => callDelete(r.id)}
+                    disabled={pending}
+                    className="text-[10px] px-2 py-0.5 rounded border border-rose-300 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    삭제
+                  </button>
                 </td>
               </tr>
             );

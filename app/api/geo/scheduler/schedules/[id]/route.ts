@@ -5,6 +5,8 @@
  *  · cancel  — pending 만 → status='canceled'
  *  · retry   — failed 만 → status='pending' + retry_count=0
  *  · run_now — pending/failed → scheduled_at=now() (cron 다음 tick 에서 즉시 pickup)
+ *
+ * v5-05 — DELETE 영구 삭제 (모든 status). draft 본문은 별도 보존.
  */
 
 import { NextResponse } from "next/server";
@@ -95,4 +97,34 @@ export async function PATCH(
     return NextResponse.json({ error: "UPDATE_FAILED", message: uErr.message }, { status: 500 });
   }
   return NextResponse.json(data);
+}
+
+/**
+ * v5-05 — schedule row 영구 삭제 (모든 status 허용).
+ * draft 본문 (frandoor_blog_drafts) 은 그대로 보존. frandoor.co.kr 발행본 git history 도 무영향.
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getSessionEmployee();
+  if (!session) return unauthorized();
+
+  const { id } = await params;
+  if (!id || typeof id !== "string") {
+    return NextResponse.json({ error: "INVALID_ID" }, { status: 422 });
+  }
+
+  const sb = createAdminClient();
+  const { error } = await sb
+    .from("frandoor_blog_schedules")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    return NextResponse.json(
+      { error: "DELETE_FAILED", message: error.message },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true });
 }
