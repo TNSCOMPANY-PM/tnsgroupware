@@ -17,6 +17,7 @@ import {
   FolderKanban,
   Radar,
   PenTool,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -102,6 +103,20 @@ export function Sidebar() {
             );
           })}
         </nav>
+
+        {/* 외부 링크 — 좌하단 배치 */}
+        <div className="border-t border-white/40 p-4">
+          <a
+            href="https://marketing-tracker-production-4bb7.up.railway.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={close}
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+          >
+            <ExternalLink className="size-5 shrink-0" />
+            슈마허
+          </a>
+        </div>
       </aside>
     </>
   );
