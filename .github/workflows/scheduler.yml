@@ -1,4 +1,4 @@
-name: Scheduler Tick
+name: Scheduler
 
 on:
   schedule:

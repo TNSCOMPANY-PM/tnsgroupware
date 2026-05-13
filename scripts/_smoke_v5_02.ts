@@ -93,11 +93,18 @@ async function main() {
   check(`실패 시 retry > 1 → failed`, tickScript.includes("retryCount > 1") || tickScript.includes('retryCount > 1 ? "failed"'));
   check(`draftId 응답 파싱 (camelCase 우선)`, tickScript.includes("step1.draftId"));
 
-  // T5 — .github/workflows/scheduler-tick.yml
-  console.log("\n[T5] .github/workflows/scheduler-tick.yml");
-  const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
+  // T5 — workflow yml (v5-11 supersede: scheduler-tick.yml → scheduler.yml rename)
+  console.log("\n[T5] .github/workflows/scheduler.yml (or legacy scheduler-tick.yml)");
+  const workflowPath = await fs
+    .stat(".github/workflows/scheduler.yml")
+    .then(() => ".github/workflows/scheduler.yml")
+    .catch(() => ".github/workflows/scheduler-tick.yml");
+  const workflow = await fs.readFile(workflowPath, "utf-8");
   check(`workflow 파일 존재`, workflow.length > 0);
-  check(`name: Scheduler Tick`, workflow.includes("name: Scheduler Tick"));
+  check(
+    `name: Scheduler (또는 Scheduler Tick)`,
+    workflow.includes("name: Scheduler Tick") || workflow.includes("name: Scheduler"),
+  );
   // v5-09 supersede: cron 빈도 — */5 (이전 0,30 / 0 모두 호환).
   // v5-10 supersede: */5 string 변경 가능 (0,5,10,...,55) — schedule re-register 강제.
   check(
