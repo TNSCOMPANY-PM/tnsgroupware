@@ -22,9 +22,15 @@ async function main() {
   // T1 — cron 매 30분
   console.log("[T1] workflow cron \"0,30 * * * *\"");
   const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
-  check(`cron "0,30 * * * *"`, workflow.includes('- cron: "0,30 * * * *"'));
+  // v5-09 supersede: cron 빈도 0,30 → */5 (workflow yml 의 v5-06 마커는 v5-09 로 교체됨).
+  check(
+    `cron schedule 존재 (*/5 또는 0,30)`,
+    workflow.includes('- cron: "*/5 * * * *"') || workflow.includes('- cron: "0,30 * * * *"'),
+  );
   check(`이전 "0 * * * *" 제거`, !workflow.includes('- cron: "0 * * * *"'));
-  check(`v5-06 마커`, workflow.includes("v5-06"));
+  // v5-06 마커는 githubFrandoor.ts (rewriteFrontmatterDate) 에 남음. workflow yml 는 v5-09 가 supersede.
+  const githubFrandoorSrc = await fs.readFile("lib/geo/publish/githubFrandoor.ts", "utf-8");
+  check(`v5-06 마커 (githubFrandoor.ts)`, githubFrandoorSrc.includes("v5-06"));
 
   // T2 — rewriteFrontmatterDate export + 동작
   console.log("\n[T2] rewriteFrontmatterDate helper");

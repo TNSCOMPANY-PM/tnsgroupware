@@ -1,21 +1,15 @@
 #!/usr/bin/env node
 /**
- * v5-03 — GitHub Actions Runner 안에서 실행되는 2단계 scheduler tick.
+ * v5-09 — GitHub Actions Runner 안에서 매 5분 실행되는 2단계 scheduler tick.
  *
- * 흐름:
- *   Stage 1 — pending → ready (generation, 시각 도래 무관)
- *     · pickup LIMIT 3 pending (오래된 created_at 순)
- *     · running 'generating' lock
- *     · A only 4-step chain (analyze → structure → write → thumbnail)
- *     · 성공 → status='ready' + draft_id 저장 (발행은 시각 도래 시 stage 2 가 처리)
- *     · 실패 → retry 1회 (pending 재진입) → 그 후 failed
+ * 변경점 (vs v5-02~06):
+ *   · @supabase/supabase-js 의존성 제거 → PostgREST REST API 를 fetch 직접 호출
+ *   · workflow install step 자체 소멸 → run 시간 ~60s → ~10s
+ *   · v5-02-hf2 Node 22 강제 이유 (realtime-js WebSocket) 소멸
  *
- *   Stage 2 — ready → published (commit, 시각 도래 시만)
- *     · pickup LIMIT 5 ready + scheduled_at <= now
- *     · 'publishing' lock
- *     · /api/geo/publish-frandoor 호출 → commitToFrandoor
- *     · 성공 → status='published' + published_url 저장
- *     · 실패 → retry 1회 (ready 재진입) → 그 후 failed
+ * 흐름 (v5-03~06 그대로):
+ *   Stage 1 — pending → ready (generation)
+ *   Stage 2 — ready (시각 도래) → published (commit)
  *
  * env (GitHub Secrets):
  *   - NEXT_PUBLIC_SUPABASE_URL
@@ -23,8 +17,6 @@
  *   - GROUPWARE_BASE_URL (e.g. https://tnsgroupware.vercel.app)
  *   - SCHEDULER_API_TOKEN
  */
-
-import { createClient } from "@supabase/supabase-js";
 
 const {
   NEXT_PUBLIC_SUPABASE_URL,
@@ -50,7 +42,47 @@ if (missing.length > 0) {
 }
 
 const BASE = GROUPWARE_BASE_URL.replace(/\/$/, "");
-const sb = createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const SUPA_BASE = NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, "");
+const SUPA_HEADERS = {
+  apikey: SUPABASE_SERVICE_ROLE_KEY,
+  authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+};
+
+// ─────────────────────────────────────────────────────────
+// Supabase REST helpers (PostgREST 직접 호출)
+// ─────────────────────────────────────────────────────────
+async function sbSelect(table, query) {
+  const r = await fetch(`${SUPA_BASE}/rest/v1/${table}?${query}`, {
+    headers: { ...SUPA_HEADERS, accept: "application/json" },
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new Error(`SELECT ${table} → HTTP ${r.status} ${text.slice(0, 300)}`);
+  }
+  return r.json();
+}
+
+/**
+ * Conditional UPDATE. 반환값: 업데이트된 row 배열.
+ * length === 0 이면 조건 미일치 = lock 실패 (race condition 방지).
+ */
+async function sbUpdate(table, query, body) {
+  const r = await fetch(`${SUPA_BASE}/rest/v1/${table}?${query}`, {
+    method: "PATCH",
+    headers: {
+      ...SUPA_HEADERS,
+      "content-type": "application/json",
+      prefer: "return=representation",
+      accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new Error(`UPDATE ${table} → HTTP ${r.status} ${text.slice(0, 300)}`);
+  }
+  return r.json();
+}
 
 async function postJSON(path, body) {
   const r = await fetch(`${BASE}${path}`, {
@@ -76,32 +108,24 @@ async function postJSON(path, body) {
 // Stage 1 — pending → ready (generation)
 // ─────────────────────────────────────────────────────────
 async function stage1Generation() {
-  const { data: rows, error } = await sb
-    .from("frandoor_blog_schedules")
-    .select("id, industry, topic, scheduled_at, status, retry_count, draft_id")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(3);
-  if (error) {
-    console.error("[stage1] pickup error:", error.message);
-    return;
-  }
-  console.log(`[stage1] picked up ${rows?.length ?? 0} pending rows`);
+  const rows = await sbSelect(
+    "frandoor_blog_schedules",
+    "select=*&status=eq.pending&order=created_at.asc&limit=3",
+  );
+  console.log(`[stage1] picked up ${rows.length} pending rows`);
 
-  for (const row of rows ?? []) {
+  for (const row of rows) {
     console.log(
       `[stage1 ${row.id}] industry=${row.industry} topic=${row.topic ?? "(default)"}`,
     );
 
-    // 'generating' 으로 lock
-    const { data: lockOk } = await sb
-      .from("frandoor_blog_schedules")
-      .update({ status: "generating", updated_at: new Date().toISOString() })
-      .eq("id", row.id)
-      .eq("status", "pending")
-      .select("id")
-      .maybeSingle();
-    if (!lockOk) {
+    // 'generating' 으로 lock (조건부 UPDATE — race condition 방지)
+    const locked = await sbUpdate(
+      "frandoor_blog_schedules",
+      `id=eq.${row.id}&status=eq.pending`,
+      { status: "generating", updated_at: new Date().toISOString() },
+    );
+    if (locked.length === 0) {
       console.log(`[stage1 ${row.id}] skip — lock 실패 (다른 인스턴스 pickup 추정)`);
       continue;
     }
@@ -128,29 +152,31 @@ async function stage1Generation() {
       await postJSON(`/api/geo/a-only/thumbnail/${draftId}`, {});
       console.log(`[stage1 ${row.id}] step4 OK`);
 
-      await sb
-        .from("frandoor_blog_schedules")
-        .update({
+      await sbUpdate(
+        "frandoor_blog_schedules",
+        `id=eq.${row.id}`,
+        {
           status: "ready",
           draft_id: draftId,
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
+        },
+      );
       console.log(`[stage1 ${row.id}] generated → ready (draftId=${draftId})`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const retryCount = (row.retry_count ?? 0) + 1;
       // 1회 자동 재시도 — 다음 cron pickup. 2회 이상 실패 시 failed 종료.
       const nextStatus = retryCount > 1 ? "failed" : "pending";
-      await sb
-        .from("frandoor_blog_schedules")
-        .update({
+      await sbUpdate(
+        "frandoor_blog_schedules",
+        `id=eq.${row.id}`,
+        {
           status: nextStatus,
           retry_count: retryCount,
           error_msg: msg.slice(0, 1000),
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
+        },
+      );
       console.error(
         `[stage1 ${row.id}] generation FAIL (retry=${retryCount}, next=${nextStatus}): ${msg}`,
       );
@@ -163,33 +189,24 @@ async function stage1Generation() {
 // ─────────────────────────────────────────────────────────
 async function stage2Publish() {
   const nowIso = new Date().toISOString();
-  const { data: rows, error } = await sb
-    .from("frandoor_blog_schedules")
-    .select("id, draft_id, scheduled_at, status, retry_count")
-    .eq("status", "ready")
-    .lte("scheduled_at", nowIso)
-    .order("scheduled_at", { ascending: true })
-    .limit(5);
-  if (error) {
-    console.error("[stage2] pickup error:", error.message);
-    return;
-  }
-  console.log(`[stage2] picked up ${rows?.length ?? 0} ready rows`);
+  const rows = await sbSelect(
+    "frandoor_blog_schedules",
+    `select=*&status=eq.ready&scheduled_at=lte.${encodeURIComponent(nowIso)}&order=scheduled_at.asc&limit=5`,
+  );
+  console.log(`[stage2] picked up ${rows.length} ready rows`);
 
-  for (const row of rows ?? []) {
+  for (const row of rows) {
     if (!row.draft_id) {
       console.warn(`[stage2 ${row.id}] draft_id 없음 — skip`);
       continue;
     }
 
-    const { data: lockOk } = await sb
-      .from("frandoor_blog_schedules")
-      .update({ status: "publishing", updated_at: new Date().toISOString() })
-      .eq("id", row.id)
-      .eq("status", "ready")
-      .select("id")
-      .maybeSingle();
-    if (!lockOk) {
+    const locked = await sbUpdate(
+      "frandoor_blog_schedules",
+      `id=eq.${row.id}&status=eq.ready`,
+      { status: "publishing", updated_at: new Date().toISOString() },
+    );
+    if (locked.length === 0) {
       console.log(`[stage2 ${row.id}] skip — lock 실패`);
       continue;
     }
@@ -202,28 +219,30 @@ async function stage2Publish() {
         publishRes.pageUrl ?? publishRes.published_url ?? null;
       console.log(`[stage2 ${row.id}] published OK → ${publishedUrl}`);
 
-      // drafts 는 publish-frandoor route 가 이미 update 했음. schedules 만 마킹.
-      await sb
-        .from("frandoor_blog_schedules")
-        .update({
+      // drafts 는 publish-frandoor route 가 이미 update. schedules 만 마킹.
+      await sbUpdate(
+        "frandoor_blog_schedules",
+        `id=eq.${row.id}`,
+        {
           status: "published",
           published_url: publishedUrl,
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
+        },
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const retryCount = (row.retry_count ?? 0) + 1;
       const nextStatus = retryCount > 1 ? "failed" : "ready";
-      await sb
-        .from("frandoor_blog_schedules")
-        .update({
+      await sbUpdate(
+        "frandoor_blog_schedules",
+        `id=eq.${row.id}`,
+        {
           status: nextStatus,
           retry_count: retryCount,
           error_msg: msg.slice(0, 1000),
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
+        },
+      );
       console.error(
         `[stage2 ${row.id}] publish FAIL (retry=${retryCount}, next=${nextStatus}): ${msg}`,
       );

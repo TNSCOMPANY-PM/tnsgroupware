@@ -69,9 +69,18 @@ async function main() {
   console.log("\n[T4] scripts/scheduler_tick.mjs");
   const tickScript = await fs.readFile("scripts/scheduler_tick.mjs", "utf-8");
   check(`scheduler_tick.mjs 파일 존재`, tickScript.length > 0);
-  check(`Supabase createClient (service role)`, tickScript.includes("@supabase/supabase-js") && tickScript.includes("SUPABASE_SERVICE_ROLE_KEY"));
+  // v5-09 supersede: supabase-js 제거, PostgREST fetch 헬퍼로 service role 사용.
+  check(
+    `Supabase service role 사용 (supabase-js 또는 PostgREST fetch)`,
+    tickScript.includes("SUPABASE_SERVICE_ROLE_KEY") &&
+      (tickScript.includes("@supabase/supabase-js") || tickScript.includes("/rest/v1/")),
+  );
   check(`x-scheduler-token 헤더 전송`, tickScript.includes('"x-scheduler-token"'));
-  check(`pickup pending LIMIT 5`, tickScript.includes(".limit(5)"));
+  // v5-09 supersede: .limit(5) → PostgREST query "limit=5".
+  check(
+    `pickup pending LIMIT 5 (.limit(5) 또는 limit=5)`,
+    tickScript.includes(".limit(5)") || tickScript.includes("limit=5"),
+  );
   check(`A only 4-step chain (analyze → structure → write → thumbnail)`, tickScript.includes("/api/geo/a-only/analyze") && tickScript.includes("/api/geo/a-only/structure/") && tickScript.includes("/api/geo/a-only/write/") && tickScript.includes("/api/geo/a-only/thumbnail/"));
   check(`publish-frandoor 호출`, tickScript.includes("/api/geo/publish-frandoor"));
   // v5-03 supersede: lock 상태가 running → generating/publishing 으로 분화.
@@ -89,17 +98,20 @@ async function main() {
   const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
   check(`workflow 파일 존재`, workflow.length > 0);
   check(`name: Scheduler Tick`, workflow.includes("name: Scheduler Tick"));
-  // v5-06 supersede: cron 빈도 매시 0분 → 매시 0분+30분.
+  // v5-09 supersede: cron 빈도 — */5 (이전 0,30 / 0 모두 호환).
   check(
-    `cron schedule 존재 ("0 * * * *" 또는 "0,30 * * * *")`,
-    workflow.includes('- cron: "0 * * * *"') || workflow.includes('- cron: "0,30 * * * *"'),
+    `cron schedule 존재 (*/5 / 0,30 / 0 중 하나)`,
+    workflow.includes('- cron: "*/5 * * * *"') ||
+      workflow.includes('- cron: "0,30 * * * *"') ||
+      workflow.includes('- cron: "0 * * * *"'),
   );
   check(`workflow_dispatch (수동 trigger)`, workflow.includes("workflow_dispatch"));
   check(`concurrency group scheduler-tick`, workflow.includes("group: scheduler-tick"));
   check(`actions/checkout@v4`, workflow.includes("actions/checkout@v4"));
   // v5-02 hf2: Node 22 (native WebSocket 지원, supabase-js v2 realtime-js 요구)
   check(`actions/setup-node@v4 + node-version 22`, workflow.includes("actions/setup-node@v4") && workflow.includes('node-version: "22"'));
-  check(`@supabase/supabase-js install`, workflow.includes("@supabase/supabase-js"));
+  // v5-09 supersede: supabase-js install step 제거됨 (fetch only). 회귀 검증 제거.
+  // (이전 워크플로우는 npm install @supabase/supabase-js — 지금은 무).
   check(`run node scripts/scheduler_tick.mjs`, workflow.includes("node scripts/scheduler_tick.mjs"));
   for (const sec of [
     "NEXT_PUBLIC_SUPABASE_URL",

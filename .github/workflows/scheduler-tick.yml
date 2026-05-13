@@ -2,10 +2,10 @@ name: Scheduler Tick
 
 on:
   schedule:
-    # v5-06: 매시 0분 + 30분 (예약 시각 도래 후 최대 30분 대기). GitHub Actions schedule 은 부하 따라 ~5-10분 지연 가능.
-    # private repo 무료 quota 2000분/월 안 (일 48회 × ~60s = 일 48분 = 월 1440분).
+    # v5-09: 매 5분 (예약 시각 도래 후 최대 5분 대기). fetch-only run 시간 ~10s.
+    # private repo 무료 quota 2000분/월 안 (일 288회 × ~10s = 일 48분 = 월 1440분).
     # workflow_dispatch 로 수동 trigger 도 가능.
-    - cron: "0,30 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -21,11 +21,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # v5-02 hf2: Node 22 (native WebSocket 지원) — supabase-js v2 realtime-js 요구.
+          # v5-09: fetch-only — supabase-js 의존 소멸. Node 22 유지 (안정).
           node-version: "22"
-
-      - name: Install supabase-js (no full repo install)
-        run: npm install --no-save --no-package-lock @supabase/supabase-js@2
 
       - name: Run scheduler tick
         env:
