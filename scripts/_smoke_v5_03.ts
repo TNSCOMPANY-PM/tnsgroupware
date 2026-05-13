@@ -54,12 +54,22 @@ async function main() {
   check(`stage1Generation 함수`, tickScript.includes("async function stage1Generation"));
   check(`stage2Publish 함수`, tickScript.includes("async function stage2Publish"));
   // Stage 1: pending → generating lock → A only chain → ready
-  check(`stage1 pickup 'pending'`, /stage1[\s\S]*\.eq\("status",\s*"pending"\)/.test(tickScript));
+  // v5-09 supersede: .eq("status", "pending") → PostgREST "status=eq.pending" query.
+  check(
+    `stage1 pickup 'pending'`,
+    /stage1[\s\S]*\.eq\("status",\s*"pending"\)/.test(tickScript) ||
+      /stage1[\s\S]*status=eq\.pending/.test(tickScript),
+  );
   check(`stage1 'generating' lock`, tickScript.includes('status: "generating"'));
   check(`stage1 → 'ready' + draft_id 저장`, /status:\s*"ready"[\s\S]{0,200}draft_id/.test(tickScript));
   check(`stage1 실패 retry > 1 → failed (else pending)`, tickScript.includes('retryCount > 1 ? "failed" : "pending"'));
   // Stage 2: ready → publishing lock → publish-frandoor → published
-  check(`stage2 pickup 'ready' + scheduled_at <= now`, /stage2[\s\S]*\.eq\("status",\s*"ready"\)[\s\S]*\.lte\("scheduled_at"/.test(tickScript));
+  // v5-09 supersede: .eq("status", "ready").lte("scheduled_at", now) → PostgREST query.
+  check(
+    `stage2 pickup 'ready' + scheduled_at <= now`,
+    /stage2[\s\S]*\.eq\("status",\s*"ready"\)[\s\S]*\.lte\("scheduled_at"/.test(tickScript) ||
+      /stage2[\s\S]*status=eq\.ready[\s\S]*scheduled_at=lte\./.test(tickScript),
+  );
   check(`stage2 'publishing' lock`, tickScript.includes('status: "publishing"'));
   check(`stage2 publish-frandoor 호출 (commitToFrandoor 위임)`, tickScript.includes("/api/geo/publish-frandoor"));
   check(`stage2 → 'published'`, tickScript.includes('status: "published"'));
