@@ -95,3 +95,54 @@ export function extractSlugFromMarkdown(content: string): string | null {
   const m = content.match(/^slug:\s*"?([^"\n]+)"?/m);
   return m ? m[1].trim() : null;
 }
+
+/**
+ * v5-06 — frontmatter 의 date / dateModified 를 현재 KST datetime 으로 재작성.
+ * 발행 시점 = commit 시점이므로 generation 시점 (며칠 전) 의 date 가 그대로 남는 문제 해결.
+ *
+ * 결과 format: "YYYY-MM-DDTHH:MM:SS" (Asia/Seoul, TZ suffix 없음 — frandoor 기존 frontmatter 와 동일).
+ */
+export function rewriteFrontmatterDate(content: string): string {
+  const m = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!m) return content;
+  const yaml = m[1];
+  const nowKst = nowKstIsoNoTz();
+
+  let newYaml = yaml;
+
+  // date 교체 또는 신규 (title 다음에 추가, title 없으면 yaml 끝).
+  if (/^\s*date:\s*"[^"]*"\s*$/m.test(newYaml)) {
+    newYaml = newYaml.replace(/^\s*date:\s*"[^"]*"\s*$/m, `date: "${nowKst}"`);
+  } else if (/^\s*title:\s*"[^"]*"\s*$/m.test(newYaml)) {
+    newYaml = newYaml.replace(
+      /^(\s*title:\s*"[^"]*")\s*$/m,
+      `$1\ndate: "${nowKst}"`,
+    );
+  } else {
+    newYaml = `${newYaml}\ndate: "${nowKst}"`;
+  }
+
+  // dateModified 교체 또는 신규 (date 라인 다음에 추가).
+  if (/^\s*dateModified:\s*"[^"]*"\s*$/m.test(newYaml)) {
+    newYaml = newYaml.replace(
+      /^\s*dateModified:\s*"[^"]*"\s*$/m,
+      `dateModified: "${nowKst}"`,
+    );
+  } else if (/^\s*date:\s*"[^"]*"\s*$/m.test(newYaml)) {
+    newYaml = newYaml.replace(
+      /^(\s*date:\s*"[^"]*")\s*$/m,
+      `$1\ndateModified: "${nowKst}"`,
+    );
+  } else {
+    newYaml = `${newYaml}\ndateModified: "${nowKst}"`;
+  }
+
+  return content.replace(yaml, newYaml);
+}
+
+function nowKstIsoNoTz(): string {
+  // sv-SE locale 가 "YYYY-MM-DD HH:MM:SS" 형식 → space → "T" 치환.
+  return new Date()
+    .toLocaleString("sv-SE", { timeZone: "Asia/Seoul" })
+    .replace(" ", "T");
+}
