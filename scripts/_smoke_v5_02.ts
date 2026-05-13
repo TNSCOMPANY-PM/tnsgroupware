@@ -99,9 +99,11 @@ async function main() {
   check(`workflow 파일 존재`, workflow.length > 0);
   check(`name: Scheduler Tick`, workflow.includes("name: Scheduler Tick"));
   // v5-09 supersede: cron 빈도 — */5 (이전 0,30 / 0 모두 호환).
+  // v5-10 supersede: */5 string 변경 가능 (0,5,10,...,55) — schedule re-register 강제.
   check(
-    `cron schedule 존재 (*/5 / 0,30 / 0 중 하나)`,
+    `cron schedule 존재 (*/5 / 0,5,10,... / 0,30 / 0 중 하나)`,
     workflow.includes('- cron: "*/5 * * * *"') ||
+      workflow.includes('- cron: "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"') ||
       workflow.includes('- cron: "0,30 * * * *"') ||
       workflow.includes('- cron: "0 * * * *"'),
   );
