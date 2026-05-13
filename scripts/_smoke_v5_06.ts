@@ -23,9 +23,12 @@ async function main() {
   console.log("[T1] workflow cron \"0,30 * * * *\"");
   const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
   // v5-09 supersede: cron 빈도 0,30 → */5 (workflow yml 의 v5-06 마커는 v5-09 로 교체됨).
+  // v5-10 supersede: */5 string 변경 가능 (0,5,10,...,55) — schedule re-register 강제.
   check(
-    `cron schedule 존재 (*/5 또는 0,30)`,
-    workflow.includes('- cron: "*/5 * * * *"') || workflow.includes('- cron: "0,30 * * * *"'),
+    `cron schedule 존재 (*/5 또는 0,5,10,... 또는 0,30)`,
+    workflow.includes('- cron: "*/5 * * * *"') ||
+      workflow.includes('- cron: "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"') ||
+      workflow.includes('- cron: "0,30 * * * *"'),
   );
   check(`이전 "0 * * * *" 제거`, !workflow.includes('- cron: "0 * * * *"'));
   // v5-06 마커는 githubFrandoor.ts (rewriteFrontmatterDate) 에 남음. workflow yml 는 v5-09 가 supersede.
