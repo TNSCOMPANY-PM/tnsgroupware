@@ -45,7 +45,12 @@ async function main() {
 
   // T2 — workflow yml install step 제거 + cron */5
   console.log("\n[T2] workflow yml — install step 제거 + cron */5");
-  const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
+  // v5-11 supersede: scheduler-tick.yml → scheduler.yml rename.
+  const workflowPath = await fs
+    .stat(".github/workflows/scheduler.yml")
+    .then(() => ".github/workflows/scheduler.yml")
+    .catch(() => ".github/workflows/scheduler-tick.yml");
+  const workflow = await fs.readFile(workflowPath, "utf-8");
   // v5-10 supersede: cron string 변경 (*/5 → 0,5,10,...,55) for schedule re-register.
   check(
     `cron 매 5분 (*/5 또는 0,5,10,...,55)`,

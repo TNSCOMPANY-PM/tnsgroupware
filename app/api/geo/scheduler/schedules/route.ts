@@ -93,7 +93,7 @@ async function triggerSchedulerWorkflowDispatch(): Promise<void> {
   }
   try {
     const res = await fetch(
-      "https://api.github.com/repos/TNSCOMPANY-PM/tnsgroupware/actions/workflows/scheduler-tick.yml/dispatches",
+      "https://api.github.com/repos/TNSCOMPANY-PM/tnsgroupware/actions/workflows/scheduler.yml/dispatches",
       {
         method: "POST",
         headers: {

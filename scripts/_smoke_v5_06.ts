@@ -21,7 +21,12 @@ async function main() {
 
   // T1 — cron 매 30분
   console.log("[T1] workflow cron \"0,30 * * * *\"");
-  const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
+  // v5-11 supersede: scheduler-tick.yml → scheduler.yml rename.
+  const workflowPath = await fs
+    .stat(".github/workflows/scheduler.yml")
+    .then(() => ".github/workflows/scheduler.yml")
+    .catch(() => ".github/workflows/scheduler-tick.yml");
+  const workflow = await fs.readFile(workflowPath, "utf-8");
   // v5-09 supersede: cron 빈도 0,30 → */5 (workflow yml 의 v5-06 마커는 v5-09 로 교체됨).
   // v5-10 supersede: */5 string 변경 가능 (0,5,10,...,55) — schedule re-register 강제.
   check(

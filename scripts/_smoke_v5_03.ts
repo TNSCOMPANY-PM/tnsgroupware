@@ -41,7 +41,11 @@ async function main() {
   console.log("\n[T2] POST /api/geo/scheduler/schedules — workflow_dispatch trigger");
   const crudSrc = await fs.readFile("app/api/geo/scheduler/schedules/route.ts", "utf-8");
   check(`triggerSchedulerWorkflowDispatch 함수`, crudSrc.includes("triggerSchedulerWorkflowDispatch"));
-  check(`GitHub API workflows dispatch URL`, crudSrc.includes("scheduler-tick.yml/dispatches"));
+  // v5-11 supersede: scheduler-tick.yml → scheduler.yml rename.
+  check(
+    `GitHub API workflows dispatch URL (scheduler.yml 또는 scheduler-tick.yml)`,
+    crudSrc.includes("scheduler.yml/dispatches") || crudSrc.includes("scheduler-tick.yml/dispatches"),
+  );
   check(`GH_DISPATCH_PAT env`, crudSrc.includes("GH_DISPATCH_PAT"));
   check(`fire-and-forget — PAT 없어도 INSERT 성공`, crudSrc.includes("매시 cron 이 catch-up"));
   check(`Authorization: Bearer PAT`, crudSrc.includes("Authorization: `Bearer ${pat}`") || crudSrc.includes("`Bearer ${pat}`"));
