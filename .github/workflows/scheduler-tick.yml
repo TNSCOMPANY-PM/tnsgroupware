@@ -2,9 +2,10 @@ name: Scheduler Tick
 
 on:
   schedule:
-    # 매시 0분 (UTC == KST 0분 — 빈도 동일). GitHub Actions schedule 은 부하 따라 ~5-10분 지연 가능.
-    # private repo 무료 quota 2000분/월 안. workflow_dispatch 로 수동 trigger 도 가능.
-    - cron: "0 * * * *"
+    # v5-06: 매시 0분 + 30분 (예약 시각 도래 후 최대 30분 대기). GitHub Actions schedule 은 부하 따라 ~5-10분 지연 가능.
+    # private repo 무료 quota 2000분/월 안 (일 48회 × ~60s = 일 48분 = 월 1440분).
+    # workflow_dispatch 로 수동 trigger 도 가능.
+    - cron: "0,30 * * * *"
   workflow_dispatch: {}
 
 concurrency:

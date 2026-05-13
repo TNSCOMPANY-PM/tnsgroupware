@@ -89,7 +89,11 @@ async function main() {
   const workflow = await fs.readFile(".github/workflows/scheduler-tick.yml", "utf-8");
   check(`workflow 파일 존재`, workflow.length > 0);
   check(`name: Scheduler Tick`, workflow.includes("name: Scheduler Tick"));
-  check(`cron "0 * * * *"`, workflow.includes('- cron: "0 * * * *"'));
+  // v5-06 supersede: cron 빈도 매시 0분 → 매시 0분+30분.
+  check(
+    `cron schedule 존재 ("0 * * * *" 또는 "0,30 * * * *")`,
+    workflow.includes('- cron: "0 * * * *"') || workflow.includes('- cron: "0,30 * * * *"'),
+  );
   check(`workflow_dispatch (수동 trigger)`, workflow.includes("workflow_dispatch"));
   check(`concurrency group scheduler-tick`, workflow.includes("group: scheduler-tick"));
   check(`actions/checkout@v4`, workflow.includes("actions/checkout@v4"));

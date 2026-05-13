@@ -13,6 +13,7 @@ import {
   commitToFrandoor,
   isFrandoorPublishConfigured,
   extractSlugFromMarkdown,
+  rewriteFrontmatterDate,
 } from "@/lib/geo/publish/githubFrandoor";
 
 export const runtime = "nodejs";
@@ -59,11 +60,17 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await commitToFrandoor({ slug, content });
-    // published_url 업데이트
+    // v5-06: 발행 시점 (commit) 의 현재 KST 로 frontmatter date/dateModified 재작성.
+    const contentWithFreshDate = rewriteFrontmatterDate(content);
+    const result = await commitToFrandoor({ slug, content: contentWithFreshDate });
+    // published_url + content 동시 update (sync 유지 — post detail 에서 date 갱신본 노출).
     await sb
       .from("frandoor_blog_drafts")
-      .update({ published_url: result.pageUrl, status: "published" })
+      .update({
+        content: contentWithFreshDate,
+        published_url: result.pageUrl,
+        status: "published",
+      })
       .eq("id", post_id);
     return NextResponse.json(result);
   } catch (e) {
