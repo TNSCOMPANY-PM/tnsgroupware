@@ -81,6 +81,42 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
     }
   };
 
+  // v5-07: 예약 시각 수정 (published 외 모든 status).
+  const callReschedule = async (id: string, currentScheduledAt: string) => {
+    // datetime-local 형식 prefill ("YYYY-MM-DDTHH:MM", KST 변환)
+    const d = new Date(currentScheduledAt);
+    const kst = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const yyyy = kst.getFullYear();
+    const mm = String(kst.getMonth() + 1).padStart(2, "0");
+    const dd = String(kst.getDate()).padStart(2, "0");
+    const hh = String(kst.getHours()).padStart(2, "0");
+    const mi = String(kst.getMinutes()).padStart(2, "0");
+    const defaultValue = `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+
+    const input = window.prompt("새 예약 시각 (YYYY-MM-DDTHH:MM, KST):", defaultValue);
+    if (!input) return;
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.trim())) {
+      alert("형식 오류 — 예: 2026-05-14T15:00");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/geo/scheduler/schedules/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reschedule", scheduled_at: input.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message ?? data.error ?? `수정 실패 (${res.status})`);
+      }
+      setRows((prev) => prev.map((r) => (r.id === id ? (data as ScheduleRow) : r)));
+      startTransition(() => router.refresh());
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   // v5-05: schedule row 영구 삭제 (모든 status). draft 본문은 별도 보존.
   const callDelete = async (id: string) => {
     if (
@@ -191,6 +227,16 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
                       className="text-[10px] px-2 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 disabled:opacity-50"
                     >
                       재시도
+                    </button>
+                  )}
+                  {/* v5-07: published 외 모든 status row 에 시각 수정 버튼 */}
+                  {r.status !== "published" && (
+                    <button
+                      onClick={() => callReschedule(r.id, r.scheduled_at)}
+                      disabled={pending}
+                      className="text-[10px] px-2 py-0.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      시각 수정
                     </button>
                   )}
                   {/* v5-05: 모든 status row 에 삭제 버튼 */}

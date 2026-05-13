@@ -1,10 +1,11 @@
 /**
  * v5-01 — 예약 발행 schedule 액션 (cancel / retry / run_now).
  *
- * PATCH { action: 'cancel' | 'retry' | 'run_now' }
- *  · cancel  — pending 만 → status='canceled'
- *  · retry   — failed 만 → status='pending' + retry_count=0
- *  · run_now — pending/failed → scheduled_at=now() (cron 다음 tick 에서 즉시 pickup)
+ * PATCH { action: 'cancel' | 'retry' | 'run_now' | 'reschedule' }
+ *  · cancel     — pending 만 → status='canceled'
+ *  · retry      — failed 만 → status='pending' + retry_count=0
+ *  · run_now    — pending/failed → scheduled_at=now() (cron 다음 tick 에서 즉시 pickup)
+ *  · reschedule — published 외 모든 status → scheduled_at 변경 (v5-07)
  *
  * v5-05 — DELETE 영구 삭제 (모든 status). draft 본문은 별도 보존.
  */
@@ -16,7 +17,18 @@ import { createAdminClient } from "@/utils/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ScheduleAction = "cancel" | "retry" | "run_now";
+type ScheduleAction = "cancel" | "retry" | "run_now" | "reschedule";
+
+/**
+ * v5-07 — datetime-local ("YYYY-MM-DDTHH:MM") / ISO 문자열 → KST 절대 시각 ISO 변환.
+ * already-Z (UTC) 또는 +offset 포함이면 그대로 Date 생성, 아니면 +09:00 KST 부착.
+ */
+function parseKstScheduledAt(input: string): Date | null {
+  const hasTZ = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(input);
+  const iso = hasTZ ? input : `${input}+09:00`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export async function PATCH(
   req: Request,
@@ -32,9 +44,14 @@ export async function PATCH(
 
   const raw = await req.json().catch(() => null);
   const action = (raw as { action?: string } | null)?.action as ScheduleAction | undefined;
-  if (action !== "cancel" && action !== "retry" && action !== "run_now") {
+  if (
+    action !== "cancel" &&
+    action !== "retry" &&
+    action !== "run_now" &&
+    action !== "reschedule"
+  ) {
     return NextResponse.json(
-      { error: "INVALID_INPUT", message: "action 은 cancel | retry | run_now" },
+      { error: "INVALID_INPUT", message: "action 은 cancel | retry | run_now | reschedule" },
       { status: 422 },
     );
   }
@@ -73,8 +90,7 @@ export async function PATCH(
     updatePayload.status = "pending";
     updatePayload.retry_count = 0;
     updatePayload.error_msg = null;
-  } else {
-    // run_now
+  } else if (action === "run_now") {
     if (currentStatus !== "pending" && currentStatus !== "failed") {
       return NextResponse.json(
         { error: "INVALID_STATE", message: `run_now 는 pending/failed 만 (현재: ${currentStatus})` },
@@ -85,6 +101,29 @@ export async function PATCH(
     updatePayload.scheduled_at = new Date().toISOString();
     updatePayload.retry_count = 0;
     updatePayload.error_msg = null;
+  } else {
+    // v5-07 reschedule — published 외 모든 status. scheduled_at 만 변경, status 보존.
+    if (currentStatus === "published") {
+      return NextResponse.json(
+        { error: "ALREADY_PUBLISHED", message: "발행 완료된 예약은 수정 불가" },
+        { status: 400 },
+      );
+    }
+    const newScheduledAt = (raw as { scheduled_at?: unknown } | null)?.scheduled_at;
+    if (typeof newScheduledAt !== "string" || !newScheduledAt.trim()) {
+      return NextResponse.json(
+        { error: "INVALID_INPUT", message: "scheduled_at 필수 (YYYY-MM-DDTHH:MM 또는 ISO)" },
+        { status: 422 },
+      );
+    }
+    const parsed = parseKstScheduledAt(newScheduledAt.trim());
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "INVALID_INPUT", message: `scheduled_at parse 실패: ${newScheduledAt}` },
+        { status: 422 },
+      );
+    }
+    updatePayload.scheduled_at = parsed.toISOString();
   }
 
   const { data, error: uErr } = await sb
