@@ -159,7 +159,7 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
           {rows.map((r) => {
             const statusLabel = STATUS_LABEL[r.status] ?? r.status;
             const statusStyle = STATUS_STYLE[r.status] ?? "bg-slate-100 text-slate-600";
-            const mode = r.mode === "a_plus_c" ? "a_plus_c" : "a_only";
+            const mode = r.gen_mode === "a_plus_c" ? "a_plus_c" : "a_only";
             const target = mode === "a_only" ? (r.industry ?? "—") : (r.brand_name ?? "(브랜드)");
             return (
               <tr key={r.id} className="border-b border-slate-100">

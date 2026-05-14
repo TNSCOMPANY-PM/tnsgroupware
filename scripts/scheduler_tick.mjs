@@ -115,9 +115,9 @@ async function stage1Generation() {
   console.log(`[stage1] picked up ${rows.length} pending rows`);
 
   for (const row of rows) {
-    const mode = row.mode === "a_plus_c" ? "a_plus_c" : "a_only";
+    const mode = row.gen_mode === "a_plus_c" ? "a_plus_c" : "a_only";
     console.log(
-      `[stage1 ${row.id}] mode=${mode} ${mode === "a_only" ? `industry=${row.industry}` : `brand_id=${row.brand_id}`} topic=${row.topic ?? "(default)"}`,
+      `[stage1 ${row.id}] gen_mode=${mode} ${mode === "a_only" ? `industry=${row.industry}` : `brand_id=${row.brand_id}`} topic=${row.topic ?? "(default)"}`,
     );
 
     // 'generating' 으로 lock (조건부 UPDATE — race condition 방지)

@@ -2,8 +2,10 @@
  * v5-01 — 예약 발행 schedule CRUD.
  *
  * v5-12 — A+C 모드 확장. POST body 분기:
- *   mode='a_only'   { mode, industry, topic?, scheduled_at }
- *   mode='a_plus_c' { mode, brand_id, topic?, scheduled_at }
+ *   gen_mode='a_only'   { gen_mode, industry, topic?, scheduled_at }
+ *   gen_mode='a_plus_c' { gen_mode, brand_id, topic?, scheduled_at }
+ *
+ * v5-12-hf1 — mode → gen_mode rename (PostgREST reserved aggregate fn 충돌 회피).
  *
  * GET ?status=...&limit=... — 목록 조회 (default 최근 50건)
  */
@@ -33,17 +35,17 @@ export async function POST(req: Request) {
 
   const raw = await req.json().catch(() => null);
   const r = (raw ?? {}) as Record<string, unknown>;
-  const modeRaw = typeof r.mode === "string" ? r.mode.trim() : "a_only";
-  const mode: "a_only" | "a_plus_c" = modeRaw === "a_plus_c" ? "a_plus_c" : "a_only";
+  const genModeRaw = typeof r.gen_mode === "string" ? r.gen_mode.trim() : "a_only";
+  const genMode: "a_only" | "a_plus_c" = genModeRaw === "a_plus_c" ? "a_plus_c" : "a_only";
   const industry = typeof r.industry === "string" ? r.industry.trim() : "";
   const brandId = typeof r.brand_id === "string" ? r.brand_id.trim() : "";
   const topic = typeof r.topic === "string" && r.topic.trim() ? r.topic.trim() : null;
   const scheduledAtInput = typeof r.scheduled_at === "string" ? r.scheduled_at.trim() : "";
 
-  if (mode === "a_only" && !industry) {
+  if (genMode === "a_only" && !industry) {
     return NextResponse.json({ error: "INVALID_INPUT", message: "industry 필수" }, { status: 422 });
   }
-  if (mode === "a_plus_c" && !brandId) {
+  if (genMode === "a_plus_c" && !brandId) {
     return NextResponse.json({ error: "INVALID_INPUT", message: "brand_id 필수" }, { status: 422 });
   }
   if (!scheduledAtInput) {
@@ -67,13 +69,13 @@ export async function POST(req: Request) {
 
   const sb = createAdminClient();
   const insertRow: Record<string, unknown> = {
-    mode,
+    gen_mode: genMode,
     topic,
     scheduled_at: scheduledAt.toISOString(),
     status: "pending",
     created_by: session.email ?? null,
   };
-  if (mode === "a_only") {
+  if (genMode === "a_only") {
     insertRow.industry = industry;
     insertRow.brand_id = null;
   } else {

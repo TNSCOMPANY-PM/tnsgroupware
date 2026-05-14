@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export type ScheduleRow = {
   id: string;
-  mode: "a_only" | "a_plus_c" | null;
+  gen_mode: "a_only" | "a_plus_c" | null;
   industry: string | null;
   brand_id: string | null;
   brand_name?: string | null;
