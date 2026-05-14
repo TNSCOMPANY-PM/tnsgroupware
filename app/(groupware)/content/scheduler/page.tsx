@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export type ScheduleRow = {
   id: string;
-  industry: string;
+  mode: "a_only" | "a_plus_c" | null;
+  industry: string | null;
+  brand_id: string | null;
+  brand_name?: string | null;
   topic: string | null;
   scheduled_at: string;
   status: string;
@@ -19,22 +22,33 @@ export type ScheduleRow = {
   updated_at: string;
 };
 
+type ScheduleRowWithBrand = Omit<ScheduleRow, "brand_name"> & {
+  geo_brands: { name: string } | { name: string }[] | null;
+};
+
 export default async function SchedulerPage() {
   const sb = createAdminClient();
   const { data, error } = await sb
     .from("frandoor_blog_schedules")
-    .select("*")
+    .select("*, geo_brands(name)")
     .order("scheduled_at", { ascending: false })
     .limit(50);
 
-  const rows = (error ? [] : (data ?? [])) as ScheduleRow[];
+  const rows: ScheduleRow[] = error
+    ? []
+    : ((data ?? []) as unknown as ScheduleRowWithBrand[]).map((r) => {
+        const gb = r.geo_brands;
+        const brandName = Array.isArray(gb) ? gb[0]?.name ?? null : gb?.name ?? null;
+        const { geo_brands: _omit, ...rest } = r;
+        return { ...rest, brand_name: brandName };
+      });
 
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-semibold text-slate-800 mb-1">예약 발행 등록</h2>
         <p className="text-xs text-slate-500 mb-4">
-          업종 + 토픽 + 발행 시각을 등록하면 cron 이 자동으로 본문·썸네일 생성 후 frandoor.co.kr 에 즉시 발행합니다.
+          A only (업종 분석) 또는 A+C (브랜드 분석) 모드를 선택해 토픽 + 발행 시각을 등록하면 cron 이 자동으로 본문·썸네일 생성 후 frandoor.co.kr 에 즉시 발행합니다.
         </p>
         <SchedulerForm />
         <div className="mt-4 text-[11px] text-slate-400 space-y-0.5">

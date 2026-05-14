@@ -146,7 +146,8 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
       <table className="w-full text-xs">
         <thead className="text-slate-500">
           <tr className="border-b border-slate-200">
-            <th className="text-left py-2 pr-3 font-medium">업종</th>
+            <th className="text-left py-2 pr-3 font-medium">모드</th>
+            <th className="text-left py-2 pr-3 font-medium">대상</th>
             <th className="text-left py-2 pr-3 font-medium">토픽</th>
             <th className="text-left py-2 pr-3 font-medium">예약 시각 (KST)</th>
             <th className="text-left py-2 pr-3 font-medium">상태</th>
@@ -158,9 +159,23 @@ export default function SchedulerList({ initialRows }: { initialRows: ScheduleRo
           {rows.map((r) => {
             const statusLabel = STATUS_LABEL[r.status] ?? r.status;
             const statusStyle = STATUS_STYLE[r.status] ?? "bg-slate-100 text-slate-600";
+            const mode = r.mode === "a_plus_c" ? "a_plus_c" : "a_only";
+            const target = mode === "a_only" ? (r.industry ?? "—") : (r.brand_name ?? "(브랜드)");
             return (
               <tr key={r.id} className="border-b border-slate-100">
-                <td className="py-2 pr-3 font-medium text-slate-700">{r.industry}</td>
+                <td className="py-2 pr-3">
+                  <span
+                    className={cn(
+                      "inline-block px-2 py-0.5 rounded text-[10px]",
+                      mode === "a_only"
+                        ? "bg-slate-100 text-slate-600"
+                        : "bg-amber-100 text-amber-700",
+                    )}
+                  >
+                    {mode === "a_only" ? "A only" : "A+C"}
+                  </span>
+                </td>
+                <td className="py-2 pr-3 font-medium text-slate-700">{target}</td>
                 <td className="py-2 pr-3 text-slate-600">
                   {r.topic ? r.topic : <span className="text-slate-400">기본 토픽</span>}
                 </td>
