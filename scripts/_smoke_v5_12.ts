@@ -34,11 +34,22 @@ async function main() {
     "utf-8",
   );
   check(`migration 파일 존재`, migration.length > 0);
-  check(`mode 컬럼 ADD`, /ADD COLUMN IF NOT EXISTS mode text/i.test(migration));
+  // v5-12-hf1 supersede: mode → gen_mode rename. v5-12 base migration 은 mode 로 ADD 했음.
+  check(`mode 컬럼 ADD (base — hf1 에서 rename)`, /ADD COLUMN IF NOT EXISTS mode text/i.test(migration));
   check(`brand_id 컬럼 ADD + FK geo_brands`, /brand_id uuid REFERENCES geo_brands\(id\)/i.test(migration));
   check(`mode CHECK (a_only|a_plus_c)`, /a_only.*a_plus_c|a_plus_c.*a_only/.test(migration));
   check(`industry DROP NOT NULL`, /ALTER COLUMN industry DROP NOT NULL/.test(migration));
   check(`brand_id partial index`, /idx_schedules_brand_id/.test(migration));
+
+  // T1b — v5-12-hf1 rename migration
+  console.log("\n[T1b] v5-12-hf1 rename migration");
+  const renameMig = await fs.readFile(
+    "supabase/migrations/20260514_v5_12-hf1_mode_to_gen_mode.sql",
+    "utf-8",
+  );
+  check(`RENAME COLUMN mode TO gen_mode`, /RENAME COLUMN mode TO gen_mode/i.test(renameMig));
+  check(`NOTIFY pgrst reload`, /NOTIFY pgrst/i.test(renameMig));
+  check(`gen_mode CHECK constraint`, /frandoor_blog_schedules_gen_mode_check/i.test(renameMig));
 
   // T2 — SchedulerForm mode 토글 + brand autocomplete
   console.log("\n[T2] SchedulerForm.tsx — mode toggle + brand autocomplete");
@@ -51,7 +62,11 @@ async function main() {
   check(`brand search fetch /api/geo/brands-search`, formSrc.includes("/api/geo/brands-search"));
   check(`mode 토글 버튼 2개`, formSrc.includes("A only") && formSrc.includes("A+C"));
   check(`POST body 분기 (brand_id / industry)`, formSrc.includes("body.brand_id") && formSrc.includes("body.industry"));
-  check(`mode submit 분기`, formSrc.includes('mode: "a_only"') || /switchMode\("a_only"\)/.test(formSrc));
+  // v5-12-hf1 supersede: submit body field 가 mode → gen_mode 로 변경.
+  check(
+    `submit body gen_mode (또는 mode) 필드`,
+    formSrc.includes("gen_mode: mode") || formSrc.includes('mode: "a_only"'),
+  );
 
   // T3 — POST schedules route mode 분기
   console.log("\n[T3] app/api/geo/scheduler/schedules/route.ts — mode 분기");
@@ -59,16 +74,32 @@ async function main() {
     "app/api/geo/scheduler/schedules/route.ts",
     "utf-8",
   );
-  check(`mode parse (default a_only)`, /modeRaw === "a_plus_c"|mode === "a_plus_c"/.test(routeSrc));
+  // v5-12-hf1 supersede: route 의 local var modeRaw/mode → genModeRaw/genMode.
+  check(
+    `mode/gen_mode parse (a_plus_c)`,
+    /modeRaw === "a_plus_c"|mode === "a_plus_c"|genMode === "a_plus_c"|genModeRaw === "a_plus_c"/.test(routeSrc),
+  );
   check(`brand_id parse`, /brand_id|brandId/.test(routeSrc));
-  check(`a_only validation (industry 필수)`, /mode === "a_only" && !industry/.test(routeSrc));
-  check(`a_plus_c validation (brand_id 필수)`, /mode === "a_plus_c" && !brandId/.test(routeSrc));
-  check(`insertRow mode + brand_id 분기`, routeSrc.includes("insertRow.brand_id") && routeSrc.includes("insertRow.industry"));
+  check(
+    `a_only validation (industry 필수)`,
+    /mode === "a_only" && !industry|genMode === "a_only" && !industry/.test(routeSrc),
+  );
+  check(
+    `a_plus_c validation (brand_id 필수)`,
+    /mode === "a_plus_c" && !brandId|genMode === "a_plus_c" && !brandId/.test(routeSrc),
+  );
+  check(`insertRow brand_id + industry 분기`, routeSrc.includes("insertRow.brand_id") && routeSrc.includes("insertRow.industry"));
+  // v5-12-hf1 추가: insert key 가 gen_mode 인지 (PostgREST reserved fn 충돌 회피).
+  check(`insertRow.gen_mode key`, routeSrc.includes("gen_mode: genMode") || routeSrc.includes("gen_mode:"));
 
   // T4 — scheduler_tick.mjs A+C chain
   console.log("\n[T4] scripts/scheduler_tick.mjs — a_plus_c chain");
   const tickSrc = await fs.readFile("scripts/scheduler_tick.mjs", "utf-8");
-  check(`mode 분기 (a_only / a_plus_c)`, tickSrc.includes('row.mode === "a_plus_c"') || /mode === "a_only"/.test(tickSrc));
+  // v5-12-hf1 supersede: row.mode → row.gen_mode.
+  check(
+    `gen_mode 분기 (a_only / a_plus_c)`,
+    tickSrc.includes('row.gen_mode === "a_plus_c"') || tickSrc.includes('row.mode === "a_plus_c"'),
+  );
   check(`a_plus_c facts-a 호출 (brand_id)`, tickSrc.includes("/api/geo/facts-a") && tickSrc.includes("brand_id: row.brand_id"));
   check(`a_plus_c facts-c 호출`, tickSrc.includes("/api/geo/facts-c/"));
   check(`a_plus_c write 호출 (a-only 가 아닌 write)`, /\/api\/geo\/write\/\$\{draftId\}/.test(tickSrc));
@@ -93,7 +124,11 @@ async function main() {
     "utf-8",
   );
   check(`geo_brands(name) join select`, pageSrc.includes('"*, geo_brands(name)"') || pageSrc.includes("geo_brands(name)"));
-  check(`ScheduleRow.mode field`, /mode:\s*"a_only"\s*\|\s*"a_plus_c"/.test(pageSrc));
+  // v5-12-hf1 supersede: ScheduleRow.mode → gen_mode.
+  check(
+    `ScheduleRow.gen_mode (또는 mode) field`,
+    /(gen_mode|mode):\s*"a_only"\s*\|\s*"a_plus_c"/.test(pageSrc),
+  );
   check(`ScheduleRow.brand_id field`, /brand_id:\s*string\s*\|\s*null/.test(pageSrc));
   check(`brand_name 매핑`, pageSrc.includes("brand_name"));
 

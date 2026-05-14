@@ -103,7 +103,7 @@ export default function SchedulerForm() {
     setBusy(true);
     try {
       const body: Record<string, unknown> = {
-        mode,
+        gen_mode: mode,
         topic: topic.trim() || undefined,
         scheduled_at: scheduledAt,
       };
