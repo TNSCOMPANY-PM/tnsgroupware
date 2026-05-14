@@ -1,7 +1,10 @@
 /**
  * v5-01 — 예약 발행 schedule CRUD.
  *
- * POST { industry, topic?, scheduled_at } — 신규 예약 등록 (status='pending')
+ * v5-12 — A+C 모드 확장. POST body 분기:
+ *   mode='a_only'   { mode, industry, topic?, scheduled_at }
+ *   mode='a_plus_c' { mode, brand_id, topic?, scheduled_at }
+ *
  * GET ?status=...&limit=... — 목록 조회 (default 최근 50건)
  */
 
@@ -30,12 +33,18 @@ export async function POST(req: Request) {
 
   const raw = await req.json().catch(() => null);
   const r = (raw ?? {}) as Record<string, unknown>;
+  const modeRaw = typeof r.mode === "string" ? r.mode.trim() : "a_only";
+  const mode: "a_only" | "a_plus_c" = modeRaw === "a_plus_c" ? "a_plus_c" : "a_only";
   const industry = typeof r.industry === "string" ? r.industry.trim() : "";
+  const brandId = typeof r.brand_id === "string" ? r.brand_id.trim() : "";
   const topic = typeof r.topic === "string" && r.topic.trim() ? r.topic.trim() : null;
   const scheduledAtInput = typeof r.scheduled_at === "string" ? r.scheduled_at.trim() : "";
 
-  if (!industry) {
+  if (mode === "a_only" && !industry) {
     return NextResponse.json({ error: "INVALID_INPUT", message: "industry 필수" }, { status: 422 });
+  }
+  if (mode === "a_plus_c" && !brandId) {
+    return NextResponse.json({ error: "INVALID_INPUT", message: "brand_id 필수" }, { status: 422 });
   }
   if (!scheduledAtInput) {
     return NextResponse.json(
@@ -57,15 +66,23 @@ export async function POST(req: Request) {
   }
 
   const sb = createAdminClient();
+  const insertRow: Record<string, unknown> = {
+    mode,
+    topic,
+    scheduled_at: scheduledAt.toISOString(),
+    status: "pending",
+    created_by: session.email ?? null,
+  };
+  if (mode === "a_only") {
+    insertRow.industry = industry;
+    insertRow.brand_id = null;
+  } else {
+    insertRow.industry = null;
+    insertRow.brand_id = brandId;
+  }
   const { data, error } = await sb
     .from("frandoor_blog_schedules")
-    .insert({
-      industry,
-      topic,
-      scheduled_at: scheduledAt.toISOString(),
-      status: "pending",
-      created_by: session.email ?? null,
-    })
+    .insert(insertRow)
     .select("*")
     .single();
 

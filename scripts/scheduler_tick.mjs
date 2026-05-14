@@ -115,8 +115,9 @@ async function stage1Generation() {
   console.log(`[stage1] picked up ${rows.length} pending rows`);
 
   for (const row of rows) {
+    const mode = row.mode === "a_plus_c" ? "a_plus_c" : "a_only";
     console.log(
-      `[stage1 ${row.id}] industry=${row.industry} topic=${row.topic ?? "(default)"}`,
+      `[stage1 ${row.id}] mode=${mode} ${mode === "a_only" ? `industry=${row.industry}` : `brand_id=${row.brand_id}`} topic=${row.topic ?? "(default)"}`,
     );
 
     // 'generating' 으로 lock (조건부 UPDATE — race condition 방지)
@@ -131,26 +132,49 @@ async function stage1Generation() {
     }
 
     try {
-      const step1 = await postJSON("/api/geo/a-only/analyze", {
-        industry: row.industry,
-        topic: row.topic ?? `${row.industry} 업종 분포 분석`,
-      });
-      const draftId = step1.draftId ?? step1.draft_id ?? step1.id;
-      if (!draftId) {
-        throw new Error(
-          `step1 응답에 draftId 없음: ${JSON.stringify(step1).slice(0, 200)}`,
-        );
+      let draftId;
+      if (mode === "a_only") {
+        const step1 = await postJSON("/api/geo/a-only/analyze", {
+          industry: row.industry,
+          topic: row.topic ?? `${row.industry} 업종 분포 분석`,
+        });
+        draftId = step1.draftId ?? step1.draft_id ?? step1.id;
+        if (!draftId) {
+          throw new Error(
+            `step1 응답에 draftId 없음: ${JSON.stringify(step1).slice(0, 200)}`,
+          );
+        }
+        console.log(`[stage1 ${row.id}] a_only step1 OK draftId=${draftId}`);
+
+        await postJSON(`/api/geo/a-only/structure/${draftId}`, {});
+        console.log(`[stage1 ${row.id}] a_only step2 OK`);
+
+        await postJSON(`/api/geo/a-only/write/${draftId}`, {});
+        console.log(`[stage1 ${row.id}] a_only step3 OK`);
+
+        await postJSON(`/api/geo/a-only/thumbnail/${draftId}`, {});
+        console.log(`[stage1 ${row.id}] a_only step4 OK`);
+      } else {
+        // v5-12 — A+C 3-step chain (editor 와 동일: facts-a → facts-c → write)
+        if (!row.brand_id) throw new Error("a_plus_c row 인데 brand_id 없음");
+        const step1 = await postJSON("/api/geo/facts-a", {
+          brand_id: row.brand_id,
+          topic: row.topic ?? "",
+        });
+        draftId = step1.draftId ?? step1.draft_id ?? step1.id;
+        if (!draftId) {
+          throw new Error(
+            `facts-a 응답에 draftId 없음: ${JSON.stringify(step1).slice(0, 200)}`,
+          );
+        }
+        console.log(`[stage1 ${row.id}] a_plus_c facts-a OK draftId=${draftId}`);
+
+        await postJSON(`/api/geo/facts-c/${draftId}`, {});
+        console.log(`[stage1 ${row.id}] a_plus_c facts-c OK`);
+
+        await postJSON(`/api/geo/write/${draftId}`, {});
+        console.log(`[stage1 ${row.id}] a_plus_c write OK`);
       }
-      console.log(`[stage1 ${row.id}] step1 OK draftId=${draftId}`);
-
-      await postJSON(`/api/geo/a-only/structure/${draftId}`, {});
-      console.log(`[stage1 ${row.id}] step2 OK`);
-
-      await postJSON(`/api/geo/a-only/write/${draftId}`, {});
-      console.log(`[stage1 ${row.id}] step3 OK`);
-
-      await postJSON(`/api/geo/a-only/thumbnail/${draftId}`, {});
-      console.log(`[stage1 ${row.id}] step4 OK`);
 
       await sbUpdate(
         "frandoor_blog_schedules",
