@@ -15,7 +15,7 @@ import {
 } from "@/lib/geo/v4/pipeline";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 90; // v5-13: Vercel Pro + LLM transient retry.
 export const dynamic = "force-dynamic";
 
 export async function POST(

@@ -1,9 +1,12 @@
 /**
  * v4 — claude sonnet client (single call).
+ *
+ * v5-13 — transient retry (overloaded_error / 529 / 503 / 429 / 408 / 502 / 504).
+ * Anthropic 인프라 일시 과부하 시 exponential backoff 으로 자동 재시도.
  */
 
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIError } from "@anthropic-ai/sdk";
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -17,6 +20,39 @@ function getClient(): Anthropic {
 export const SONNET_MODEL = "claude-sonnet-4-6";
 export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
+// v5-13 — Anthropic transient errors. 코드 단에서 추가 재시도.
+const TRANSIENT_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
+const TRANSIENT_BACKOFF_MS = [1500, 4500, 12000]; // 3회 재시도, 누적 ~18s.
+
+function isTransientError(err: unknown): boolean {
+  if (err instanceof APIError) {
+    if (err.status && TRANSIENT_HTTP_STATUSES.has(err.status)) return true;
+    const t = (err as { error?: { error?: { type?: string } } }).error?.error?.type;
+    if (t === "overloaded_error" || t === "rate_limit_error" || t === "api_error") return true;
+  }
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /overloaded_error|rate_limit_error|\b(429|503|529|502|504)\b/.test(msg);
+}
+
+async function withTransientRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= TRANSIENT_BACKOFF_MS.length; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientError(err) || attempt === TRANSIENT_BACKOFF_MS.length) throw err;
+      const delay = TRANSIENT_BACKOFF_MS[attempt];
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[${label}] transient error — ${delay}ms 후 재시도 (attempt ${attempt + 1}/${TRANSIENT_BACKOFF_MS.length}): ${msg.slice(0, 200)}`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * v4-04 — 본문 작성 모델 Sonnet 4.6 복귀 (haiku 4.5 quality 부족 — 자릿수/hallucination/메타).
  * max_tokens 2000 으로 단축해 60s 안 처리 (sonnet output ~50 tok/s × 2000 = ~40s).
@@ -28,12 +64,14 @@ export async function callSonnet(args: {
   maxTokens: number;
 }): Promise<string> {
   const client = getClient();
-  const res = await client.messages.create({
-    model: SONNET_MODEL,
-    max_tokens: args.maxTokens,
-    system: args.system,
-    messages: [{ role: "user", content: args.user }],
-  });
+  const res = await withTransientRetry("callSonnet", () =>
+    client.messages.create({
+      model: SONNET_MODEL,
+      max_tokens: args.maxTokens,
+      system: args.system,
+      messages: [{ role: "user", content: args.user }],
+    }),
+  );
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Sonnet writer: no text block");
   return block.text;
@@ -50,12 +88,14 @@ export async function callLLM1(args: {
   maxTokens?: number;
 }): Promise<string> {
   const client = getClient();
-  const res = await client.messages.create({
-    model: SONNET_MODEL,
-    max_tokens: args.maxTokens ?? 1500,
-    system: args.system,
-    messages: [{ role: "user", content: args.user }],
-  });
+  const res = await withTransientRetry("callLLM1", () =>
+    client.messages.create({
+      model: SONNET_MODEL,
+      max_tokens: args.maxTokens ?? 1500,
+      system: args.system,
+      messages: [{ role: "user", content: args.user }],
+    }),
+  );
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("LLM1 (Sonnet): no text block");
   return block.text;
@@ -67,12 +107,14 @@ export async function callHaiku(args: {
   maxTokens: number;
 }): Promise<string> {
   const client = getClient();
-  const res = await client.messages.create({
-    model: HAIKU_MODEL,
-    max_tokens: args.maxTokens,
-    system: args.system,
-    messages: [{ role: "user", content: args.user }],
-  });
+  const res = await withTransientRetry("callHaiku", () =>
+    client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: args.maxTokens,
+      system: args.system,
+      messages: [{ role: "user", content: args.user }],
+    }),
+  );
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Haiku: no text block");
   return block.text;

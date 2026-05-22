@@ -84,6 +84,13 @@ async function sbUpdate(table, query, body) {
   return r.json();
 }
 
+// v5-13 — Anthropic / 상위 endpoint transient error 판별. retry_count 증가 회피용.
+const TRANSIENT_RX = /overloaded_error|rate_limit_error|\b(408|425|429|500|502|503|504|529)\b|Overloaded/i;
+const TRANSIENT_HARD_CAP_MS = 60 * 60 * 1000; // 1시간 안에 못 풀리면 강제 failed.
+function isTransientMsg(msg) {
+  return typeof msg === "string" && TRANSIENT_RX.test(msg);
+}
+
 async function postJSON(path, body) {
   const r = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -188,9 +195,17 @@ async function stage1Generation() {
       console.log(`[stage1 ${row.id}] generated → ready (draftId=${draftId})`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      const retryCount = (row.retry_count ?? 0) + 1;
-      // 1회 자동 재시도 — 다음 cron pickup. 2회 이상 실패 시 failed 종료.
-      const nextStatus = retryCount > 1 ? "failed" : "pending";
+      // v5-13 — transient (Anthropic 529/overloaded 등) 이면 retry_count 증가 안 시키되
+      // created_at 기준 1시간 hard cap (무한 루프 방지).
+      const transient = isTransientMsg(msg);
+      const ageMs = row.created_at ? Date.now() - new Date(row.created_at).getTime() : 0;
+      const exceededTransientCap = transient && ageMs > TRANSIENT_HARD_CAP_MS;
+      const prevRetryCount = row.retry_count ?? 0;
+      const retryCount = transient && !exceededTransientCap ? prevRetryCount : prevRetryCount + 1;
+      let nextStatus;
+      if (exceededTransientCap) nextStatus = "failed";
+      else if (transient) nextStatus = "pending";
+      else nextStatus = retryCount > 1 ? "failed" : "pending";
       await sbUpdate(
         "frandoor_blog_schedules",
         `id=eq.${row.id}`,
@@ -202,7 +217,7 @@ async function stage1Generation() {
         },
       );
       console.error(
-        `[stage1 ${row.id}] generation FAIL (retry=${retryCount}, next=${nextStatus}): ${msg}`,
+        `[stage1 ${row.id}] generation FAIL (transient=${transient}, retry=${retryCount}, next=${nextStatus}): ${msg}`,
       );
     }
   }
@@ -255,8 +270,18 @@ async function stage2Publish() {
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      const retryCount = (row.retry_count ?? 0) + 1;
-      const nextStatus = retryCount > 1 ? "failed" : "ready";
+      // v5-13 — transient (GitHub API / Octokit 5xx 등) 이면 retry_count 증가 안 시키되
+      // updated_at 기준 1시간 hard cap (이미 published 시각 도래한 row 라 created_at 보다 updated_at 이 적절).
+      const transient = isTransientMsg(msg);
+      const refTs = row.updated_at ?? row.created_at;
+      const ageMs = refTs ? Date.now() - new Date(refTs).getTime() : 0;
+      const exceededTransientCap = transient && ageMs > TRANSIENT_HARD_CAP_MS;
+      const prevRetryCount = row.retry_count ?? 0;
+      const retryCount = transient && !exceededTransientCap ? prevRetryCount : prevRetryCount + 1;
+      let nextStatus;
+      if (exceededTransientCap) nextStatus = "failed";
+      else if (transient) nextStatus = "ready";
+      else nextStatus = retryCount > 1 ? "failed" : "ready";
       await sbUpdate(
         "frandoor_blog_schedules",
         `id=eq.${row.id}`,
@@ -268,7 +293,7 @@ async function stage2Publish() {
         },
       );
       console.error(
-        `[stage2 ${row.id}] publish FAIL (retry=${retryCount}, next=${nextStatus}): ${msg}`,
+        `[stage2 ${row.id}] publish FAIL (transient=${transient}, retry=${retryCount}, next=${nextStatus}): ${msg}`,
       );
     }
   }

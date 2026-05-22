@@ -14,7 +14,7 @@ import {
 import type { V4Input } from "@/lib/geo/v4/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 90; // v5-13: Vercel Pro + Anthropic transient retry.
 export const dynamic = "force-dynamic";
 
 function parseInput(raw: unknown): V4Input | { error: string } {
