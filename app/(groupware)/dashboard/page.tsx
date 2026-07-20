@@ -101,6 +101,9 @@ export default function DashboardPage() {
   const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [grantedAdjustments, setGrantedAdjustments] = useState<
+    { user_id: string; year: number; days: number }[]
+  >([]);
   const [quarterlyBonus, setQuarterlyBonus] = useState<{
     quarter: number; year: number; quarterLabel: string;
     months: { month: string; bonus: number }[];
@@ -121,7 +124,9 @@ export default function DashboardPage() {
       fetch("/api/finance/dashboard-summary").then((r) => r.ok ? r.json() : null).catch(() => null),
       fetch("/api/leaves").then((r) => r.ok ? r.json() : []).catch(() => []),
       fetch("/api/announcements").then((r) => r.ok ? r.json() : []).catch(() => []),
-    ]).then(([summary, leavesRows, annRows]) => {
+      fetch("/api/granted-leaves").then((r) => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([summary, leavesRows, annRows, grantRows]) => {
+      if (Array.isArray(grantRows)) setGrantedAdjustments(grantRows);
       if (summary) setDashboardSummary(summary as { monthlyRevenue: number; monthlyGrossProfit: number; survivalBalance: number });
       if (Array.isArray(annRows)) {
         setAnnouncements(
@@ -193,8 +198,8 @@ export default function DashboardPage() {
   };
 
   const statuses = useMemo(
-    () => computePromotionStatus(employees.map(toUserAdapter), leaveRequests, plannedLeaveRequests, new Date()),
-    [employees, leaveRequests, plannedLeaveRequests]
+    () => computePromotionStatus(employees.map(toUserAdapter), leaveRequests, plannedLeaveRequests, new Date(), grantedAdjustments),
+    [employees, leaveRequests, plannedLeaveRequests, grantedAdjustments]
   );
   const myStatus = statuses.find((s) => s.userId === currentUserId);
   const showPromotionWidget =

@@ -52,7 +52,10 @@ import {
   getAnnualLeaveRemainingAllowMinus,
   countBusinessDaysExcludingHolidays,
   getEndDateForBusinessDays,
+  calcAnnualLeaveSummary,
+  ANNUAL_LEAVE_USED_STATUSES,
 } from "@/utils/leaveCalculator";
+import { dbRowToLeaveRequest } from "@/utils/leaveMappers";
 import {
   getBurnoutRiskUsers,
   getMilestoneRisks,
@@ -91,32 +94,6 @@ function employeeToUser(emp: Employee): User {
     email: emp.email ?? undefined,
     phone: emp.phone ?? undefined,
     displayDepartment: emp.display_department ?? undefined,
-  };
-}
-
-/** DB row(snake_case) → LeaveRequest(camelCase) 변환 */
-function dbRowToLeaveRequest(row: Record<string, unknown>): LeaveRequest {
-  return {
-    id: row.id as string,
-    applicantId: row.applicant_id as string,
-    applicantName: row.applicant_name as string,
-    applicantDepartment: row.applicant_department as string,
-    leaveType: row.leave_type as LeaveTypeKey,
-    startDate: row.start_date as string,
-    endDate: row.end_date as string,
-    days: Number(row.days),
-    reason: (row.reason as string) ?? "",
-    status: row.status as ApprovalStatus,
-    teamLeadApprovedAt: (row.team_lead_approved_at as string) ?? undefined,
-    cLevelApprovedAt: (row.c_level_approved_at as string) ?? undefined,
-    rejectedAt: (row.rejected_at as string) ?? undefined,
-    rejectReason: (row.reject_reason as string) ?? undefined,
-    requiresProof: (row.requires_proof as boolean) ?? undefined,
-    proofStatus: (row.proof_status as "pending" | "submitted") ?? undefined,
-    proofFileName: (row.proof_file_name as string) ?? undefined,
-    proofUploadedAt: (row.proof_uploaded_at as string) ?? undefined,
-    autoApproved: (row.auto_approved as boolean) ?? undefined,
-    createdAt: (row.created_at as string) ?? new Date().toISOString(),
   };
 }
 
@@ -1680,48 +1657,42 @@ function PerEmployeeLeaveSection({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
-  const today = new Date();
-
-  const computeCutoff = (hireDate: string | null | undefined): Date => {
-    if (!hireDate) return new Date(today.getFullYear(), 0, 1);
-    const clean = hireDate.replace(/\./g, "-");
-    const [hy, hm, hd] = clean.split("-").map(Number);
-    if (!hy || !hm || !hd) return new Date(today.getFullYear(), 0, 1);
-    const currAnn = new Date(today.getFullYear(), hm - 1, hd);
-    return currAnn <= today
-      ? currAnn
-      : new Date(today.getFullYear() - 1, hm - 1, hd);
-  };
-
   const rows = useMemo(() => {
     const activeEmps = employees.filter((e) => !e.employment_status || e.employment_status === "재직");
     const list = activeEmps.map((emp) => {
-      const joinStr = emp.hire_date ? emp.hire_date.replace(/-/g, ".") : "";
-      const granted = joinStr ? getAnnualLeaveGranted(joinStr, filterYear) : 0;
       const bonus = getGrantedDaysForUser(String(emp.id), filterYear);
-      const cutoff = computeCutoff(emp.hire_date);
-      const cutoffStr = format(cutoff, "yyyy-MM-dd");
+      const mine = leaveRequests.filter((r) => r.applicantId === emp.id);
+      const now = new Date();
+      const { granted, used, remaining, cutoff } = calcAnnualLeaveSummary({
+        hireDate: emp.hire_date,
+        adjustmentDays: bonus,
+        baseDate: filterYear === now.getFullYear() ? now : new Date(filterYear, 11, 31),
+        items: mine.map((r) => ({
+          leaveType: r.leaveType,
+          status: r.status,
+          startDate: r.startDate,
+          days: r.days,
+        })),
+      });
 
-      const myUses = leaveRequests
+      const myUses = mine
         .filter(
           (r) =>
-            r.applicantId === emp.id &&
-            r.status === "승인_완료" &&
+            ANNUAL_LEAVE_USED_STATUSES.includes(r.status) &&
             ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
-            r.startDate >= cutoffStr
+            r.startDate >= cutoff
         )
         .sort((a, b) => b.startDate.localeCompare(a.startDate));
-      const used = Math.round(myUses.reduce((s, r) => s + (Number(r.days) || 0), 0) * 1000) / 1000;
-      const total = granted + bonus;
+
       return {
         id: String(emp.id),
         name: emp.name ?? "(미상)",
         department: emp.department ?? "-",
         hire_date: emp.hire_date ?? "-",
-        cutoff: cutoffStr,
-        granted: total,
+        cutoff,
+        granted,
         used,
-        remaining: Math.round((total - used) * 1000) / 1000,
+        remaining,
         uses: myUses,
       };
     });

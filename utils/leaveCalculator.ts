@@ -32,7 +32,7 @@ const PUBLIC_HOLIDAYS: Record<number, string[]> = {
   ],
 };
 
-function isPublicHoliday(date: Date): boolean {
+export function isPublicHoliday(date: Date): boolean {
   const y = date.getFullYear();
   const list = PUBLIC_HOLIDAYS[y];
   if (!list) return false;
@@ -218,6 +218,94 @@ export function getAnnualLeaveRemainingAllowMinus(
 ): number {
   const granted = getAnnualLeaveGranted(joinDateStr, year);
   return granted - usedDays;
+}
+
+/** 연차로 차감되는 휴가 유형 */
+export const ANNUAL_LEAVE_TYPES = [
+  "annual",
+  "half_am",
+  "half_pm",
+  "quarter_am",
+  "quarter_pm",
+  "hourly",
+];
+
+/** 사용으로 집계하는 상태 (취소 요청은 승인 전까지 사용으로 유지) */
+export const ANNUAL_LEAVE_USED_STATUSES = ["승인_완료", "CANCEL_REQUESTED"];
+
+/**
+ * 연차 회계연도 시작일 (= 가장 최근 입사 anniversary)
+ * 연차는 입사일 기준으로 부여되므로 사용 집계도 달력연도가 아닌 이 날짜부터 해야 한다.
+ * 예: 입사 2019-07-09, 오늘 2026-07-20 → 2026-07-09
+ * @returns YYYY-MM-DD, 입사일 파싱 실패 시 해당 연도 1월 1일
+ */
+export function getLeaveYearCutoff(
+  joinDateStr: string | null | undefined,
+  baseDate: Date = new Date()
+): string {
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const joinDate = joinDateStr ? parseJoinDate(joinDateStr) : null;
+  if (!joinDate) return fmt(new Date(baseDate.getFullYear(), 0, 1));
+
+  const thisYear = new Date(baseDate.getFullYear(), joinDate.getMonth(), joinDate.getDate());
+  const cutoff =
+    thisYear <= baseDate
+      ? thisYear
+      : new Date(baseDate.getFullYear() - 1, joinDate.getMonth(), joinDate.getDate());
+
+  return fmt(cutoff < joinDate ? joinDate : cutoff);
+}
+
+/** 잔여 연차 계산에 넘기는 휴가 신청 (호출부에서 이 형태로 정규화) */
+export type AnnualLeaveUsageItem = {
+  leaveType: string;
+  status: string;
+  startDate: string;
+  days: number | string | null;
+};
+
+/**
+ * 연차 회계연도 시작일 이후 사용한 연차 일수 합계
+ */
+export function sumAnnualLeaveUsed(
+  items: AnnualLeaveUsageItem[],
+  cutoffStr: string
+): number {
+  const total = items
+    .filter(
+      (r) =>
+        ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
+        ANNUAL_LEAVE_USED_STATUSES.includes(r.status) &&
+        (r.startDate ?? "") >= cutoffStr
+    )
+    .reduce((s, r) => s + (Number(r.days) || 0), 0);
+  return Math.round(total * 1000) / 1000;
+}
+
+/**
+ * 잔여 연차 계산 표준 진입점 — 모든 화면은 이 함수를 사용한다.
+ * 법정 부여일수(입사일 anniversary 기준) + 수동 조정(granted_leaves) - 회계연도 내 사용일수
+ */
+export function calcAnnualLeaveSummary(params: {
+  hireDate: string | null | undefined;
+  items: AnnualLeaveUsageItem[];
+  adjustmentDays?: number;
+  baseDate?: Date;
+}): { granted: number; used: number; remaining: number; cutoff: string } {
+  const { hireDate, items, adjustmentDays = 0, baseDate = new Date() } = params;
+  const joinStr = hireDate ? hireDate.replace(/\./g, "-") : null;
+  const legal = joinStr ? getAnnualLeaveGranted(joinStr, baseDate.getFullYear()) : 15;
+  const cutoff = getLeaveYearCutoff(joinStr, baseDate);
+  const used = sumAnnualLeaveUsed(items, cutoff);
+  const granted = legal + adjustmentDays;
+  return {
+    granted,
+    used,
+    remaining: Math.round((granted - used) * 1000) / 1000,
+    cutoff,
+  };
 }
 
 /**
