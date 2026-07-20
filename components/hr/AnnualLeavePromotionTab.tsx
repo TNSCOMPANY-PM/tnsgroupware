@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermission } from "@/contexts/PermissionContext";
 import { usePlannedLeaves } from "@/contexts/PlannedLeavesContext";
@@ -8,6 +8,7 @@ import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { AnnualLeavePromotionWidget } from "@/components/leave/AnnualLeavePromotionWidget";
 import { AnnualLeavePlanModal } from "@/components/leave/AnnualLeavePlanModal";
 import { computePromotionStatus } from "@/utils/leavePromotionEngine";
+import { dbRowToLeaveRequest } from "@/utils/leaveMappers";
 import { formatWonKorean } from "@/utils/formatWon";
 import { format } from "date-fns";
 import { Shield, Check, Clock, DollarSign } from "lucide-react";
@@ -29,7 +30,6 @@ function employeeToUser(emp: Employee): User {
   };
 }
 
-const TODAY = new Date(2026, 2, 9);
 const AVG_DAILY_WAGE = 180000;
 
 export function AnnualLeavePromotionTab() {
@@ -38,16 +38,30 @@ export function AnnualLeavePromotionTab() {
   const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
   const [planModalOpen, setPlanModalOpen] = useState(false);
 
-  const leaveRequests: LeaveRequest[] = [];
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [grantedAdjustments, setGrantedAdjustments] = useState<
+    { user_id: string; year: number; days: number }[]
+  >([]);
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/leaves").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      fetch("/api/granted-leaves").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([leaves, grants]) => {
+      setLeaveRequests(Array.isArray(leaves) ? leaves.map(dbRowToLeaveRequest) : []);
+      setGrantedAdjustments(Array.isArray(grants) ? grants : []);
+    });
+  }, []);
+
   const statuses = useMemo(
     () =>
       computePromotionStatus(
         employees.map(employeeToUser),
         leaveRequests,
         plannedLeaveRequests,
-        TODAY
+        new Date(),
+        grantedAdjustments
       ),
-    [employees, leaveRequests, plannedLeaveRequests]
+    [employees, leaveRequests, plannedLeaveRequests, grantedAdjustments]
   );
 
   const myStatus = statuses.find((s) => s.userId === currentUserId);

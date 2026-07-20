@@ -4,13 +4,19 @@
  * - 2차 촉진: 소멸 2개월 전 (자동 지정)
  */
 
-import { addMonths, subMonths, isBefore, format } from "date-fns";
-import { getAnnualLeaveGranted } from "./leaveCalculator";
+import { addYears, subMonths, isBefore, format } from "date-fns";
+import {
+  getAnnualLeaveGranted,
+  getLeaveYearCutoff,
+  isPublicHoliday,
+  ANNUAL_LEAVE_TYPES,
+  ANNUAL_LEAVE_USED_STATUSES,
+} from "./leaveCalculator";
 import type { LeaveRequest } from "@/constants/leave";
 import type { User } from "@/constants/users";
 
-const TODAY = new Date(2026, 2, 9); // 2026-03-09
-const ANNUAL_LEAVE_TYPES = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
+/** 촉진 계산에서 사용으로 집계하는 상태 (제출된 사용 계획도 포함) */
+const PROMOTION_USED_STATUSES = [...ANNUAL_LEAVE_USED_STATUSES, "PLANNED"];
 
 export interface PromotionStatus {
   userId: string;
@@ -28,14 +34,18 @@ export interface PromotionStatus {
   autoDesignatedDates?: string[];
 }
 
-/** 해당 연도 연차 소멸일: 다음 해 12월 31일 (근로기준법) */
-export function getExpirationDate(year: number): Date {
-  return new Date(year + 1, 11, 31);
-}
-
-/** 데모용: 촉진 시나리오 검증을 위해 소멸일을 8개월 후로 단축 (실제 서비스에서는 getExpirationDate 사용) */
-export function getExpirationForPromotionDemo(year: number, baseDate: Date): Date {
-  return addMonths(baseDate, 8);
+/**
+ * 연차 소멸일 = 다음 입사 anniversary 전날
+ * 이 회사는 회계연도가 아닌 입사일 기준으로 연차를 부여하므로,
+ * anniversary에 부여된 연차는 다음 anniversary에 소멸한다.
+ */
+export function getExpirationDate(
+  hireDate: string | null | undefined,
+  baseDate: Date = new Date()
+): Date {
+  const cutoffStr = getLeaveYearCutoff(hireDate, baseDate);
+  const [y, m, d] = cutoffStr.split("-").map(Number);
+  return addYears(new Date(y, m - 1, d), 1);
 }
 
 /** 1차 촉진 시작일 (소멸 6개월 전) */
@@ -48,38 +58,32 @@ export function getSecondPromotionStart(expiration: Date): Date {
   return subMonths(expiration, 2);
 }
 
-/** 사용 연차 일수 계산 */
-function getUsedDays(leaveRequests: LeaveRequest[], userId: string, year: number): number {
-  return leaveRequests
+/** 연차연도(입사일 anniversary) 시작 이후 사용 연차 일수 계산 */
+function getUsedDays(leaveRequests: LeaveRequest[], userId: string, cutoffStr: string): number {
+  const total = leaveRequests
     .filter(
       (r) =>
         r.applicantId === userId &&
-        (r.status === "승인_완료" || r.status === "PLANNED" || r.status === "CANCEL_REQUESTED") &&
+        PROMOTION_USED_STATUSES.includes(r.status) &&
         ANNUAL_LEAVE_TYPES.includes(r.leaveType) &&
-        r.startDate.startsWith(String(year))
+        r.startDate >= cutoffStr
     )
-    .reduce((s, r) => s + r.days, 0);
+    .reduce((s, r) => s + (Number(r.days) || 0), 0);
+  return Math.round(total * 1000) / 1000;
 }
 
-/** 잔여 영업일 목록 (오늘 이후, 주말/공휴일 제외) */
-function getUpcomingBusinessDays(count: number, from: Date): string[] {
+/** 잔여 영업일 목록 (기준일 이후, 주말/공휴일 제외) */
+function getUpcomingBusinessDays(count: number, from: Date, until: Date): string[] {
   const result: string[] = [];
   const d = new Date(from);
-  while (result.length < count) {
+  while (result.length < count && d < until) {
     const day = d.getDay();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    const str = `${yyyy}-${mm}-${dd}`;
     const isWeekend = day === 0 || day === 6;
-    const isHoliday2026 = [
-      "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18",
-      "2026-03-01", "2026-03-02", "2026-05-05", "2026-05-24", "2026-05-25",
-      "2026-06-06", "2026-07-17", "2026-08-15", "2026-08-17",
-      "2026-09-24", "2026-09-25", "2026-09-26", "2026-10-03", "2026-10-05",
-      "2026-10-09", "2026-12-25",
-    ].includes(str);
-    if (!isWeekend && !isHoliday2026) result.push(str);
+    if (!isWeekend && !isPublicHoliday(d)) {
+      result.push(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      );
+    }
     d.setDate(d.getDate() + 1);
   }
   return result;
@@ -92,23 +96,32 @@ export function computePromotionStatus(
   users: User[],
   leaveRequests: LeaveRequest[],
   plannedLeaveRequests: LeaveRequest[],
-  baseDate: Date = TODAY
+  baseDate: Date = new Date(),
+  /** granted_leaves 수동 조정 (user_id, year, days) */
+  grantedAdjustments: { user_id: string; year: number; days: number }[] = []
 ): PromotionStatus[] {
   const year = baseDate.getFullYear();
   const allRequests = [...leaveRequests, ...plannedLeaveRequests];
-  const expiration = getExpirationForPromotionDemo(year, baseDate);
-  const firstStart = subMonths(expiration, 6);
-  const secondStart = subMonths(expiration, 2);
 
   return users
     .filter((u) => u.joinDate && u.employmentStatus === "재직")
     .map((user) => {
       const joinStr = user.joinDate!.replace(/\./g, "-");
-      const granted = getAnnualLeaveGranted(joinStr, year);
-      const used = getUsedDays(allRequests, user.id, year);
-      const remaining = Math.max(0, granted - used);
+      // 소멸일·부여일수·사용집계 모두 입사일 anniversary 기준 (달력연도 아님)
+      const cutoffStr = getLeaveYearCutoff(joinStr, baseDate);
+      const expiration = getExpirationDate(joinStr, baseDate);
+      const firstStart = subMonths(expiration, 6);
+      const secondStart = subMonths(expiration, 2);
+
+      const adjustment = grantedAdjustments
+        .filter((g) => g.user_id === user.id && g.year === year)
+        .reduce((s, g) => s + (Number(g.days) || 0), 0);
+      const granted = getAnnualLeaveGranted(joinStr, year) + adjustment;
+      const used = getUsedDays(allRequests, user.id, cutoffStr);
+      const remaining = Math.max(0, Math.round((granted - used) * 1000) / 1000);
+
       const planSubmitted = plannedLeaveRequests.some(
-        (r) => r.applicantId === user.id && r.startDate.startsWith(String(year))
+        (r) => r.applicantId === user.id && r.startDate >= cutoffStr
       );
 
       const inFirst = !isBefore(baseDate, firstStart) && isBefore(baseDate, expiration);
@@ -116,7 +129,7 @@ export function computePromotionStatus(
 
       let autoDesignatedDates: string[] | undefined;
       if (inSecond && remaining > 0 && !planSubmitted) {
-        autoDesignatedDates = getUpcomingBusinessDays(remaining, baseDate);
+        autoDesignatedDates = getUpcomingBusinessDays(remaining, baseDate, expiration);
       }
 
       return {

@@ -22,7 +22,7 @@ const LabourLawVerificationDashboard = dynamic(() => import("@/components/hr/Lab
 const ContractSendTab = dynamic(() => import("@/components/hr/ContractSendTab").then((m) => ({ default: m.ContractSendTab })), { ssr: false });
 const ContractManageTab = dynamic(() => import("@/components/hr/ContractManageTab").then((m) => ({ default: m.ContractManageTab })), { ssr: false });
 const CertificateHistoryTab = dynamic(() => import("@/components/hr/CertificateHistoryTab").then((m) => ({ default: m.CertificateHistoryTab })), { ssr: false });
-import { getAnnualLeaveGranted } from "@/utils/leaveCalculator";
+import { calcAnnualLeaveSummary } from "@/utils/leaveCalculator";
 import { createEmployee } from "./actions";
 import { useSearchParams } from "next/navigation";
 import { usePermission } from "@/contexts/PermissionContext";
@@ -217,19 +217,24 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
 
   const leaveMap = useMemo(() => {
     const year = new Date().getFullYear();
-    const annualTypes = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
     const map: Record<string, number> = {};
     for (const emp of employees) {
       if (emp.role === "C레벨") continue;
-      const joinDateStr = emp.hire_date ? (emp.hire_date as string).replace(/\./g, "-") : null;
-      const legalGranted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
       const adjustment = grantedLeaves
         .filter(g => g.user_id === emp.id && g.year === year)
         .reduce((s, g) => s + (Number(g.days) || 0), 0);
-      const used = leaveRequests
-        .filter(r => r.applicant_id === emp.id && (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") && annualTypes.includes(r.leave_type))
-        .reduce((s, r) => s + (Number(r.days) || 0), 0);
-      map[emp.id] = legalGranted + adjustment - used;
+      map[emp.id] = calcAnnualLeaveSummary({
+        hireDate: emp.hire_date as string | null,
+        adjustmentDays: adjustment,
+        items: leaveRequests
+          .filter(r => r.applicant_id === emp.id)
+          .map(r => ({
+            leaveType: r.leave_type,
+            status: r.status,
+            startDate: r.start_date,
+            days: r.days,
+          })),
+      }).remaining;
     }
     return map;
   }, [employees, leaveRequests, grantedLeaves]);
@@ -417,11 +422,10 @@ function MembersTab({ onSwitchToLeaveTab }: { onSwitchToLeaveTab?: () => void })
   );
 }
 
-const ANNUAL_LEAVE_TYPES_SUMMARY = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
-
 function AnnualLeaveSummaryTab() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<{ applicant_id: string; leave_type: string; days: number; status: string; start_date: string }[]>([]);
+  const [grantedLeaves, setGrantedLeaves] = useState<{ user_id: string; days: number; year: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -430,25 +434,35 @@ function AnnualLeaveSummaryTab() {
     Promise.all([
       fetch("/api/employees").then((r) => r.json()).then((d) => Array.isArray(d) ? d : []).catch(() => []),
       fetch("/api/leaves").then((r) => r.json()).then((d) => Array.isArray(d) ? d : []).catch(() => []),
-    ]).then(([emps, leaves]) => {
+      fetch("/api/granted-leaves").then((r) => r.json()).then((d) => Array.isArray(d) ? d : []).catch(() => []),
+    ]).then(([emps, leaves, grants]) => {
       setEmployees(emps);
       setLeaveRequests(leaves);
+      setGrantedLeaves(grants);
       setLoading(false);
     });
   }, []);
 
   const rows = employees.filter((emp) => emp.emp_number !== "REDACTED_MASTER_EMP").map((emp) => {
-    const joinDateStr = emp.hire_date ? (emp.hire_date as string).replace(/\./g, "-") : null;
-    const granted = joinDateStr ? getAnnualLeaveGranted(joinDateStr, year) : 15;
-    const used = leaveRequests
-      .filter((r) =>
-        r.applicant_id === emp.id &&
-        (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") &&
-        ANNUAL_LEAVE_TYPES_SUMMARY.includes(r.leave_type) &&
-        (r.start_date ?? "").startsWith(String(year))
-      )
-      .reduce((s, r) => s + (Number(r.days) || 0), 0);
-    const remaining = granted - used;
+    // 과거 연도 조회 시에는 해당 연도 말일을 기준일로 사용
+    const now = new Date();
+    const baseDate = year === now.getFullYear() ? now : new Date(year, 11, 31);
+    const adjustment = grantedLeaves
+      .filter((g) => g.user_id === emp.id && g.year === year)
+      .reduce((s, g) => s + (Number(g.days) || 0), 0);
+    const { granted, used, remaining } = calcAnnualLeaveSummary({
+      hireDate: emp.hire_date as string | null,
+      adjustmentDays: adjustment,
+      baseDate,
+      items: leaveRequests
+        .filter((r) => r.applicant_id === emp.id)
+        .map((r) => ({
+          leaveType: r.leave_type,
+          status: r.status,
+          startDate: r.start_date,
+          days: r.days,
+        })),
+    });
     return { emp, granted, used, remaining };
   }).sort((a, b) => a.remaining - b.remaining);
 

@@ -103,23 +103,28 @@ export function ProfileCardSheet({
           fetch("/api/leaves").then(r => r.json()).then(d => Array.isArray(d) ? d : []),
           fetch("/api/granted-leaves").then(r => r.json()).then(d => Array.isArray(d) ? d : []),
         ]);
-        const { getAnnualLeaveGranted } = await import("@/utils/leaveCalculator");
+        const { calcAnnualLeaveSummary } = await import("@/utils/leaveCalculator");
         const year = new Date().getFullYear();
         const joinDate = profile.employment.joinDate;
         // "2021년 1월 25일" or "2021. 1. 25" or "2021-01-25" 모두 대응
         const joinStr = joinDate
           ?.replace(/년\s*/g, "-").replace(/월\s*/g, "-").replace(/일/g, "")
           .replace(/\.\s*/g, "-").replace(/-$/, "").trim() ?? "";
-        const legal = joinStr ? getAnnualLeaveGranted(joinStr, year) : 15;
         const adj = grantsRes.filter((g: { user_id: string; year: number }) => g.user_id === profile.id && g.year === year)
           .reduce((s: number, g: { days: number }) => s + Number(g.days), 0);
-        const annualTypes = ["annual", "half_am", "half_pm", "quarter_am", "quarter_pm", "hourly"];
-        const used = leavesRes
-          .filter((r: { applicant_id: string; status: string; leave_type: string }) =>
-            r.applicant_id === profile.id && (r.status === "승인_완료" || r.status === "CANCEL_REQUESTED") && annualTypes.includes(r.leave_type))
-          .reduce((s: number, r: { days: number }) => s + (Number(r.days) || 0), 0);
-        const granted = legal + adj;
-        setDynamicLeave({ granted, used, remaining: granted - used });
+        const { granted, used, remaining } = calcAnnualLeaveSummary({
+          hireDate: joinStr,
+          adjustmentDays: adj,
+          items: leavesRes
+            .filter((r: { applicant_id: string }) => r.applicant_id === profile.id)
+            .map((r: { leave_type: string; status: string; start_date: string; days: number }) => ({
+              leaveType: r.leave_type,
+              status: r.status,
+              startDate: r.start_date,
+              days: r.days,
+            })),
+        });
+        setDynamicLeave({ granted, used, remaining });
       } catch { /* ignore */ }
     })();
   }, [open, profile]);
