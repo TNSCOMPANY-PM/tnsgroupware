@@ -48,8 +48,6 @@ import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import type { Employee } from "@/types/employee";
 import { usePlannedLeaves } from "@/contexts/PlannedLeavesContext";
 import {
-  getAnnualLeaveGranted,
-  getAnnualLeaveRemainingAllowMinus,
   countBusinessDaysExcludingHolidays,
   getEndDateForBusinessDays,
   calcAnnualLeaveSummary,
@@ -286,19 +284,16 @@ function LeavePlanTab({ currentUserId }: { currentUserId: string }) {
       .catch(() => {});
   }, []);
 
-  const myApprovedDays = storedLeaveRequests
-    .filter(
-      (r) =>
-        r.applicantId === currentUserId &&
-        r.status === "승인_완료" &&
-        ANNUAL_LEAVE_TYPES.includes(r.leaveType)
-    )
-    .reduce((s, r) => s + r.days, 0);
   const grantedDays = getGrantedDaysForUser(currentUserId, filterYear);
-  const remainingDays =
-    (joinDateStr
-      ? getAnnualLeaveRemainingAllowMinus(joinDateStr, filterYear, myApprovedDays)
-      : Math.max(0, 15 - myApprovedDays)) + grantedDays;
+  const nowForPlan = new Date();
+  const remainingDays = calcAnnualLeaveSummary({
+    hireDate: joinDateStr || null,
+    adjustmentDays: grantedDays,
+    baseDate: filterYear === nowForPlan.getFullYear() ? nowForPlan : new Date(filterYear, 11, 31),
+    items: storedLeaveRequests
+      .filter((r) => r.applicantId === currentUserId)
+      .map((r) => ({ leaveType: r.leaveType, status: r.status, startDate: r.startDate, days: r.days })),
+  }).remaining;
 
   const myPlans = plannedLeaveRequests.filter((r) => r.applicantId === currentUserId);
 
@@ -469,23 +464,17 @@ function LeaveOverviewTab({
   const joinDateStr = currentEmployee?.hire_date?.replace(/-/g, ".") ?? "";
   const { data: employees } = useSupabaseRealtime<Employee>("employees", {});
 
-  const annualGranted = joinDateStr
-    ? getAnnualLeaveGranted(joinDateStr, filterYear)
-    : 15;
-  const myApprovedDays = leaveRequests
-    .filter(
-      (r) =>
-        r.applicantId === currentUserId &&
-        r.status === "승인_완료" &&
-        ANNUAL_LEAVE_TYPES.includes(r.leaveType)
-    )
-    .reduce((s, r) => s + r.days, 0);
   const grantedDays = getGrantedDaysForUser(currentUserId, filterYear);
-  /** 마이너스 연차 허용 (당겨 쓰기 가능) + C레벨 특별 부여분 */
-  const annualRemaining =
-    (joinDateStr
-      ? getAnnualLeaveRemainingAllowMinus(joinDateStr, filterYear, myApprovedDays)
-      : annualGranted - myApprovedDays) + grantedDays;
+  const nowForRemaining = new Date();
+  /** 마이너스 연차 허용 (당겨 쓰기 가능) + 수동 조정분 — 입사일 anniversary 기준 실사용 집계 */
+  const annualRemaining = calcAnnualLeaveSummary({
+    hireDate: joinDateStr || null,
+    adjustmentDays: grantedDays,
+    baseDate: filterYear === nowForRemaining.getFullYear() ? nowForRemaining : new Date(filterYear, 11, 31),
+    items: leaveRequests
+      .filter((r) => r.applicantId === currentUserId)
+      .map((r) => ({ leaveType: r.leaveType, status: r.status, startDate: r.startDate, days: r.days })),
+  }).remaining;
 
   const myRequests = leaveRequests.filter((r) => r.applicantId === currentUserId);
   const filteredRecords = useMemo(() => {
